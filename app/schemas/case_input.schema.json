@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "case_input.schema.json",
+  "title": "Case Input",
+  "description": "Officer input for a Source of Wealth screening case.",
+  "type": "object",
+  "required": [
+    "case_ref",
+    "age",
+    "nationality",
+    "country_of_residence",
+    "occupation",
+    "industry",
+    "career_start_year",
+    "pep_status",
+    "declared_net_worth_sgd",
+    "expected_aum_sgd",
+    "asset_composition",
+    "wealth_countries",
+    "declaration_text",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "case_ref": {
+      "type": "string",
+      "description": "Unique case reference identifier (e.g. SOW-2026-001)."
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 18,
+      "maximum": 120,
+      "description": "Client's current age in years."
+    },
+    "nationality": {
+      "type": "string",
+      "description": "Client's nationality."
+    },
+    "country_of_residence": {
+      "type": "string",
+      "description": "ISO country code or full name of country of residence."
+    },
+    "occupation": {
+      "type": "string",
+      "description": "Client's current occupation or job title."
+    },
+    "industry": {
+      "type": "string",
+      "description": "Industry sector the client works in."
+    },
+    "career_start_year": {
+      "type": "integer",
+      "minimum": 1900,
+      "description": "Year the client began their career."
+    },
+    "pep_status": {
+      "type": "string",
+      "enum": ["none", "pep", "family_member", "close_associate"],
+      "description": "Politically Exposed Person classification."
+    },
+    "declared_net_worth_sgd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Client's declared total net worth in Singapore Dollars."
+    },
+    "expected_aum_sgd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Expected assets under management in Singapore Dollars."
+    },
+    "asset_composition": {
+      "type": "object",
+      "description": "Breakdown of assets by category (percentages should sum to 100).",
+      "required": ["property_pct", "cpf_pct", "equities_pct", "offshore_pct", "cash_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "property_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cpf_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "equities_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "offshore_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cash_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "wealth_countries": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of countries where wealth is held or sourced."
+    },
+    "declaration_text": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Free-text Source of Wealth declaration from the client."
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Documentary evidence items provided by the client.",
+      "items": {
+        "type": "object",
+        "required": ["doc_type", "year", "amount_sgd", "supports_source"],
+        "additionalProperties": false,
+        "properties": {
+          "doc_type": {
+            "type": "string",
+            "description": "Type of document (e.g. payslip, bank_statement, title_deed)."
+          },
+          "year": {
+            "type": "integer",
+            "description": "Year the document relates to."
+          },
+          "amount_sgd": {
+            "type": ["number", "null"],
+            "description": "Monetary amount in SGD shown in the document, or null."
+          },
+          "supports_source": {
+            "type": "string",
+            "description": "The source_type this document evidences."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# prompt_version: declaration-v1
+# TODO(ai owner): Complete this prompt template.
+# Replace the placeholder below with a carefully engineered prompt that:
+#   - Instructs the model to read the declaration and extract structured rows
+#   - Requests all fields required by declaration.schema.json
+#   - Instructs the model to return ONLY valid JSON (no prose, no markdown)
+#   - Handles cases where amounts or dates are unstated (use null)
+
+You are a compliance analyst specialising in Source of Wealth reviews.
+
+Read the Source of Wealth declaration below and extract every wealth source
+into a structured JSON object that conforms to declaration.schema.json.
+Return ONLY the JSON object. Do not include any text outside the JSON.
+
+For each source, extract:
+- source_type: one of employment, business_ownership, property, investment,
+  inheritance, gift, other
+- description: brief description of the source
+- amount_sgd: amount in Singapore Dollars (null if not stated)
+- start_year: year the source began (null if not stated)
+- end_year: year the source ended, or null if ongoing or not stated
+- jurisdiction: country code or name (null if not stated)
+- counterparty: employer, buyer, or other party name (null if not stated)
+- evidence_sentence: verbatim sentence from the declaration supporting this source
+
+Declaration text:
+{declaration_text}

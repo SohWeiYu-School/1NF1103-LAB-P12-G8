@@ -1,0 +1,83 @@
+{
+  "description": "Straightforward tech employee with career-consistent wealth — stub logic returns PASSED",
+  "case_input": {
+    "case_ref": "SOW-GOLDEN-001",
+    "age": 45,
+    "nationality": "Singaporean",
+    "country_of_residence": "Singapore",
+    "occupation": "Software Engineer",
+    "industry": "Technology",
+    "career_start_year": 2005,
+    "pep_status": "none",
+    "declared_net_worth_sgd": 2000000,
+    "expected_aum_sgd": 1500000,
+    "asset_composition": {
+      "property_pct": 40,
+      "cpf_pct": 25,
+      "equities_pct": 20,
+      "offshore_pct": 5,
+      "cash_pct": 10
+    },
+    "wealth_countries": ["SG"],
+    "declaration_text": "Twenty years of technology employment in Singapore.",
+    "evidence": [
+      {
+        "doc_type": "payslip",
+        "year": 2024,
+        "amount_sgd": 180000,
+        "supports_source": "employment"
+      }
+    ]
+  },
+  "benchmark": {
+    "wealth_curve": [
+      {"year": 2005, "low": 10000, "mid": 15000, "high": 20000},
+      {"year": 2025, "low": 1500000, "mid": 2000000, "high": 2600000}
+    ],
+    "income_range": {"low": 100000, "high": 220000},
+    "asset_mix": {
+      "property_pct": 35,
+      "cpf_pct": 28,
+      "equities_pct": 22,
+      "offshore_pct": 5,
+      "cash_pct": 10
+    },
+    "liquidity_range": {"low_pct": 10, "high_pct": 25},
+    "max_accumulation_per_year_sgd": 180000,
+    "expected_counterparties": ["Singapore banks"],
+    "expected_jurisdictions": ["SG"],
+    "sector_typologies": []
+  },
+  "declaration": {
+    "sources": [
+      {
+        "source_type": "employment",
+        "description": "Software engineering salary",
+        "amount_sgd": 1200000,
+        "start_year": 2005,
+        "end_year": null,
+        "jurisdiction": "SG",
+        "counterparty": "Tech companies",
+        "evidence_sentence": "Twenty years of technology employment in Singapore."
+      }
+    ]
+  },
+  "policy": {
+    "policy_version": "test-1.0",
+    "thresholds": {
+      "wealth_multiple_limit": 3.0,
+      "liquidity_multiple_limit": 2.0,
+      "velocity_multiple_limit": 2.0,
+      "unknown_counterparty_limit": 1,
+      "unknown_jurisdiction_limit": 1,
+      "min_ai_confidence": 0.7
+    },
+    "outcome_rules": {
+      "serious_risk_min_breaches": 4,
+      "risky_min_breaches": 2,
+      "manual_review_min_breaches": 1
+    },
+    "document_map": {}
+  },
+  "expected_outcome": "PASSED"
+}

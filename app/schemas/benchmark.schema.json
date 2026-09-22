@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "benchmark.schema.json",
+  "title": "Benchmark",
+  "description": "AI-generated career benchmark and sector typologies (Call 1 output).",
+  "type": "object",
+  "required": [
+    "wealth_curve",
+    "income_range",
+    "asset_mix",
+    "liquidity_range",
+    "max_accumulation_per_year_sgd",
+    "expected_counterparties",
+    "expected_jurisdictions",
+    "sector_typologies"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "wealth_curve": {
+      "type": "array",
+      "description": "Expected wealth trajectory in SGD — low/mid/high band per year.",
+      "items": {
+        "type": "object",
+        "required": ["year", "low", "mid", "high"],
+        "additionalProperties": false,
+        "properties": {
+          "year": { "type": "integer", "description": "Calendar year." },
+          "low": { "type": "number", "minimum": 0, "description": "Lower bound in SGD." },
+          "mid": { "type": "number", "minimum": 0, "description": "Mid-point estimate in SGD." },
+          "high": { "type": "number", "minimum": 0, "description": "Upper bound in SGD." }
+        }
+      }
+    },
+    "income_range": {
+      "type": "object",
+      "description": "Expected annual income range in SGD.",
+      "required": ["low", "high"],
+      "additionalProperties": false,
+      "properties": {
+        "low": { "type": "number", "minimum": 0 },
+        "high": { "type": "number", "minimum": 0 }
+      }
+    },
+    "asset_mix": {
+      "type": "object",
+      "description": "Expected asset allocation percentages for this career profile.",
+      "required": ["property_pct", "cpf_pct", "equities_pct", "offshore_pct", "cash_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "property_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cpf_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "equities_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "offshore_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cash_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "liquidity_range": {
+      "type": "object",
+      "description": "Expected liquidity as a percentage of total wealth.",
+      "required": ["low_pct", "high_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "low_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "high_pct": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "max_accumulation_per_year_sgd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum plausible annual wealth accumulation in SGD for this profile."
+    },
+    "expected_counterparties": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Expected types of counterparties for this career and industry."
+    },
+    "expected_jurisdictions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Expected ISO country codes where wealth would typically be held."
+    },
+    "sector_typologies": {
+      "type": "array",
+      "description": "Known abuse typologies relevant to this sector.",
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "indicators"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "description": "Short identifier for the typology." },
+          "description": { "type": "string", "description": "Human-readable description." },
+          "indicators": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Observable indicators of this typology."
+          }
+        }
+      }
+    }
+  }
+}

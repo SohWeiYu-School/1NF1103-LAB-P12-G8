@@ -1,0 +1,28 @@
+# prompt_version: benchmark-v1
+# TODO(ai owner): Complete this prompt template.
+# Replace the placeholder below with a carefully engineered prompt that:
+#   - Asks the model for a career-based wealth benchmark in Singapore context
+#   - Requests all fields required by benchmark.schema.json
+#   - Instructs the model to return ONLY valid JSON (no prose, no markdown)
+#   - Sets the expectation that wealth_curve covers the full career span
+
+You are a financial analyst specialising in Singapore wealth profiles.
+
+Given the career profile below, estimate the expected wealth trajectory and
+risk typologies for a person with these characteristics. Return ONLY a JSON
+object that conforms to benchmark.schema.json. Do not include any text
+outside the JSON object.
+
+Career profile:
+{payload_json}
+
+Required output fields:
+- wealth_curve: array of {year, low, mid, high} objects in SGD covering
+  career_start_year to current year in 5-year steps
+- income_range: {low, high} annual income in SGD
+- asset_mix: {property_pct, cpf_pct, equities_pct, offshore_pct, cash_pct}
+- liquidity_range: {low_pct, high_pct} of total wealth
+- max_accumulation_per_year_sgd: number
+- expected_counterparties: array of strings
+- expected_jurisdictions: array of ISO country codes
+- sector_typologies: array of {name, description, indicators} objects
