@@ -1,0 +1,22 @@
+{
+  "policy_version": "2026.1",
+  "thresholds": {
+    "wealth_multiple_limit": 3.0,
+    "liquidity_multiple_limit": 2.0,
+    "velocity_multiple_limit": 2.0,
+    "unknown_counterparty_limit": 1,
+    "unknown_jurisdiction_limit": 1,
+    "min_ai_confidence": 0.7
+  },
+  "outcome_rules": {
+    "serious_risk_min_breaches": 4,
+    "risky_min_breaches": 2,
+    "manual_review_min_breaches": 1
+  },
+  "document_map": {
+    "unaffordable_purchase": "Title deeds and financing records",
+    "unexpected_offshore_entity": "Incorporation documents and statement of purpose",
+    "unexplained_equity": "Share sale agreement and completion statement",
+    "unsupported_inheritance": "Grant of probate and estate distribution schedule"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "case_ref": "SOW-2026-001",
+  "age": 45,
+  "nationality": "Singaporean",
+  "country_of_residence": "Singapore",
+  "occupation": "Software Engineer",
+  "industry": "Technology",
+  "career_start_year": 2005,
+  "pep_status": "none",
+  "declared_net_worth_sgd": 2000000,
+  "expected_aum_sgd": 1500000,
+  "asset_composition": {
+    "property_pct": 40,
+    "cpf_pct": 25,
+    "equities_pct": 20,
+    "offshore_pct": 5,
+    "cash_pct": 10
+  },
+  "wealth_countries": ["SG"],
+  "declaration_text": "My wealth primarily derives from twenty years of employment as a software engineer at technology companies in Singapore. I have accumulated savings through salary and bonuses, invested in local equities and CPF, and purchased a HDB flat in 2010 which has appreciated in value.",
+  "evidence": [
+    {
+      "doc_type": "payslip",
+      "year": 2024,
+      "amount_sgd": 180000,
+      "supports_source": "employment"
+    },
+    {
+      "doc_type": "cpf_statement",
+      "year": 2024,
+      "amount_sgd": 350000,
+      "supports_source": "employment"
+    }
+  ]
+}
