@@ -1,12 +1,16 @@
 {
-  "policy_version": "2026.1",
+  "policy_version": "2026.2",
   "thresholds": {
     "wealth_multiple_limit": 3.0,
     "liquidity_multiple_limit": 2.0,
     "velocity_multiple_limit": 2.0,
     "unknown_counterparty_limit": 1,
     "unknown_jurisdiction_limit": 1,
-    "min_ai_confidence": 0.7
+    "min_ai_confidence": 0.7,
+    "typology_match_min_ratio": 0.6,
+    "typology_full_match_severity": 4,
+    "typology_partial_match_severity": 2,
+    "typology_full_match_counts_as_breach": true
   },
   "outcome_rules": {
     "serious_risk_min_breaches": 4,

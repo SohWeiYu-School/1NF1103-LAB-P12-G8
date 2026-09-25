@@ -1,20 +1,22 @@
-# prompt_version: benchmark-v1
-# TODO(ai owner): Complete this prompt template.
-# Replace the placeholder below with a carefully engineered prompt that:
-#   - Asks the model for a career-based wealth benchmark in Singapore context
-#   - Requests all fields required by benchmark.schema.json
-#   - Instructs the model to return ONLY valid JSON (no prose, no markdown)
-#   - Sets the expectation that wealth_curve covers the full career span
+# prompt_version: benchmark-v2
+# Updated: added sector_typologies instruction section.
+# Changing this version invalidates all cached benchmark responses.
 
 You are a financial analyst specialising in Singapore wealth profiles.
 
-Given the career profile below, estimate the expected wealth trajectory and
-risk typologies for a person with these characteristics. Return ONLY a JSON
-object that conforms to benchmark.schema.json. Do not include any text
-outside the JSON object.
+Given the career profile below, produce two things: (1) an expected wealth
+benchmark for this career, and (2) a description of how this person's industry
+is typically abused for financial crime, expressed as named typologies.
+
+Return ONLY a JSON object that conforms to benchmark.schema.json. Do not
+include any text outside the JSON object.
 
 Career profile:
 {payload_json}
+
+---
+
+SECTION 1 — WEALTH BENCHMARK
 
 Required output fields:
 - wealth_curve: array of {year, low, mid, high} objects in SGD covering
@@ -25,4 +27,40 @@ Required output fields:
 - max_accumulation_per_year_sgd: number
 - expected_counterparties: array of strings
 - expected_jurisdictions: array of ISO country codes
-- sector_typologies: array of {name, description, indicators} objects
+
+---
+
+SECTION 2 — SECTOR TYPOLOGIES
+
+Describe how the industry named in the career profile is typically abused for
+financial crime. Return 1 to 3 typologies in the sector_typologies array.
+
+You have been given no information about any individual client. You are
+describing patterns associated with this industry in general.
+
+For each typology, you must use ONLY the following five indicator names —
+no other values are permitted in the "indicator" field:
+
+  offshore_entity_present      — wealth held in an unexpected jurisdiction
+  counterparty_unnamed         — a wealth source with no named counterparty
+  rapid_accumulation           — wealth grew faster than the career could explain
+  unvalued_source_present      — a wealth source stated with no amount
+  related_party_transaction    — a transaction involving family or a close associate
+
+Each indicator object has two fields:
+- "indicator": one of the five names above (exactly as written)
+- "weight": either "core" or "supporting"
+  - core      = the pattern does not hold without this indicator
+  - supporting = a corroborating signal that strengthens the pattern
+
+Include 2 to 5 indicators per typology.
+
+For each typology also provide:
+- typology_id: lowercase, underscores only (e.g. "trade_based_laundering")
+- name: plain-English name, 80 characters maximum
+- description: exactly two sentences describing the industry abuse pattern
+- typical_documents: 1 to 4 document types typically sought during review
+
+Do NOT include any risk rating, risk score, likelihood estimate, outcome
+assessment, or recommended action in any field. You are characterising an
+industry pattern, not assessing this client.

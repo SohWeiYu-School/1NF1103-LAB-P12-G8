@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "typology_response.schema.json",
+  "title": "TypologyResponse",
+  "description": "AI output for sector typology analysis (no wealth benchmark).",
+  "type": "object",
+  "required": ["sector_typologies", "expected_jurisdictions", "max_accumulation_per_year_sgd"],
+  "additionalProperties": false,
+  "properties": {
+    "expected_jurisdictions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "ISO country codes where wealth is normally held for this industry."
+    },
+    "max_accumulation_per_year_sgd": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum plausible annual accumulation in SGD for this industry."
+    },
+    "sector_typologies": {
+      "type": "array",
+      "description": "Known abuse typologies for this sector. 1 to 3 items.",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["typology_id", "name", "description", "indicators", "typical_documents"],
+        "additionalProperties": false,
+        "properties": {
+          "typology_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string"
+          },
+          "indicators": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": ["indicator", "weight"],
+              "additionalProperties": false,
+              "properties": {
+                "indicator": {
+                  "type": "string",
+                  "enum": [
+                    "offshore_entity_present",
+                    "counterparty_unnamed",
+                    "rapid_accumulation",
+                    "unvalued_source_present",
+                    "related_party_transaction"
+                  ]
+                },
+                "weight": {
+                  "type": "string",
+                  "enum": ["core", "supporting"]
+                }
+              }
+            }
+          },
+          "typical_documents": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

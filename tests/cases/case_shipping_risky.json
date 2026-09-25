@@ -1,0 +1,116 @@
+{
+  "description": "Shipping manager, 1 typology full match — should reach MANUAL_REVIEW",
+  "case_input": {
+    "case_ref": "SOW-GOLDEN-002",
+    "age": 44,
+    "nationality": "Singaporean",
+    "country_of_residence": "Singapore",
+    "occupation": "Logistics Manager",
+    "industry": "Shipping and freight",
+    "career_start_year": 2005,
+    "pep_status": "none",
+    "declared_net_worth_sgd": 3500000,
+    "expected_aum_sgd": 3000000,
+    "asset_composition": {
+      "property_pct": 26,
+      "cpf_pct": 10,
+      "equities_pct": 12,
+      "offshore_pct": 52,
+      "cash_pct": 0
+    },
+    "wealth_countries": ["SG", "CY"],
+    "declaration_text": "Shipping logistics career with offshore investment and property purchase.",
+    "evidence": [
+      {"doc_type": "payslip", "year": 2024, "amount_sgd": 120000, "supports_source": "employment"}
+    ]
+  },
+  "benchmark": {
+    "wealth_curve": [
+      {"year": 2005, "low": 50000, "mid": 75000, "high": 100000},
+      {"year": 2010, "low": 150000, "mid": 200000, "high": 250000},
+      {"year": 2015, "low": 300000, "mid": 400000, "high": 500000},
+      {"year": 2020, "low": 500000, "mid": 650000, "high": 800000},
+      {"year": 2023, "low": 650000, "mid": 850000, "high": 1050000}
+    ],
+    "income_range": {"low": 80000, "high": 120000},
+    "asset_mix": {
+      "property_pct": 50,
+      "cpf_pct": 20,
+      "equities_pct": 10,
+      "offshore_pct": 10,
+      "cash_pct": 10
+    },
+    "liquidity_range": {"low_pct": 10, "high_pct": 20},
+    "max_accumulation_per_year_sgd": 50000,
+    "expected_counterparties": ["shipping companies", "freight forwarders", "port authorities", "customs brokers"],
+    "expected_jurisdictions": ["SG", "CN", "MY", "ID"],
+    "sector_typologies": [
+      {
+        "typology_id": "trade_based_money_laundering",
+        "name": "Trade-Based Money Laundering",
+        "description": "Shipping can be used to move funds through over-invoicing. The surplus accumulates in offshore entities.",
+        "typical_documents": ["invoices", "bills of lading"],
+        "indicators": [
+          {"indicator": "offshore_entity_present", "weight": "core"},
+          {"indicator": "counterparty_unnamed", "weight": "supporting"}
+        ]
+      }
+    ]
+  },
+  "declaration": {
+    "sources": [
+      {
+        "source_type": "employment",
+        "description": "Logistics management salary",
+        "amount_sgd": null,
+        "start_year": 2005,
+        "end_year": null,
+        "jurisdiction": "SG",
+        "counterparty": "Maersk",
+        "evidence_sentence": "Twenty years of employment in shipping and freight logistics."
+      },
+      {
+        "source_type": "investment",
+        "description": "Offshore investment vehicle",
+        "amount_sgd": 1800000,
+        "start_year": 2019,
+        "end_year": 2021,
+        "jurisdiction": "CY",
+        "counterparty": null,
+        "evidence_sentence": "Investment held in a Cyprus-registered vehicle, counterparty not disclosed."
+      },
+      {
+        "source_type": "property",
+        "description": "Residential property purchase",
+        "amount_sgd": 900000,
+        "start_year": 2016,
+        "end_year": 2016,
+        "jurisdiction": "SG",
+        "counterparty": "a friend",
+        "evidence_sentence": "Property acquired from a friend at below-market valuation."
+      }
+    ]
+  },
+  "policy": {
+    "policy_version": "test-2.0",
+    "thresholds": {
+      "wealth_multiple_limit": 3.0,
+      "liquidity_multiple_limit": 2.0,
+      "velocity_multiple_limit": 2.0,
+      "unknown_counterparty_limit": 1,
+      "unknown_jurisdiction_limit": 1,
+      "min_ai_confidence": 0.7,
+      "typology_match_min_ratio": 0.6,
+      "typology_full_match_severity": 4,
+      "typology_partial_match_severity": 2,
+      "typology_full_match_counts_as_breach": true
+    },
+    "outcome_rules": {
+      "serious_risk_min_breaches": 4,
+      "risky_min_breaches": 2,
+      "manual_review_min_breaches": 1
+    },
+    "document_map": {}
+  },
+  "expected_outcome": "MANUAL_REVIEW"
+}

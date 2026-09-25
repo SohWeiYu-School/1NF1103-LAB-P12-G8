@@ -81,18 +81,63 @@
     },
     "sector_typologies": {
       "type": "array",
-      "description": "Known abuse typologies relevant to this sector.",
+      "description": "Known abuse typologies for this sector. 1 to 3 items.",
+      "minItems": 1,
+      "maxItems": 3,
       "items": {
         "type": "object",
-        "required": ["name", "description", "indicators"],
+        "required": ["typology_id", "name", "description", "indicators", "typical_documents"],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "description": "Short identifier for the typology." },
-          "description": { "type": "string", "description": "Human-readable description." },
+          "typology_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "Lowercase underscore identifier for this typology."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Plain-English name for the typology."
+          },
+          "description": {
+            "type": "string",
+            "description": "Two sentences maximum describing the industry abuse pattern."
+          },
           "indicators": {
             "type": "array",
-            "items": { "type": "string" },
-            "description": "Observable indicators of this typology."
+            "description": "2 to 5 indicator objects drawn from the fixed vocabulary.",
+            "minItems": 2,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": ["indicator", "weight"],
+              "additionalProperties": false,
+              "properties": {
+                "indicator": {
+                  "type": "string",
+                  "enum": [
+                    "offshore_entity_present",
+                    "counterparty_unnamed",
+                    "rapid_accumulation",
+                    "unvalued_source_present",
+                    "related_party_transaction"
+                  ],
+                  "description": "Indicator name from the fixed vocabulary."
+                },
+                "weight": {
+                  "type": "string",
+                  "enum": ["core", "supporting"],
+                  "description": "core = pattern does not hold without this; supporting = corroborating signal."
+                }
+              }
+            }
+          },
+          "typical_documents": {
+            "type": "array",
+            "description": "1 to 4 document types typically requested for this typology.",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": { "type": "string" }
           }
         }
       }

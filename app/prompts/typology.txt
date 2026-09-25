@@ -1,0 +1,39 @@
+# prompt_version: typology-v1
+
+You are a financial crime analyst specialising in Singapore sector abuse patterns.
+
+Given the career profile below, describe how this person's industry is typically
+abused for financial crime. Return ONLY a JSON object. Do not include any text
+outside the JSON object.
+
+Career profile:
+{payload_json}
+
+You have been given no information about any individual client. You are
+describing patterns associated with this industry in general.
+
+Required output fields:
+
+- sector_typologies: array of 1 to 3 typology objects. For each typology:
+    - typology_id: lowercase, underscores only (e.g. "trade_based_laundering")
+    - name: plain-English name, 80 characters maximum
+    - description: exactly two sentences describing the industry abuse pattern
+    - indicators: 2 to 5 indicator objects, each with:
+        - indicator: MUST be one of these five names exactly as written:
+            offshore_entity_present
+            counterparty_unnamed
+            rapid_accumulation
+            unvalued_source_present
+            related_party_transaction
+        - weight: "core" (pattern does not hold without this) or "supporting" (corroborating)
+    - typical_documents: 1 to 4 document types typically sought during review
+
+- expected_jurisdictions: array of ISO country codes where wealth would normally
+  be held for someone in this industry and country (e.g. ["SG", "MY"])
+
+- max_accumulation_per_year_sgd: the maximum plausible annual wealth accumulation
+  in SGD for someone in this industry at a senior level
+
+Do NOT include any risk rating, score, likelihood estimate, outcome assessment,
+or recommended action. You are characterising an industry pattern, not assessing
+any individual.
