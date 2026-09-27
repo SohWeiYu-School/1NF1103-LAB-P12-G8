@@ -1,6 +1,7 @@
 import os
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
+from gridfs import GridFS
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sitadriansoh_db_user:XBQDJpd04xLpZpc4@sowcluster0.qpms0w6.mongodb.net/?appName=sowCluster0")
 DB_NAME = "sow_risk_db"
@@ -59,6 +60,71 @@ def filter_cases_by_outcome(outcome: str) -> list:
         return list(collection.find({"outcome": outcome}, {"_id": 0}))
     except PyMongoError:
         return []
+
+#supporting documents
+
+def upload_supporting_document(file_path: str):
+    """
+    Uploads a supporting document into MongoDB GridFS.
+
+    Returns the GridFS file ID if successful.
+    Returns None if upload fails.
+    """
+
+    try:
+        collection = get_collection()
+
+        if collection is None:
+            return None
+
+        db = collection.database
+        fs = GridFS(db)
+
+        with open(file_path, "rb") as file:
+            file_id = fs.put(
+                file,
+                filename=os.path.basename(file_path)
+            )
+
+        return str(file_id)
+
+    except Exception as e:
+        print(f"Error uploading document: {e}")
+        return None
+
+def download_supporting_document(file_id: str, output_path: str) -> bool:
+    """
+    Downloads a supporting document from MongoDB GridFS.
+
+    file_id:
+        GridFS file ID stored in the client record.
+
+    output_path:
+        Where the downloaded file should be saved locally.
+    """
+
+    try:
+        collection = get_collection()
+
+        if collection is None:
+            return False
+
+        db = collection.database
+        fs = GridFS(db)
+
+        from bson import ObjectId
+
+        gridfs_file = fs.get(ObjectId(file_id))
+
+        with open(output_path, "wb") as file:
+            file.write(gridfs_file.read())
+
+        return True
+
+    except Exception as e:
+        print(f"Error downloading document: {e}")
+        return False
+
 
 
 # Test block runs when executing this file directly
