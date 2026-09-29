@@ -1,68 +1,85 @@
 from openai import OpenAI
+# from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
-#import json
+import json
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+load_dotenv() #loads your secret/environment variables from the .env file
+
+openAi_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+#claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # Generate a prompt using the client's information
 def generate_prompt(client_data):
 
-    # Create the prompt for the AI ( f-string lets you put variables directly inside a string using {} )
-    prompt = f"""  
-You are analysing a client's financial information.
+    # Read the prompt from the text file
+    with open("app/prompts/benchmark.txt", "r") as file:
+        prompt = file.read()
 
-Client information:
-{client_data}
+    # Replace {client_data} with the actual client information
+    prompt = prompt.replace("{client_data}", str(client_data))
 
-Analyse the client information and provide expected benchmark
-values for:
-
-Return only JSON.
-
-Use numerical values only.
-Do not include explanations or units.
-
-The JSON must contain:
-- total_wealth: expected amount in dollars
-- liquidity: expected percentage
-- composition: expected percentage
-- velocity: expected annual amount in dollars
-- counterparties: expected number
-- jurisdiction: expected number
-"""
-
-    # Return the completed prompt
     return prompt
 
 # Send the prompt to OpenAI
 def call_openai(prompt):
 
     # Send the prompt to the AI model
-    response = client.responses.create(
-        model="gpt-4.1-nano",
-        input=prompt
-    )
+    try:
+        response = openAi_client.responses.create(
+            model="gpt-4.1-nano",
+            input=prompt
+        )
+        
+        # Return the AI's response
+        return response.output_text
 
-    # Return the AI's response
-    return response.output_text
+    except Exception as error:
+        handle_ai_failure(error)
+        return None
 
-# def parse_ai_response(response):
+# Sends the prompt to Claude as a backup
 
-#     # Remove Markdown code block formatting
-#     response = response.replace("```json", "")
-#     response = response.replace("```", "")
+# def call_claude(prompt):
 
-#     # Remove unnecessary spaces
-#     response = response.strip()
+#     response = claude_client.messages.create(
+#         model="claude-3-5-haiku-latest",
+#         max_tokens=1000,
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
 
-#     # Convert the JSON response into a Python dictionary
-#     data = json.loads(response)
+#     return response.content[0].text
 
-#     return data
+# Handles AI request errors
+def handle_ai_failure(error):
 
+    #Handle AI request failure
+    print("AI request failed.")
+    print("Error:", error)
 
+    return None
+
+# Converts the AI response into Python data
+def parse_ai_response(response):
+
+    # Remove Markdown code block formatting
+    response = response.replace("```json", "")
+    response = response.replace("```", "")
+
+    # Remove unnecessary spaces
+    response = response.strip()
+
+    # Convert the JSON response into a Python dictionary
+    data = json.loads(response)
+
+    return data
+
+    
 # Test the AI
 if __name__ == "__main__":
 
@@ -87,7 +104,7 @@ if __name__ == "__main__":
     result = call_openai(prompt)
 
     # Convert the AI response into a Python dictionary
-    # ai_data = parse_ai_response(result)
+    ai_data = parse_ai_response(result)
 
     # Display the AI data
     print(result)
