@@ -22,10 +22,19 @@ Return one numerical value for each field.
 Do not use decimal representations for percentages.
 For example, use 30 for 30%, not 0.30.
 
+The four expected composition percentages must add up to 100.
+The composition percentages represent the full distribution of total wealth.
+They must always sum exactly to 100%.
+Before returning the JSON, check that:
+expected_property + expected_listed_equities + expected_private_business + expected_cash = 100.
+
 Generate the following:
 - expected_wealth: expected total wealth in SGD
-- expected_liquidity: expected liquidity percentage
-- expected_composition: expected composition percentage
+- expected_liquidity: expected liquidity percentage as a number from 0 to 100
+- expected_property: expected property percentage as a number from 0 to 100
+- expected_listed_equities: expected listed equities percentage as a number from 0 to 100
+- expected_private_business: expected private business percentage as a number from 0 to 100
+- expected_cash: expected cash percentage as a number from 0 to 100
 - expected_velocity: expected annual wealth accumulation in SGD
 - expected_counterparties: expected number of counterparties
 - expected_jurisdiction: expected number of jurisdictions

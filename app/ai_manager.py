@@ -79,6 +79,14 @@ def parse_ai_response(response):
 
     return data
 
+#Get the AI result, to be used in logic
+def get_ai_data(client_data):
+    prompt = generate_prompt(client_data)
+    result = call_openai(prompt)
+
+    if result is not None:
+        return parse_ai_response(result)
+    return None
     
 # Test the AI
 if __name__ == "__main__":
@@ -97,14 +105,17 @@ if __name__ == "__main__":
     "industry": "Information Technology"
 }
 
-    # Generate the prompt
-    prompt = generate_prompt(client_data)
+    # # Generate the prompt
+    # prompt = generate_prompt(client_data)
 
-    # Send the prompt to OpenAI
-    result = call_openai(prompt)
+    # # Send the prompt to OpenAI
+    # result = call_openai(prompt)
 
-    # Convert the AI response into a Python dictionary
-    ai_data = parse_ai_response(result)
+    # # Convert the AI response into a Python dictionary
+    # ai_data = parse_ai_response(result)
 
-    # Display the AI data
-    print(result)
+    # # Display the AI data
+    # print(result)
+
+    ai_data = get_ai_data(client_data)
+    print(json.dumps(ai_data, indent=4))

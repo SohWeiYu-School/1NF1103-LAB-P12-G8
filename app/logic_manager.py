@@ -1,4 +1,4 @@
-# from ai_manager import parse_ai_response
+from ai_manager import get_ai_data
 
 #Limits used to determine the PASS / FAIL for client data against ai data
 LIMITS = {
@@ -8,16 +8,6 @@ LIMITS = {
     "velocity": 2,
     "counterparties": 1,
     "jurisdiction": 1
-}
-
-#data from ai_manager after running OpenAI (AI data might not always be same)
-ai_data = {
-    "total_wealth": 150000,
-    "liquidity": 20,
-    "composition": 70,
-    "velocity": 15000,
-    "counterparties": 2,
-    "jurisdiction": 3
 }
 
 # Sample client information
@@ -37,8 +27,14 @@ client_data = {
     "asset_composition": None,
     "source_of_wealth": "Salary savings and long-term investments",
     "pep_status": "None",
-    "wealth_generation_country": "Singapore"
+    "wealth_generation_country": "Singapore",
+    "listed_equities": 11, #used for liquidity, composition
+    "cash": 20, #used for liquidity, composition
+    "property": 28, #used for composition
+    "private_business": 41, #used for composition
 }
+
+ai_data = get_ai_data(client_data) # Get Ai output using function
 
 # REQUIRED_AI_FIELDS = [
 #     "total_wealth",
@@ -63,19 +59,107 @@ client_data = {
 def calculate_total_wealth(client_data, ai_data):
 
     declared = client_data["declared_net_worth"]
-    expected = ai_data["total_wealth"]
+    expected = ai_data["expected_wealth"]
 
     result1 = declared / expected
 
     return result1
 
 result1 = calculate_total_wealth(client_data, ai_data)
-print(result1)
+print("\n--- Total Wealth Check ---")
+print("Declared Net Worth:", client_data["declared_net_worth"])
+print("Expected Wealth:   ", ai_data["expected_wealth"])
+print("Ratio:             ", round(result1, 2)) # Round to 2dp
 
-if result1 <= 3:
-    print("PASS")
+if result1 <= LIMITS["total_wealth"]:
+    print("Result:             PASS")
 else:
-    print("FAIL")
+    print("Result:             FAIL")
+
+#=============================================================================#
+def calculate_liquidity(client_data, ai_data):
+
+    declared = client_data["listed_equities"] + client_data["cash"]
+    expected = ai_data["expected_liquidity"]
+
+    result2 = declared / expected
+
+    return result2
+
+result2 = calculate_liquidity(client_data, ai_data)
+print("\n--- Liquidity Check ---")
+print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
+print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
+print("Ratio:             ", round(result2, 2)) # Round to 2dp
+
+if result2 <= LIMITS["liquidity"]:
+    print("Result:             PASS")
+else:
+    print("Result:             FAIL")
+
+#=============================================================================#
+
+def calculate_composition(client_data, ai_data):
+
+    # Property
+    declared_property = client_data["property"]
+    expected_property = ai_data["expected_property"]
+
+    difference_property = abs(declared_property - expected_property) #abs - absolute value, so it removes the negative sign
+
+    # Listed Equities
+    declared_listed = client_data["listed_equities"]
+    expected_listed = ai_data["expected_listed_equities"]
+
+    difference_listed = abs(declared_listed - expected_listed)
+
+    # Private Business
+    declared_business = client_data["private_business"]
+    expected_business = ai_data["expected_private_business"]
+
+    difference_business = abs(declared_business - expected_business)
+
+    # Cash
+    declared_cash = client_data["cash"]
+    expected_cash = ai_data["expected_cash"]
+
+    difference_cash = abs(declared_cash - expected_cash)
+
+    print("\n--- Asset Composition Check ---")
+    print("Category           Declared    Expected    Difference")
+    print("Property              ", declared_property, "%       ", expected_property, "%        ", difference_property, "%")
+    print("Listed Equities       ", declared_listed, "%       ", expected_listed, "%        ", difference_listed, "%")
+    print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
+    print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
+    
+    print("\n--- Composition Result ---")
+
+    if difference_property <= LIMITS["composition"]:
+        print("Property: PASS")
+    else:
+        print("Property: FAIL")
+
+    if difference_listed <= LIMITS["composition"]:
+        print("Listed Equities: PASS")
+    else:
+        print("Listed Equities: FAIL")
+
+    if difference_business <= LIMITS["composition"]:
+        print("Private Business: PASS")
+    else:
+        print("Private Business: FAIL")
+
+    if difference_cash <= LIMITS["composition"]:
+        print("Cash: PASS")
+    else:
+        print("Cash: FAIL")
+    
+
+# Run Asset Composition Check
+calculate_composition(client_data, ai_data)
+
+#=============================================================================#
+
 
 # if __name__ == "__main__":
 

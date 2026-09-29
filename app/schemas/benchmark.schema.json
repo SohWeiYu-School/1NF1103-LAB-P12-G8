@@ -6,7 +6,10 @@
   "required": [
     "expected_wealth",
     "expected_liquidity",
-    "expected_composition",
+    "expected_property",
+    "expected_listed_equities",
+    "expected_private_business",
+    "expected_cash",
     "expected_velocity",
     "expected_counterparties",
     "expected_jurisdiction"
@@ -19,8 +22,17 @@
     "expected_liquidity": {
       "type": "number"
     },
-    "expected_composition": {
-      "type": "number"
+    "expected_property": {
+    "type": "number"
+    },
+    "expected_listed_equities": {
+        "type": "number"
+    },
+    "expected_private_business": {
+        "type": "number"
+    },
+    "expected_cash": {
+        "type": "number"
     },
     "expected_velocity": {
       "type": "number"
