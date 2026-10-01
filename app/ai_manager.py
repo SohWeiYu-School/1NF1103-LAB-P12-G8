@@ -60,7 +60,7 @@ def _user_warning(kind: str, error_type: str) -> str:
     msg = _USER_MESSAGES.get(error_type, "An unexpected error occurred.")
     return f"{display}: {msg} This case needs manual review. Details: logs/app.log"
 
-
+# Trim AI response to 5 typologies
 def _trim_typologies(data: dict) -> tuple[dict, list[str]]:
     """Trim sector_typologies to _TYPOLOGY_MAX_PATTERNS before schema validation."""
     typologies = data.get("sector_typologies", [])

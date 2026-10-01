@@ -11,42 +11,15 @@ import os
 
 from dotenv import load_dotenv
 
-from app import ai_manager, io_manager, logic_manager
+from app import ai_manager, io_manager
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
-POLICY_PATH = os.path.join(_BASE, os.getenv("POLICY_PATH", "config/policy.json"))
 SAMPLE_CLIENT_PATH = os.path.join(_BASE, "data", "sample", "case_daniel_tan.json")
 
 
 def _load_json(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
-
-
-def _run_live_assessment() -> None:
-    """Interactive flow — collects input from the officer at the terminal."""
-    case_input = io_manager.collect_profile()
-
-    io_manager.show_message("\nCalling AI for sector typologies...")
-    typology_response, typ_warnings = ai_manager.get_typologies(case_input)
-    for w in typ_warnings:
-        io_manager.show_error(w)
-    if typology_response is None:
-        return
-
-    io_manager.show_message("Calling AI to parse declaration...")
-    declaration, decl_warnings = ai_manager.get_declaration(case_input)
-    for w in decl_warnings:
-        io_manager.show_error(w)
-    if declaration is None:
-        return
-
-    io_manager.show_ai_output(case_input, typology_response, declaration)
-
-    benchmark = typology_response
-    policy = _load_json(POLICY_PATH)
-    result = logic_manager.assess_case(case_input, benchmark, declaration, policy)
-    io_manager.show_assessment(result)
 
 
 def _run_sample_assessment() -> None:
@@ -69,13 +42,6 @@ def _run_sample_assessment() -> None:
         "country_of_residence": profile["country_of_residence"],
         "declaration_text": raw["sow_declaration"]["text"],
     }
-
-    io_manager.show_message("\n--- Fields sent to AI (5 safe fields only) ---")
-    io_manager.show_message(f"  occupation:        {case_input['occupation']}")
-    io_manager.show_message(f"  industry:          {case_input['industry']}")
-    io_manager.show_message(f"  age:               {case_input['age']}")
-    io_manager.show_message(f"  career_start_year: {case_input['career_start_year']}")
-    io_manager.show_message(f"  country:           {case_input['country']}")
 
     io_manager.show_message("\nCalling AI for sector typologies...")
     typology_response, typ_warnings = ai_manager.get_typologies(case_input)
@@ -109,19 +75,7 @@ def _configure_logging() -> None:
 def main() -> None:
     load_dotenv(os.path.join(_BASE, ".env"))
     _configure_logging()
-
-    while True:
-        choice = io_manager.show_main_menu()
-
-        if choice == "1":
-            _run_sample_assessment()
-        elif choice == "2":
-            io_manager.show_message("View all cases — not implemented yet.")
-        elif choice == "3":
-            io_manager.show_message("Goodbye.")
-            break
-        else:
-            io_manager.show_error("Invalid choice. Please enter 1, 2, or 3.")
+    _run_sample_assessment()
 
 
 if __name__ == "__main__":
