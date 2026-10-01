@@ -7,7 +7,7 @@ import os
 import jsonschema
 from openai import OpenAI
 
-from app.utilities import cache_key, cache_read, cache_write, extract_prompt_version
+from app.utilities import cache_dir, cache_key, cache_read, cache_write, extract_prompt_version
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,20 @@ BENCHMARK_ALLOWED_FIELDS = ["occupation", "industry", "age", "career_start_year"
 
 # Must match policy.json "typology_max_patterns"
 _TYPOLOGY_MAX_PATTERNS = 5
+
+# User-facing one-line messages per error type (full detail goes to log)
+_USER_MESSAGES = {
+    "no_key": "No OpenAI API key found. Add OPENAI_API_KEY to .env.",
+    "api":    "Could not reach OpenAI. Check your internet or API key.",
+    "json":   "The AI's answer was not valid JSON.",
+    "schema": "The AI's answer did not match the expected format.",
+}
+
+# Display name for each call kind shown to the user
+_KIND_DISPLAY = {
+    "typology":    "Sector Crime Scan",
+    "declaration": "Declaration reading",
+}
 
 
 def _load_prompt(name: str) -> str:
@@ -40,21 +54,25 @@ def _model() -> str:
     return os.getenv("OPENAI_MODEL", os.getenv("AI_MODEL", "gpt-4o"))
 
 
-def _trim_typologies(data: dict) -> tuple[dict, list[str]]:
-    """Trim sector_typologies to _TYPOLOGY_MAX_PATTERNS if the AI returns too many.
+def _user_warning(kind: str, error_type: str) -> str:
+    """Build the single short line shown to the user when an AI call fails."""
+    display = _KIND_DISPLAY.get(kind, kind.capitalize())
+    msg = _USER_MESSAGES.get(error_type, "An unexpected error occurred.")
+    return f"{display}: {msg} This case needs manual review. Details: logs/app.log"
 
-    Must run before schema validation so maxItems: 5 is satisfied.
-    """
+
+def _trim_typologies(data: dict) -> tuple[dict, list[str]]:
+    """Trim sector_typologies to _TYPOLOGY_MAX_PATTERNS before schema validation."""
     typologies = data.get("sector_typologies", [])
     if len(typologies) <= _TYPOLOGY_MAX_PATTERNS:
         return data, []
-    trimmed_data = {**data, "sector_typologies": typologies[:_TYPOLOGY_MAX_PATTERNS]}
+    trimmed = {**data, "sector_typologies": typologies[:_TYPOLOGY_MAX_PATTERNS]}
     warning = (
         f"AI returned {len(typologies)} typologies; "
         f"kept first {_TYPOLOGY_MAX_PATTERNS} per policy."
     )
     logger.warning(warning)
-    return trimmed_data, [warning]
+    return trimmed, [warning]
 
 
 def _call_ai(
@@ -68,17 +86,19 @@ def _call_ai(
 
     Returns (result_dict, warnings). Never raises.
 
-    - Cache hit  → returns immediately, no API call.
-    - No API key → returns (None, [warning]).
-    - API error or schema validation failure → retries once.
-    - Two failures → returns (None, [one-line warning]).
+    Error handling:
+    - Cache hit      → return immediately, no API call.
+    - No API key     → (None, [one-line warning]).
+    - API/network    → retry once; two failures → (None, [one-line warning]).
+    - Bad JSON       → retry once; two failures → (None, [one-line warning]).
+    - Schema invalid → retry once; two failures → (None, [one-line warning]).
 
-    transform: optional (dict) -> (dict, list[str]) applied after JSON parse
-               and before schema validation. Used to enforce code-level limits
-               (e.g. trimming typologies) so the schema check always sees a
-               policy-compliant payload.
+    Full error detail is logged to logs/app.log only; never shown on screen.
 
-    The returned dict includes a "model" key recording which model responded.
+    transform: optional (dict) -> (dict, list[str]) called after JSON parse and
+               before schema validation (e.g. to trim oversized arrays).
+
+    The returned dict includes "model" and "_cache_path" metadata keys.
     """
     warnings: list[str] = []
     prompt_version = extract_prompt_version(prompt)
@@ -88,17 +108,21 @@ def _call_ai(
     cached = cache_read(key)
     if cached is not None:
         logger.debug("Cache hit for key %.12s", key)
+        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
         return cached, warnings
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
     if not api_key:
-        msg = f"No OPENAI_API_KEY configured; {kind} AI call skipped."
-        logger.warning(msg)
-        return None, [msg]
+        logger.warning("_call_ai (%s): no API key configured", kind)
+        return None, [_user_warning(kind, "no_key")]
 
     last_error = ""
+    error_type = "api"
+
     for attempt in range(2):
         attempt_warnings: list[str] = []
+
+        # ── Step 1: network call ──────────────────────────────────────────
         try:
             response = _client().chat.completions.create(
                 model=model,
@@ -106,26 +130,62 @@ def _call_ai(
                 response_format={"type": "json_object"},
                 messages=[{"role": "user", "content": prompt}],
             )
-            data = json.loads(response.choices[0].message.content)
+        except Exception as exc:
+            error_type = "api"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai (%s) attempt %d API error: %s", kind, attempt + 1, last_error
+            )
+            continue
+
+        # ── Step 2: JSON parse ────────────────────────────────────────────
+        raw_content = response.choices[0].message.content
+        try:
+            data = json.loads(raw_content)
+        except json.JSONDecodeError as exc:
+            error_type = "json"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai (%s) attempt %d JSON parse error: %s | raw: %.2000s",
+                kind, attempt + 1, last_error, raw_content,
+            )
+            continue
+
+        # ── Step 3: optional transform then schema validation ─────────────
+        try:
             if transform is not None:
                 data, attempt_warnings = transform(data)
             jsonschema.validate(instance=data, schema=schema)
-            data["model"] = model
-            cache_write(key, data)
-            warnings.extend(attempt_warnings)
-            return data, warnings
+        except jsonschema.ValidationError as exc:
+            error_type = "schema"
+            last_error = exc.message
+            logger.warning(
+                "_call_ai (%s) attempt %d schema validation failed: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
         except Exception as exc:
-            last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("_call_ai (%s) attempt %d failed: %s", kind, attempt + 1, last_error)
+            error_type = "api"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai (%s) attempt %d unexpected error in transform/validate: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
 
-    short = "schema validation error" if "ValidationError" in last_error else "API error"
-    final = (
-        f"{kind.capitalize()} AI call failed after 2 attempts: "
-        f"{short} (see logs/app.log)"
+        # ── Success ───────────────────────────────────────────────────────
+        data["model"] = model
+        cache_write(key, data)
+        data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        warnings.extend(attempt_warnings)
+        return data, warnings
+
+    # Both attempts exhausted
+    logger.error(
+        "_call_ai (%s) exhausted all retries. error_type=%s last_error=%s",
+        kind, error_type, last_error,
     )
-    warnings.append(final)
-    logger.error("_call_ai (%s) exhausted all retries. Last error: %s", kind, last_error)
-    return None, warnings
+    return None, [_user_warning(kind, error_type)]
 
 
 def get_typologies(case_input: dict) -> tuple[dict | None, list[str]]:

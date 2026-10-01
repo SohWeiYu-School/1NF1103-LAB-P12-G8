@@ -245,3 +245,111 @@ def test_six_typologies_trimmed_to_five(tmp_path, monkeypatch):
     assert len(result["sector_typologies"]) == 5
     assert len(warnings) == 1
     assert "5" in warnings[0]
+
+
+# ---------------------------------------------------------------------------
+# 12–15. Error-type messages: each failure gives the right short user line
+# ---------------------------------------------------------------------------
+
+def test_api_error_message_mentions_openai(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = MagicMock(
+        side_effect=RuntimeError("connection refused")
+    )
+
+    with patch("app.ai_manager._client", return_value=mock_client):
+        result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
+
+    assert result is None
+    assert len(warnings) == 1
+    w = warnings[0].lower()
+    assert "openai" in w or "internet" in w or "api key" in w
+
+
+def test_json_error_message_mentions_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    bad_json_response = MagicMock()
+    bad_json_response.choices[0].message.content = "not valid json {{{"
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = MagicMock(return_value=bad_json_response)
+
+    with patch("app.ai_manager._client", return_value=mock_client):
+        result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "json" in warnings[0].lower()
+
+
+def test_schema_error_message_mentions_format(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = MagicMock(
+        return_value=_fake_response(_INVALID_BODY)
+    )
+
+    with patch("app.ai_manager._client", return_value=mock_client):
+        result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
+
+    assert result is None
+    assert len(warnings) == 1
+    assert "format" in warnings[0].lower()
+
+
+# ---------------------------------------------------------------------------
+# 16. Raw AI response content never appears in the user-facing warning
+# ---------------------------------------------------------------------------
+
+def test_raw_response_content_not_in_warning(tmp_path, monkeypatch):
+    """The raw malformed AI output must never leak into the warning shown to the user."""
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    sentinel = "SENTINEL_RAW_CONTENT_12345"
+    bad_json_response = MagicMock()
+    bad_json_response.choices[0].message.content = sentinel + " {{{"
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = MagicMock(return_value=bad_json_response)
+
+    with patch("app.ai_manager._client", return_value=mock_client):
+        result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
+
+    assert result is None
+    for w in warnings:
+        assert sentinel not in w
+
+
+# ---------------------------------------------------------------------------
+# 17. No console logging: logging goes only to file, not stderr
+# ---------------------------------------------------------------------------
+
+def test_no_console_logging_on_failure(tmp_path, monkeypatch, capsys):
+    """AI call failures must not produce any console (stderr) output via logging."""
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = MagicMock(
+        side_effect=[_fake_response(_INVALID_BODY), _fake_response(_INVALID_BODY)]
+    )
+
+    with patch("app.ai_manager._client", return_value=mock_client):
+        _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == ""

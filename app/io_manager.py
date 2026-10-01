@@ -67,26 +67,26 @@ def collect_profile() -> dict:
     }
 
 
-def show_ai_output(typology_response: dict, declaration: dict) -> None:
-    """Print the raw AI output so the officer can inspect it."""
-    print(f"\n--- AI Output: Sector Typologies ---")
-    print(f"  Expected jurisdictions:   {', '.join(typology_response.get('expected_jurisdictions', []))}")
-    print(f"  Max accumulation/year:    SGD {typology_response.get('max_accumulation_per_year_sgd', 0):,.0f}")
+def show_ai_output(case_input: dict, typology_response: dict, declaration: dict) -> None:
+    """Print a short summary of AI results for the officer."""
+    client_ref = case_input.get("client_ref", "—")
+    print(f"\n--- Sector Crime Scan ---")
+    print(f"Client: {client_ref} | Fields sent to AI: 5 (safe fields only)")
 
     typologies = typology_response.get("sector_typologies", [])
-    print(f"\n  Typologies returned ({len(typologies)}):")
-    for t in typologies:
-        indicators = [f"{i['indicator']} ({i['weight']})" for i in t.get("indicators", [])]
-        print(f"\n    [{t.get('typology_id')}] {t.get('name')}")
-        print(f"      {t.get('description', '')}")
-        print(f"      Indicators: {', '.join(indicators)}")
-        print(f"      Documents:  {', '.join(t.get('typical_documents', []))}")
+    print(f"\nTypologies: {len(typologies)} found")
+    for i, t in enumerate(typologies, 1):
+        ref = t.get("source_reference", "")
+        suffix = f" | {ref}" if ref else ""
+        print(f"  {i}. {t.get('name', '—')}{suffix}")
 
-    print("\n--- AI Output: Declaration Sources ---")
-    for src in declaration.get("sources", []):
-        amt = f"SGD {src['amount_sgd']:,.0f}" if src.get("amount_sgd") is not None else "amount not stated"
-        print(f"  [{src.get('source_type')}] {src.get('description')} — {amt}"
-              f" | jurisdiction: {src.get('jurisdiction')} | counterparty: {src.get('counterparty')}")
+    sources = declaration.get("sources", [])
+    print(f"\nDeclaration: {len(sources)} source(s) found")
+
+    cache_path = typology_response.get("_cache_path", "")
+    if cache_path:
+        print(f"Cache: {cache_path}")
+    print()
 
 
 def show_assessment(result: dict) -> None:

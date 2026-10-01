@@ -41,7 +41,7 @@ def _run_live_assessment() -> None:
     if declaration is None:
         return
 
-    io_manager.show_ai_output(typology_response, declaration)
+    io_manager.show_ai_output(case_input, typology_response, declaration)
 
     benchmark = typology_response
     policy = _load_json(POLICY_PATH)
@@ -60,6 +60,7 @@ def _run_sample_assessment() -> None:
     #   country_of_residence is kept for the get_typologies fallback
     #   sow_declaration.text → declaration_text
     case_input = {
+        "client_ref": profile["client_ref"],
         "occupation": profile["latest_occupation"],
         "industry": profile["latest_industry"],
         "age": profile["age"],
@@ -90,7 +91,7 @@ def _run_sample_assessment() -> None:
     if declaration is None:
         return
 
-    io_manager.show_ai_output(typology_response, declaration)
+    io_manager.show_ai_output(case_input, typology_response, declaration)
 
 
 def _configure_logging() -> None:
