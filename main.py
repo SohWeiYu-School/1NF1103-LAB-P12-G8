@@ -93,9 +93,21 @@ def _run_sample_assessment() -> None:
     io_manager.show_ai_output(typology_response, declaration)
 
 
+def _configure_logging() -> None:
+    """Route all logging (including httpx) to logs/app.log. Nothing goes to the console."""
+    log_dir = os.path.join(_BASE, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    handler = logging.FileHandler(os.path.join(log_dir, "app.log"))
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.handlers.clear()
+    root.addHandler(handler)
+
+
 def main() -> None:
     load_dotenv(os.path.join(_BASE, ".env"))
-    logging.basicConfig(level=os.getenv("LOG_LEVEL", "WARNING"))
+    _configure_logging()
 
     while True:
         choice = io_manager.show_main_menu()

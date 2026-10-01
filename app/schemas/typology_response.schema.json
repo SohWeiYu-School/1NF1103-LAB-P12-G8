@@ -19,12 +19,21 @@
     },
     "sector_typologies": {
       "type": "array",
-      "description": "Known abuse typologies for this sector. 1 to 3 items.",
-      "minItems": 1,
-      "maxItems": 3,
+      "description": "Known abuse typologies for this sector. 0 to 5 items.",
+      "minItems": 0,
+      "maxItems": 5,
       "items": {
         "type": "object",
-        "required": ["typology_id", "name", "description", "indicators", "typical_documents"],
+        "required": [
+          "typology_id",
+          "name",
+          "description",
+          "source_reference",
+          "source_url",
+          "source_quote",
+          "indicators",
+          "typical_documents"
+        ],
         "additionalProperties": false,
         "properties": {
           "typology_id": {
@@ -38,10 +47,29 @@
           "description": {
             "type": "string"
           },
+          "source_reference": {
+            "type": "string",
+            "description": "Organisation, report title and year (e.g. 'FATF, Trade-Based Money Laundering, 2020')."
+          },
+          "source_url": {
+            "type": "string",
+            "description": "Exact URL of the source page used."
+          },
+          "source_quote": {
+            "type": "string",
+            "description": "Short sentence copied word for word from the source page."
+          },
           "indicators": {
             "type": "array",
             "minItems": 2,
             "maxItems": 5,
+            "contains": {
+              "type": "object",
+              "properties": {
+                "weight": { "const": "core" }
+              },
+              "required": ["weight"]
+            },
             "items": {
               "type": "object",
               "required": ["indicator", "weight"],

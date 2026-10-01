@@ -1,5 +1,5 @@
 {
-  "policy_version": "2026.2",
+  "policy_version": "2026.3",
   "thresholds": {
     "wealth_multiple_limit": 3.0,
     "liquidity_multiple_limit": 2.0,
@@ -22,5 +22,6 @@
     "unexpected_offshore_entity": "Incorporation documents and statement of purpose",
     "unexplained_equity": "Share sale agreement and completion statement",
     "unsupported_inheritance": "Grant of probate and estate distribution schedule"
-  }
+  },
+  "typology_max_patterns": 5
 }
