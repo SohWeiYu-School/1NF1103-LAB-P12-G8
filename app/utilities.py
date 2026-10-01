@@ -44,12 +44,11 @@ def client() -> OpenAI:
 
 
 def model() -> str:
-    return os.getenv("OPENAI_MODEL", os.getenv("AI_MODEL", "gpt-4o"))
+    return os.getenv("OPENAI_MODEL")
 
 
 def research_model() -> str:
-    """Model for research calls (must support web_search in Responses API)."""
-    return os.getenv("OPENAI_RESEARCH_MODEL", "gpt-5.4")
+    return os.getenv("OPENAI_RESEARCH_MODEL")
 
 
 # ---------------------------------------------------------------------------
