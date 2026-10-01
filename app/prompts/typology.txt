@@ -1,39 +1,37 @@
-# prompt_version: typology-v1
+# prompt_version: typology-v2
 
-You are a financial crime analyst specialising in Singapore sector abuse patterns.
-
-Given the career profile below, describe how this person's industry is typically
-abused for financial crime. Return ONLY a JSON object. Do not include any text
-outside the JSON object.
+You are a financial crime analyst. You describe how industries are typically misused for money laundering, based on published guidance from official bodies.
 
 Career profile:
 {payload_json}
 
-You have been given no information about any individual client. You are
-describing patterns associated with this industry in general.
+This is a career profile only. You have no financial details about this person, and you must not judge them. Describe patterns associated with this INDUSTRY, in this COUNTRY, in general.
 
-Required output fields:
+STEP 1 — Search first.
+Search trusted sources for published money-laundering typologies relevant to this industry. Only use pages you actually find in your search. Never cite a report from memory.
 
-- sector_typologies: array of 1 to 3 typology objects. For each typology:
-    - typology_id: lowercase, underscores only (e.g. "trade_based_laundering")
+STEP 2 — Build the output.
+Return ONLY a JSON object, with no text outside it.
+
+- sector_typologies: array of 0 to 5 typology objects, ordered from most to least relevant.
+  If no typology for this industry is well documented in the sources you found, return an empty array []. An honest empty list is better than an invented pattern.
+  For each typology:
+    - typology_id: lowercase with underscores only (e.g. "trade_based_laundering")
     - name: plain-English name, 80 characters maximum
-    - description: exactly two sentences describing the industry abuse pattern
-    - indicators: 2 to 5 indicator objects, each with:
-        - indicator: MUST be one of these five names exactly as written:
+    - description: exactly two sentences describing the industry pattern, never the person
+    - source_reference: organisation, report title and year (e.g. "FATF & Egmont Group, Trade-Based Money Laundering: Trends and Developments, 2020")
+    - source_url: the exact URL of the page you used, as returned by your search
+    - source_quote: a short sentence copied word for word from that page that supports this typology
+    - indicators: 2 to 5 indicator objects. At least one must be "core". Each has:
+        - indicator: MUST be one of these five names, exactly as written:
             offshore_entity_present
             counterparty_unnamed
             rapid_accumulation
             unvalued_source_present
             related_party_transaction
-        - weight: "core" (pattern does not hold without this) or "supporting" (corroborating)
-    - typical_documents: 1 to 4 document types typically sought during review
+        - weight: "core" (the pattern does not hold without it) or "supporting" (corroborating)
+    - typical_documents: 1 to 4 document types typically requested to clear this pattern
 
-- expected_jurisdictions: array of ISO country codes where wealth would normally
-  be held for someone in this industry and country (e.g. ["SG", "MY"])
+- expected_jurisdictions: array of 2-letter ISO country codes (e.g. ["SG", "MY"]) where wealth would normally be generated or held by someone with THIS occupation, industry and country.
 
-- max_accumulation_per_year_sgd: the maximum plausible annual wealth accumulation
-  in SGD for someone in this industry at a senior level
-
-Do NOT include any risk rating, score, likelihood estimate, outcome assessment,
-or recommended action. You are characterising an industry pattern, not assessing
-any individual.
+- max_accumulation_per_year_sgd: the maximum
