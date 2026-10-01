@@ -4,7 +4,8 @@ import json
 from unittest.mock import MagicMock, patch
 
 from app import ai_manager
-from app.ai_manager import _cache_key, _call_ai
+from app.ai_manager import _call_ai
+from app.utilities import cache_key as _cache_key
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,13 @@
 """AI calls and AI boundary enforcement."""
 
-import hashlib
 import json
 import logging
 import os
 
 import jsonschema
 from openai import OpenAI
+
+from app.utilities import cache_key, cache_read, cache_write, extract_prompt_version
 
 logger = logging.getLogger(__name__)
 
@@ -36,52 +37,6 @@ def _model() -> str:
     return os.getenv("OPENAI_MODEL", os.getenv("AI_MODEL", "gpt-4o"))
 
 
-def _extract_prompt_version(prompt_text: str) -> str:
-    """Return the value of the first '# prompt_version: ...' line, or 'unknown'."""
-    for line in prompt_text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("# prompt_version:"):
-            return stripped.split(":", 1)[1].strip()
-    return "unknown"
-
-
-def _cache_dir() -> str:
-    return os.path.join(_BASE, os.getenv("CACHE_DIR", "data/cache"))
-
-
-def _cache_key(kind: str, payload: dict, prompt_version: str, model: str) -> str:
-    """SHA-256 of canonical JSON of {kind, payload, prompt_version, model}."""
-    canonical = json.dumps(
-        {"kind": kind, "model": model, "payload": payload, "prompt_version": prompt_version},
-        sort_keys=True,
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def _cache_read(key: str) -> dict | None:
-    path = os.path.join(_cache_dir(), f"{key}.json")
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return None
-    return None
-
-
-def _cache_write(key: str, data: dict) -> None:
-    directory = _cache_dir()
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, f"{key}.json")
-    tmp = path + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, path)
-    except OSError as exc:
-        logger.warning("Cache write failed: %s", exc)
-
-
 def _call_ai(
     kind: str,
     payload: dict,
@@ -100,11 +55,11 @@ def _call_ai(
     The returned dict includes a "model" key recording which model responded.
     """
     warnings: list[str] = []
-    prompt_version = _extract_prompt_version(prompt)
+    prompt_version = extract_prompt_version(prompt)
     model = _model()
 
-    key = _cache_key(kind, payload, prompt_version, model)
-    cached = _cache_read(key)
+    key = cache_key(kind, payload, prompt_version, model)
+    cached = cache_read(key)
     if cached is not None:
         logger.debug("Cache hit for key %.12s", key)
         return cached, warnings
@@ -125,7 +80,7 @@ def _call_ai(
             data = json.loads(response.choices[0].message.content)
             jsonschema.validate(instance=data, schema=schema)
             data["model"] = model
-            _cache_write(key, data)
+            cache_write(key, data)
             return data, warnings
         except Exception as exc:
             last_error = f"{type(exc).__name__}: {exc}"
