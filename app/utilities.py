@@ -48,8 +48,8 @@ def model() -> str:
 
 
 def research_model() -> str:
-    """Model for research calls. Web search filters require gpt-4o, not gpt-4o-mini."""
-    return os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4o")
+    """Model for research calls (must support web_search in Responses API)."""
+    return os.getenv("OPENAI_RESEARCH_MODEL", "gpt-5.4")
 
 
 # ---------------------------------------------------------------------------

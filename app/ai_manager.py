@@ -236,6 +236,11 @@ def _trim_reports(data: dict) -> tuple[dict, list[str]]:
         excerpts = r.get("excerpts", [])
         if len(excerpts) > _RESEARCH_MAX_EXCERPTS:
             r["excerpts"] = excerpts[:_RESEARCH_MAX_EXCERPTS]
+        if isinstance(r.get("year"), str):
+            try:
+                r["year"] = int(r["year"])
+            except (ValueError, TypeError):
+                pass
 
     return {**data, "reports": reports}, warnings
 
@@ -255,16 +260,35 @@ def _extract_api_sources(response) -> list[dict]:
     seen: set[str] = set()
     sources: list[dict] = []
     for item in response.output:
-        if item.type != "message":
-            continue
-        for block in item.content:
-            if block.type != "output_text":
-                continue
-            for ann in block.annotations:
-                if ann.type == "url_citation" and ann.url not in seen:
-                    seen.add(ann.url)
-                    sources.append({"url": ann.url, "title": ann.title})
+        # Primary: web_search_call.action.sources (requires include=["web_search_call.action.sources"])
+        if item.type == "web_search_call":
+            action = getattr(item, "action", None)
+            for src in getattr(action, "sources", None) or []:
+                url = getattr(src, "url", None)
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append({"url": url, "title": url})
+        # Secondary: url_citation annotations on the text block (populated by some models)
+        if item.type == "message":
+            for block in item.content:
+                if block.type != "output_text":
+                    continue
+                for ann in getattr(block, "annotations", []):
+                    if ann.type == "url_citation" and ann.url not in seen:
+                        seen.add(ann.url)
+                        sources.append({"url": ann.url, "title": ann.title})
+    logger.debug("_extract_api_sources: found %d sources", len(sources))
     return sources
+
+
+_QUOTE_CHARS = '"\u201c\u201d\u2018\u2019\''
+
+
+def _strip_excerpts(data: dict) -> dict:
+    """Strip leading/trailing quote marks and extra whitespace from every excerpt."""
+    for r in data.get("reports", []):
+        r["excerpts"] = [e.strip(_QUOTE_CHARS).strip() for e in r.get("excerpts", [])]
+    return data
 
 
 def _call_ai_research(
@@ -311,6 +335,8 @@ def _call_ai_research(
                     "type": "web_search",
                     "filters": {"allowed_domains": domains},
                 }],
+                tool_choice="required",
+                include=["web_search_call.action.sources"],
                 input=prompt,
             )
         except Exception as exc:
@@ -323,6 +349,8 @@ def _call_ai_research(
             continue
 
         # ── Step 2: extract text content from response output ───────────
+        output_types = [item.type for item in response.output]
+        logger.debug("_call_ai_research (%s) attempt %d output item types: %s", kind, attempt + 1, output_types)
         raw_content = ""
         for item in response.output:
             if item.type == "message":
@@ -342,6 +370,7 @@ def _call_ai_research(
             continue
 
         # ── Step 3: JSON parse (web search can't use json_object mode) ──
+        logger.debug("_call_ai_research (%s) attempt %d raw: %.500s", kind, attempt + 1, raw_content)
         try:
             data = json.loads(extract_json(raw_content))
         except json.JSONDecodeError as exc:
@@ -376,15 +405,29 @@ def _call_ai_research(
             continue
 
         # ── Success ─────────────────────────────────────────────────────
-        api_sources = _extract_api_sources(response)
-        data = _add_report_ids(data)
-        data["api_sources"] = api_sources
-        data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
-        data["model"] = mdl
-        cache_write(key, data)
-        data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
-        warnings.extend(attempt_warnings)
-        return data, warnings
+        try:
+            api_sources = _extract_api_sources(response)
+            if not api_sources:
+                attempt_warnings.append(
+                    "Research: web search returned no sources — results may not be grounded."
+                )
+            data = _add_report_ids(data)
+            data = _strip_excerpts(data)
+            data["api_sources"] = api_sources
+            data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
+            data["model"] = mdl
+            cache_write(key, data)
+            data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+            warnings.extend(attempt_warnings)
+            return data, warnings
+        except Exception as exc:
+            error_type = "api"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai_research (%s) attempt %d success-block error: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
 
     # Both attempts exhausted
     logger.error(

@@ -422,6 +422,22 @@ def _fake_url_citation(url: str, title: str) -> MagicMock:
     return ann
 
 
+def _fake_web_search_item(urls: list[str]) -> MagicMock:
+    """Build a fake web_search_call output item with action.sources."""
+    sources = []
+    for url in urls:
+        src = MagicMock()
+        src.url = url
+        sources.append(src)
+    action = MagicMock()
+    action.type = "search"
+    action.sources = sources
+    item = MagicMock()
+    item.type = "web_search_call"
+    item.action = action
+    return item
+
+
 # ---------------------------------------------------------------------------
 # 18. Research payload has exactly 2 keys
 # ---------------------------------------------------------------------------
@@ -500,8 +516,9 @@ def test_nine_reports_trimmed_to_eight(tmp_path, monkeypatch):
 
     assert result is not None
     assert len(result["reports"]) == 8
-    assert len(warnings) == 1
-    assert "8" in warnings[0]
+    # One trim warning + one no-sources warning (fake response has no web_search_call sources)
+    trim_warnings = [w for w in warnings if "8" in w]
+    assert len(trim_warnings) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -640,3 +657,108 @@ def test_get_research_integration(tmp_path, monkeypatch):
     # Client-specific data NOT in prompt
     assert "Chief Operating Officer" not in prompt_sent
     assert "ID-2233" not in prompt_sent
+
+
+# ---------------------------------------------------------------------------
+# 29. api_sources from web_search_call.action.sources (primary method)
+# ---------------------------------------------------------------------------
+
+def test_api_sources_from_web_search_call(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    body = _valid_research_response()
+    ws_item = _fake_web_search_item([
+        "https://www.fatf-gafi.org/search-result-1",
+        "https://www.mas.gov.sg/search-result-2",
+    ])
+
+    text_block = MagicMock()
+    text_block.type = "output_text"
+    text_block.text = json.dumps(body)
+    text_block.annotations = []
+
+    message_item = MagicMock()
+    message_item.type = "message"
+    message_item.content = [text_block]
+
+    resp = MagicMock()
+    resp.output = [ws_item, message_item]
+
+    mock_client = MagicMock()
+    mock_client.responses.create = MagicMock(return_value=resp)
+
+    with patch("app.ai_manager.client", return_value=mock_client):
+        result, warnings = _call_ai_research(
+            "research", _SAMPLE_RESEARCH_PAYLOAD, _RESEARCH_PROMPT,
+            RESEARCH_SCHEMA, _DOMAINS,
+        )
+
+    assert result is not None
+    assert len(result["api_sources"]) == 2
+    assert result["api_sources"][0]["url"] == "https://www.fatf-gafi.org/search-result-1"
+    assert result["api_sources"][1]["url"] == "https://www.mas.gov.sg/search-result-2"
+    # No no-sources warning because sources were found
+    assert not any("no sources" in w for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# 30. Empty api_sources → no-sources warning present
+# ---------------------------------------------------------------------------
+
+def test_empty_api_sources_gives_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    body = _valid_research_response()
+    mock_client = MagicMock()
+    mock_client.responses.create = MagicMock(
+        return_value=_fake_responses_api_response(body)  # no web_search_call, no annotations
+    )
+
+    with patch("app.ai_manager.client", return_value=mock_client):
+        result, warnings = _call_ai_research(
+            "research", _SAMPLE_RESEARCH_PAYLOAD, _RESEARCH_PROMPT,
+            RESEARCH_SCHEMA, _DOMAINS,
+        )
+
+    assert result is not None
+    assert result["api_sources"] == []
+    assert any("no sources" in w.lower() for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# 31. Excerpt curly quotes are stripped
+# ---------------------------------------------------------------------------
+
+def test_excerpt_curly_quotes_stripped(tmp_path, monkeypatch):
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    report = _valid_report()
+    report["excerpts"] = [
+        "\u201cThis is a quoted excerpt.\u201d",
+        "\u2018Another excerpt\u2019",
+        '"Double quoted"',
+    ]
+    body = _valid_research_response(reports=[report])
+
+    mock_client = MagicMock()
+    mock_client.responses.create = MagicMock(
+        return_value=_fake_responses_api_response(body)
+    )
+
+    with patch("app.ai_manager.client", return_value=mock_client):
+        result, warnings = _call_ai_research(
+            "research", _SAMPLE_RESEARCH_PAYLOAD, _RESEARCH_PROMPT,
+            RESEARCH_SCHEMA, _DOMAINS,
+        )
+
+    assert result is not None
+    excerpts = result["reports"][0]["excerpts"]
+    assert excerpts[0] == "This is a quoted excerpt."
+    assert excerpts[1] == "Another excerpt"
+    assert excerpts[2] == "Double quoted"
