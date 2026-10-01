@@ -15,6 +15,19 @@ def show_error(text: str) -> None:
 
 
 
+def show_research_output(research_response: dict) -> None:
+    """Print a short summary of the research results."""
+    reports = research_response.get("reports", [])
+    print(f"\nResearch: {len(reports)} report(s) found")
+    for r in reports:
+        rid = r.get("report_id", "?")
+        org = r.get("organisation", "")
+        title = r.get("title", "")
+        year = r.get("year", "")
+        print(f"  {rid}  {org} — {title} ({year})")
+    print()
+
+
 def show_ai_output(case_input: dict, typology_response: dict, declaration: dict) -> None:
     """Print a short summary of AI results for the officer."""
     client_ref = case_input.get("client_ref", "—")

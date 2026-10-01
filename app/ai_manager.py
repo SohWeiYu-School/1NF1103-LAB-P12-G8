@@ -3,20 +3,26 @@
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 import jsonschema
-from openai import OpenAI
 
-from app.utilities import cache_dir, cache_key, cache_read, cache_write, extract_prompt_version
+from app.utilities import (
+    cache_dir, cache_key, cache_read, cache_write,
+    client, extract_json, extract_prompt_version,
+    load_policy, load_prompt, load_schema,
+    model, research_model,
+)
 
 logger = logging.getLogger(__name__)
 
-_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 BENCHMARK_ALLOWED_FIELDS = ["occupation", "industry", "age", "career_start_year", "country"]
+RESEARCH_ALLOWED_FIELDS = ["industry", "country"]
 
 # Must match policy.json "typology_max_patterns"
 _TYPOLOGY_MAX_PATTERNS = 5
+_RESEARCH_MAX_REPORTS = 8
+_RESEARCH_MAX_EXCERPTS = 3
 
 # User-facing one-line messages per error type (full detail goes to log)
 _USER_MESSAGES = {
@@ -30,28 +36,8 @@ _USER_MESSAGES = {
 _KIND_DISPLAY = {
     "typology":    "Sector Crime Scan",
     "declaration": "Declaration reading",
+    "research":    "Research",
 }
-
-
-def _load_prompt(name: str) -> str:
-    path = os.path.join(_BASE, "app", "prompts", name)
-    with open(path) as f:
-        return f.read()
-
-
-def _load_schema(name: str) -> dict:
-    path = os.path.join(_BASE, "app", "schemas", name)
-    with open(path) as f:
-        return json.load(f)
-
-
-def _client() -> OpenAI:
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
-    return OpenAI(api_key=api_key)
-
-
-def _model() -> str:
-    return os.getenv("OPENAI_MODEL", os.getenv("AI_MODEL", "gpt-4o"))
 
 
 def _user_warning(kind: str, error_type: str) -> str:
@@ -102,9 +88,9 @@ def _call_ai(
     """
     warnings: list[str] = []
     prompt_version = extract_prompt_version(prompt)
-    model = _model()
+    mdl = model()
 
-    key = cache_key(kind, payload, prompt_version, model)
+    key = cache_key(kind, payload, prompt_version, mdl)
     cached = cache_read(key)
     if cached is not None:
         logger.debug("Cache hit for key %.12s", key)
@@ -124,8 +110,8 @@ def _call_ai(
 
         # ── Step 1: network call ──────────────────────────────────────────
         try:
-            response = _client().chat.completions.create(
-                model=model,
+            response = client().chat.completions.create(
+                model=mdl,
                 temperature=0,
                 response_format={"type": "json_object"},
                 messages=[{"role": "user", "content": prompt}],
@@ -174,7 +160,7 @@ def _call_ai(
             continue
 
         # ── Success ───────────────────────────────────────────────────────
-        data["model"] = model
+        data["model"] = mdl
         cache_write(key, data)
         data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
         warnings.extend(attempt_warnings)
@@ -199,9 +185,9 @@ def get_typologies(case_input: dict) -> tuple[dict | None, list[str]]:
     if "country" not in payload:
         payload["country"] = case_input.get("country_of_residence", "Singapore")
 
-    template = _load_prompt("typology.txt")
+    template = load_prompt("typology.txt")
     prompt = template.replace("{payload_json}", json.dumps(payload, indent=2))
-    schema = _load_schema("typology_response.schema.json")
+    schema = load_schema("typology_response.schema.json")
 
     return _call_ai("typology", payload, prompt, schema, transform=_trim_typologies)
 
@@ -213,8 +199,227 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
     """
     declaration_text = case_input.get("declaration_text", "")
 
-    template = _load_prompt("declaration.txt")
+    template = load_prompt("declaration.txt")
     prompt = template.replace("{declaration_text}", declaration_text)
-    schema = _load_schema("declaration.schema.json")
+    schema = load_schema("declaration.schema.json")
 
     return _call_ai("declaration", {"declaration_text": declaration_text}, prompt, schema)
+
+
+# ---------------------------------------------------------------------------
+# Research call — uses OpenAI Responses API with web_search tool
+# ---------------------------------------------------------------------------
+
+def _build_research_payload(case_input: dict) -> dict:
+    """Extract only RESEARCH_ALLOWED_FIELDS from case_input."""
+    payload = {k: case_input[k] for k in RESEARCH_ALLOWED_FIELDS if k in case_input}
+    if "country" not in payload:
+        payload["country"] = case_input.get("country_of_residence", "Singapore")
+    return payload
+
+
+def _trim_reports(data: dict) -> tuple[dict, list[str]]:
+    """Trim reports to _RESEARCH_MAX_REPORTS and excerpts to _RESEARCH_MAX_EXCERPTS."""
+    warnings: list[str] = []
+    reports = data.get("reports", [])
+
+    if len(reports) > _RESEARCH_MAX_REPORTS:
+        warning = (
+            f"AI returned {len(reports)} reports; "
+            f"kept first {_RESEARCH_MAX_REPORTS} per policy."
+        )
+        logger.warning(warning)
+        warnings.append(warning)
+        reports = reports[:_RESEARCH_MAX_REPORTS]
+
+    for r in reports:
+        excerpts = r.get("excerpts", [])
+        if len(excerpts) > _RESEARCH_MAX_EXCERPTS:
+            r["excerpts"] = excerpts[:_RESEARCH_MAX_EXCERPTS]
+
+    return {**data, "reports": reports}, warnings
+
+
+def _add_report_ids(data: dict) -> dict:
+    """Add report_id R1, R2, ... to each report. Done by code, not the AI."""
+    for i, r in enumerate(data.get("reports", []), 1):
+        r["report_id"] = f"R{i}"
+    return data
+
+
+def _extract_api_sources(response) -> list[dict]:
+    """Extract URL citations from Responses API annotations.
+
+    Returns a de-duplicated list of {url, title} dicts.
+    """
+    seen: set[str] = set()
+    sources: list[dict] = []
+    for item in response.output:
+        if item.type != "message":
+            continue
+        for block in item.content:
+            if block.type != "output_text":
+                continue
+            for ann in block.annotations:
+                if ann.type == "url_citation" and ann.url not in seen:
+                    seen.add(ann.url)
+                    sources.append({"url": ann.url, "title": ann.title})
+    return sources
+
+
+def _call_ai_research(
+    kind: str,
+    payload: dict,
+    prompt: str,
+    schema: dict,
+    domains: list[str],
+    transform=None,
+) -> tuple[dict | None, list[str]]:
+    """Call OpenAI Responses API with web_search tool. Cache + single retry.
+
+    Returns (result_dict, warnings). Never raises.
+    The result includes api_sources, retrieved_at, model, and _cache_path.
+    """
+    warnings: list[str] = []
+    prompt_version = extract_prompt_version(prompt)
+    mdl = research_model()
+
+    key = cache_key(kind, payload, prompt_version, mdl)
+    cached = cache_read(key)
+    if cached is not None:
+        logger.debug("Cache hit for research key %.12s", key)
+        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        return cached, warnings
+
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
+    if not api_key:
+        logger.warning("_call_ai_research (%s): no API key configured", kind)
+        return None, [_user_warning(kind, "no_key")]
+
+    last_error = ""
+    error_type = "api"
+
+    for attempt in range(2):
+        attempt_warnings: list[str] = []
+
+        # ── Step 1: Responses API call with web_search ──────────────────
+        try:
+            response = client().responses.create(
+                model=mdl,
+                temperature=0,
+                tools=[{
+                    "type": "web_search",
+                    "filters": {"allowed_domains": domains},
+                }],
+                input=prompt,
+            )
+        except Exception as exc:
+            error_type = "api"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai_research (%s) attempt %d API error: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
+
+        # ── Step 2: extract text content from response output ───────────
+        raw_content = ""
+        for item in response.output:
+            if item.type == "message":
+                for block in item.content:
+                    if block.type == "output_text":
+                        raw_content = block.text
+                        break
+                if raw_content:
+                    break
+
+        if not raw_content:
+            error_type = "json"
+            last_error = "No text content in response output"
+            logger.warning(
+                "_call_ai_research (%s) attempt %d: %s", kind, attempt + 1, last_error,
+            )
+            continue
+
+        # ── Step 3: JSON parse (web search can't use json_object mode) ──
+        try:
+            data = json.loads(extract_json(raw_content))
+        except json.JSONDecodeError as exc:
+            error_type = "json"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai_research (%s) attempt %d JSON parse error: %s | raw: %.2000s",
+                kind, attempt + 1, last_error, raw_content,
+            )
+            continue
+
+        # ── Step 4: optional transform then schema validation ───────────
+        try:
+            if transform is not None:
+                data, attempt_warnings = transform(data)
+            jsonschema.validate(instance=data, schema=schema)
+        except jsonschema.ValidationError as exc:
+            error_type = "schema"
+            last_error = exc.message
+            logger.warning(
+                "_call_ai_research (%s) attempt %d schema validation failed: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
+        except Exception as exc:
+            error_type = "api"
+            last_error = repr(exc)
+            logger.warning(
+                "_call_ai_research (%s) attempt %d unexpected error: %s",
+                kind, attempt + 1, last_error,
+            )
+            continue
+
+        # ── Success ─────────────────────────────────────────────────────
+        api_sources = _extract_api_sources(response)
+        data = _add_report_ids(data)
+        data["api_sources"] = api_sources
+        data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
+        data["model"] = mdl
+        cache_write(key, data)
+        data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        warnings.extend(attempt_warnings)
+        return data, warnings
+
+    # Both attempts exhausted
+    logger.error(
+        "_call_ai_research (%s) exhausted all retries. error_type=%s last_error=%s",
+        kind, error_type, last_error,
+    )
+    return None, [_user_warning(kind, error_type)]
+
+
+def get_research(case_input: dict) -> tuple[dict | None, list[str]]:
+    """Search trusted sites for published ML/TF typology reports.
+
+    Only industry + country are sent. No client-specific data.
+    Uses the OpenAI Responses API with the web_search tool, domain-restricted
+    to the trusted_sources list in config/policy.json.
+
+    Returns: (response_dict | None, warnings)
+    """
+    payload = _build_research_payload(case_input)
+
+    policy = load_policy()
+    domains = policy.get("trusted_sources", [])
+    max_reports = policy.get("research_max_reports", _RESEARCH_MAX_REPORTS)
+    max_excerpts = policy.get("research_max_excerpts_per_report", _RESEARCH_MAX_EXCERPTS)
+
+    template = load_prompt("research.txt")
+    prompt = (
+        template
+        .replace("{payload_json}", json.dumps(payload, indent=2))
+        .replace("{trusted_sources}", ", ".join(domains))
+        .replace("{max_reports}", str(max_reports))
+        .replace("{max_excerpts}", str(max_excerpts))
+    )
+    schema = load_schema("research_response.schema.json")
+
+    return _call_ai_research(
+        "research", payload, prompt, schema, domains, transform=_trim_reports,
+    )

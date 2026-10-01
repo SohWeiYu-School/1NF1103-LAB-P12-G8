@@ -1,5 +1,5 @@
 {
-  "policy_version": "2026.3",
+  "policy_version": "2026.4",
   "thresholds": {
     "wealth_multiple_limit": 3.0,
     "liquidity_multiple_limit": 2.0,
@@ -23,5 +23,14 @@
     "unexplained_equity": "Share sale agreement and completion statement",
     "unsupported_inheritance": "Grant of probate and estate distribution schedule"
   },
-  "typology_max_patterns": 5
+  "typology_max_patterns": 5,
+  "trusted_sources": [
+    "fatf-gafi.org",
+    "mas.gov.sg",
+    "egmontgroup.org",
+    "unodc.org",
+    "wolfsberg-group.org"
+  ],
+  "research_max_reports": 8,
+  "research_max_excerpts_per_report": 3
 }

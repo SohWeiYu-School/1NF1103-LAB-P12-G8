@@ -1,14 +1,60 @@
-"""Shared utilities: response cache and prompt helpers."""
+"""Shared utilities: response cache, file loaders, client config."""
 
 import hashlib
 import json
 import logging
 import os
 
+from openai import OpenAI
+
 logger = logging.getLogger(__name__)
 
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
+# ---------------------------------------------------------------------------
+# File loaders
+# ---------------------------------------------------------------------------
+
+def load_prompt(name: str) -> str:
+    path = os.path.join(_BASE, "app", "prompts", name)
+    with open(path) as f:
+        return f.read()
+
+
+def load_schema(name: str) -> dict:
+    path = os.path.join(_BASE, "app", "schemas", name)
+    with open(path) as f:
+        return json.load(f)
+
+
+def load_policy() -> dict:
+    path = os.path.join(_BASE, "config", "policy.json")
+    with open(path) as f:
+        return json.load(f)
+
+
+# ---------------------------------------------------------------------------
+# OpenAI client and model config
+# ---------------------------------------------------------------------------
+
+def client() -> OpenAI:
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
+    return OpenAI(api_key=api_key)
+
+
+def model() -> str:
+    return os.getenv("OPENAI_MODEL", os.getenv("AI_MODEL", "gpt-4o"))
+
+
+def research_model() -> str:
+    """Model for research calls. Web search filters require gpt-4o, not gpt-4o-mini."""
+    return os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4o")
+
+
+# ---------------------------------------------------------------------------
+# Text / JSON helpers
+# ---------------------------------------------------------------------------
 
 def extract_prompt_version(prompt_text: str) -> str:
     """Return the value of the first '# prompt_version: ...' line, or 'unknown'."""
@@ -18,6 +64,25 @@ def extract_prompt_version(prompt_text: str) -> str:
             return stripped.split(":", 1)[1].strip()
     return "unknown"
 
+
+def extract_json(text: str) -> str:
+    """Extract a JSON object from text that may contain markdown fences."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines[-1].strip() == "```":
+            inner = "\n".join(lines[1:-1])
+            return inner.strip()
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return stripped[start:end + 1]
+    return stripped
+
+
+# ---------------------------------------------------------------------------
+# Response cache
+# ---------------------------------------------------------------------------
 
 def cache_dir() -> str:
     return os.path.join(_BASE, os.getenv("CACHE_DIR", "data/cache"))

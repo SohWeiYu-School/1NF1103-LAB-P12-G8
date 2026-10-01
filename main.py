@@ -43,7 +43,14 @@ def _run_sample_assessment() -> None:
         "declaration_text": raw["sow_declaration"]["text"],
     }
 
-    io_manager.show_message("\nCalling AI for sector typologies...")
+    io_manager.show_message("\nSearching trusted sources for typology reports...")
+    research, res_warnings = ai_manager.get_research(case_input)
+    for w in res_warnings:
+        io_manager.show_error(w)
+    if research is not None:
+        io_manager.show_research_output(research)
+
+    io_manager.show_message("Calling AI for sector typologies...")
     typology_response, typ_warnings = ai_manager.get_typologies(case_input)
     for w in typ_warnings:
         io_manager.show_error(w)
