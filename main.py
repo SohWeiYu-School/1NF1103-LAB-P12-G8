@@ -92,11 +92,6 @@ def _run_sample_assessment() -> None:
 
     io_manager.show_ai_output(typology_response, declaration)
 
-    benchmark = typology_response
-    policy = _load_json(POLICY_PATH)
-    result = logic_manager.assess_case(case_input, benchmark, declaration, policy)
-    io_manager.show_assessment(result)
-
 
 def main() -> None:
     load_dotenv(os.path.join(_BASE, ".env"))

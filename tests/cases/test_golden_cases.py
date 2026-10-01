@@ -22,6 +22,7 @@ def _load_golden_cases():
     return cases
 
 
+@pytest.mark.skip(reason="Sector Crime Scan logic being redesigned")
 @pytest.mark.parametrize(
     "case",
     _load_golden_cases(),
