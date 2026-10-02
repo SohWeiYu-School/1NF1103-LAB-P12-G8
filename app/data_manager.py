@@ -3,7 +3,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
 
-MONGO_URI = os.getenv("MONGO_URI")
+MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = "sow_risk_db"
 COLLECTION_NAME = "client_cases"
 
@@ -11,7 +11,7 @@ COLLECTION_NAME = "client_cases"
 def get_collection():
     """Returns the MongoDB collection object or None if connection fails."""
     try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
+        client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=2000)
         db = client[DB_NAME]
         return db[COLLECTION_NAME]
     except Exception:

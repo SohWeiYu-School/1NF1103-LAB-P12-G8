@@ -3,6 +3,16 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import json
+import logging
+from datetime import datetime, timezone
+import jsonschema
+
+from app.utilities import (
+    cache_dir, cache_key, cache_read, cache_write,
+    client, extract_json, extract_prompt_version,
+    load_policy, load_prompt, load_schema,
+    model, research_model,
+)
 
 load_dotenv() #loads your secret/environment variables from the .env file
 
@@ -37,23 +47,6 @@ def call_openai(prompt):
     except Exception as error:
         handle_ai_failure(error)
         return None
-
-# Sends the prompt to Claude as a backup
-
-# def call_claude(prompt):
-
-#     response = claude_client.messages.create(
-#         model="claude-3-5-haiku-latest",
-#         max_tokens=1000,
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": prompt
-#             }
-#         ]
-#     )
-
-#     return response.content[0].text
 
 # Handles AI request errors
 def handle_ai_failure(error):
@@ -105,35 +98,13 @@ if __name__ == "__main__":
     "industry": "Information Technology"
 }
 
-    # # Generate the prompt
-    # prompt = generate_prompt(client_data)
-
-    # # Send the prompt to OpenAI
-    # result = call_openai(prompt)
-
-    # # Convert the AI response into a Python dictionary
-    # ai_data = parse_ai_response(result)
-
-    # # Display the AI data
-    # print(result)
-
     ai_data = get_ai_data(client_data)
     print(json.dumps(ai_data, indent=4))
 """AI calls and AI boundary enforcement."""
 
-import json
-import logging
-import os
-from datetime import datetime, timezone
-
-import jsonschema
-
-from app.utilities import (
-    cache_dir, cache_key, cache_read, cache_write,
-    client, extract_json, extract_prompt_version,
-    load_policy, load_prompt, load_schema,
-    model, research_model,
-)
+# ---------------------------------------------------------------------------
+# Typologies Section
+# ---------------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
 

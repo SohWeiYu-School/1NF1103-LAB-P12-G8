@@ -82,7 +82,24 @@ def _configure_logging() -> None:
 def main() -> None:
     load_dotenv(os.path.join(_BASE, ".env"))
     _configure_logging()
-    _run_sample_assessment()
+
+    while True:
+        choice = io_manager.show_app_menu()
+        if choice == "1":
+            io_manager.create_new_client()
+        elif choice == "2":
+            io_manager.find_existing_client()
+        elif choice == "3":
+            _run_sample_assessment()
+        elif choice == "4":
+            # TODO: wire up benchmark teammate's logic
+            io_manager.show_message("\n[Benchmark] Not yet wired up.")
+        elif choice == "5":
+            # TODO: wire up forecasting
+            io_manager.show_message("\n[Forecasting] Not yet wired up.")
+        elif choice == "6":
+            io_manager.show_message("\nGoodbye.")
+            break
 
 
 if __name__ == "__main__":
