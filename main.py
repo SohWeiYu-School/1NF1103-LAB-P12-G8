@@ -155,9 +155,6 @@ def main() -> None:
         elif choice == "2":
             io_manager.find_existing_client()
         elif choice == "3":
-            # TODO: wire up forecasting
-            io_manager.show_message("\n[Forecasting] Not yet wired up.")
-        elif choice == "4":
             io_manager.show_message("\nGoodbye.")
             break
 

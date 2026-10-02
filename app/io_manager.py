@@ -13,19 +13,18 @@ from app.data_manager import (
 )
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-4)."""
+    """Display the unified main menu and return the user's choice (1-3)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
     print("1. New Client")
     print("2. Find / Edit Existing Client")
-    print("3. Run Forecasting")
-    print("4. Quit")
+    print("3. Quit")
     while True:
-        choice = input("\nEnter your choice (1-4): ").strip()
-        if choice in ("1", "2", "3", "4"):
+        choice = input("\nEnter your choice (1-3): ").strip()
+        if choice in ("1", "2", "3"):
             return choice
-        print("Invalid choice. Please enter 1 to 4.")
+        print("Invalid choice. Please enter 1 to 3.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
