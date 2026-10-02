@@ -2,8 +2,12 @@ import uuid
 import os
 import tkinter as tk
 from tkinter import filedialog
-
-from app.data_manager import save_case_record
+from app.data_manager import (
+    save_case_record,
+    upload_supporting_document,
+    load_all_records,
+    download_supporting_document
+)
 
 
 def show_main_menu() -> str:
@@ -261,7 +265,9 @@ def get_sow_declaration() -> dict:
 def get_supporting_documents() -> list:
     """
     Ask whether the client has supporting documents.
-    If yes, open a Tkinter file picker.
+
+    If yes, open a Tkinter file picker and upload
+    the selected documents to MongoDB GridFS.
     """
 
     print("\n=== Supporting Documents ===")
@@ -275,7 +281,6 @@ def get_supporting_documents() -> list:
 
     print("\nOpening file explorer...")
 
-    # Create a hidden Tkinter root window
     root = tk.Tk()
     root.withdraw()
 
@@ -298,16 +303,34 @@ def get_supporting_documents() -> list:
 
     documents = []
 
+    print("\nUploading documents to database...")
+
     for path in file_paths:
+
+        print(f"Uploading: {os.path.basename(path)}")
+
+        file_id = upload_supporting_document(path)
+
+        if file_id is None:
+            print(
+                f"ERROR: Could not upload "
+                f"{os.path.basename(path)}"
+            )
+            continue
+
         documents.append({
             "file_name": os.path.basename(path),
-            "file_path": path
+            "file_id": file_id
         })
 
-    print(f"\n{len(documents)} document(s) selected.")
+        print(
+            f"Uploaded successfully: "
+            f"{os.path.basename(path)}"
+        )
 
-    for document in documents:
-        print(f"- {document['file_name']}")
+    print(
+        f"\n{len(documents)} document(s) uploaded successfully."
+    )
 
     return documents
 
@@ -413,26 +436,24 @@ def display_client_record(record: dict):
 
     display_section("SUPPORTING DOCUMENTS")
 
-    documents = record["supporting_documents"]
+    documents = record.get("supporting_documents", [])
 
     if not documents:
         print("No supporting documents provided.")
-
     else:
-        for index, document in enumerate(
-            documents,
-            start=1
-        ):
+        for index, document in enumerate(documents, start=1):
 
-            print(
-                f"{index}. {document['file_name']}"
-            )
+            print(f"{index}. {document.get('file_name', 'Unknown file')}")
+            if document.get("file_id"):
+                print(f"   File ID: {document['file_id']}")
 
-            print(
-                f"   Path: {document['file_path']}"
-            )
+            elif document.get("file_path"):
+                print(
+                    f"   File Path: {document['file_path']}"
+                )
 
-    print("\n" + "=" * 60)
+            else:
+                print("   No document reference found.")
 
 
 def create_new_client():
@@ -514,6 +535,715 @@ def create_new_client():
 
     input("\nPress Enter to return to the main menu...")
 
+def edit_client_profile(record):
+    """Edit the client's basic profile information."""
+
+    print("\n=== Edit Client Profile ===")
+    profile = record["client_profile"]
+
+    print("\nPress Enter to keep the existing value.")
+
+    value = input(
+        f"Full name [{profile['full_name']}]: "
+    ).strip()
+    if value:
+        profile["full_name"] = value
+
+    value = input(
+        f"Age [{profile['age']}]: "
+    ).strip()
+    if value:
+        profile["age"] = value
+
+    value = input(
+        f"Nationality [{profile['nationality']}]: "
+    ).strip()
+    if value:
+        profile["nationality"] = value
+
+    value = input(
+        f"Country of residence [{profile['country_of_residence']}]: "
+    ).strip()
+    if value:
+        profile["country_of_residence"] = value
+
+    value = input(
+        f"Latest occupation [{profile['latest_occupation']}]: "
+    ).strip()
+    if value:
+        profile["latest_occupation"] = value
+
+    value = input(
+        f"Latest seniority [{profile['latest_seniority']}]: "
+    ).strip()
+    if value:
+        profile["latest_seniority"] = value
+
+    value = input(
+        f"Latest industry [{profile['latest_industry']}]: "
+    ).strip()
+    if value:
+        profile["latest_industry"] = value
+
+    value = input(
+        f"Current company [{profile['current_company']}]: "
+    ).strip()
+    if value:
+        profile["current_company"] = value
+
+    value = input(
+        f"Career start year [{profile['career_start_year']}]: "
+    ).strip()
+    if value:
+        profile["career_start_year"] = value
+
+    value = input(
+        f"Years of employment [{profile['years_of_employment']}]: "
+    ).strip()
+    if value:
+        profile["years_of_employment"] = value
+
+    value = input(
+        f"Date profile created [{profile['date_profile_created']}]: "
+    ).strip()
+    if value:
+        profile["date_profile_created"] = value
+
+    print("\nClient profile updated.")
+
+
+def add_career_record(record):
+    """Add a new career record."""
+
+    print("\n=== Add Career Record ===")
+
+    start_year = input("Start year: ").strip()
+    end_year = input("End year: ").strip()
+    job_title = input("Job title: ").strip()
+    seniority = input("Seniority: ").strip()
+    industry = input("Industry: ").strip()
+    company_name = input("Company name: ").strip()
+    company_size = input("Company size: ").strip()
+    country = input("Country: ").strip()
+
+    record["career_timeline"].append({
+        "start_year": start_year,
+        "end_year": end_year,
+        "job_title": job_title,
+        "seniority": seniority,
+        "industry": industry,
+        "company_name": company_name,
+        "company_size": company_size,
+        "country": country
+    })
+
+    print("\nCareer record added.")
+
+
+def edit_career_record(record):
+    """Edit an existing career record."""
+
+    careers = record["career_timeline"]
+
+    if not careers:
+        print("\nNo career records found.")
+        return
+
+    print("\n=== Career History ===")
+
+    for index, career in enumerate(careers, start=1):
+        print(
+            f"{index}. "
+            f"{career['job_title']} - "
+            f"{career['company_name']} "
+            f"({career['start_year']} - {career['end_year']})"
+        )
+
+    choice = input(
+        "\nSelect career record to edit: "
+    ).strip()
+
+    if not choice.isdigit():
+        print("Invalid selection.")
+        return
+
+    index = int(choice) - 1
+
+    if index < 0 or index >= len(careers):
+        print("Invalid selection.")
+        return
+
+    career = careers[index]
+
+    print("\nPress Enter to keep the existing value.")
+
+    fields = [
+        ("start_year", "Start year"),
+        ("end_year", "End year"),
+        ("job_title", "Job title"),
+        ("seniority", "Seniority"),
+        ("industry", "Industry"),
+        ("company_name", "Company name"),
+        ("company_size", "Company size"),
+        ("country", "Country")
+    ]
+
+    for key, label in fields:
+        value = input(
+            f"{label} [{career[key]}]: "
+        ).strip()
+
+        if value:
+            career[key] = value
+
+    print("\nCareer record updated.")
+
+
+def add_asset_record(record):
+    """Add a new asset record."""
+
+    print("\n=== Add Asset ===")
+
+    asset = {
+        "asset_type": input("Asset type: ").strip(),
+        "asset_description": input("Asset description: ").strip(),
+        "country": input("Country: ").strip(),
+        "year_acquired": input("Year acquired: ").strip(),
+        "price_paid": input("Price paid: ").strip(),
+        "payment_method": input("Payment method: ").strip(),
+        "year_sold": input(
+            "Year sold (leave blank if still owned): "
+        ).strip(),
+        "sale_price": input(
+            "Sale price (leave blank if still owned): "
+        ).strip(),
+        "current_value": input("Current value: ").strip(),
+        "yearly_income": input("Yearly income: ").strip(),
+        "currency": input("Currency: ").strip()
+    }
+
+    record["asset_timeline"].append(asset)
+
+    print("\nAsset added.")
+
+
+def edit_asset_record(record):
+    """Edit an existing asset."""
+
+    assets = record["asset_timeline"]
+
+    if not assets:
+        print("\nNo asset records found.")
+        return
+
+    print("\n=== Asset History ===")
+
+    for index, asset in enumerate(assets, start=1):
+        print(
+            f"{index}. "
+            f"{asset['asset_type']} - "
+            f"{asset['asset_description']}"
+        )
+
+    choice = input(
+        "\nSelect asset to edit: "
+    ).strip()
+
+    if not choice.isdigit():
+        print("Invalid selection.")
+        return
+
+    index = int(choice) - 1
+
+    if index < 0 or index >= len(assets):
+        print("Invalid selection.")
+        return
+
+    asset = assets[index]
+
+    print("\nPress Enter to keep the existing value.")
+
+    fields = [
+        ("asset_type", "Asset type"),
+        ("asset_description", "Asset description"),
+        ("country", "Country"),
+        ("year_acquired", "Year acquired"),
+        ("price_paid", "Price paid"),
+        ("payment_method", "Payment method"),
+        ("year_sold", "Year sold"),
+        ("sale_price", "Sale price"),
+        ("current_value", "Current value"),
+        ("yearly_income", "Yearly income"),
+        ("currency", "Currency")
+    ]
+
+    for key, label in fields:
+        value = input(
+            f"{label} [{asset[key]}]: "
+        ).strip()
+
+        if value:
+            asset[key] = value
+
+    print("\nAsset updated.")
+
+
+def edit_asset_composition(record):
+    """Edit asset composition."""
+
+    print("\n=== Edit Asset Composition ===")
+
+    composition = record["asset_composition"]
+
+    print("\nPress Enter to keep the existing value.")
+
+    value = input(
+        f"Property (%) [{composition['property']}]: "
+    ).strip()
+    if value:
+        composition["property"] = value
+
+    value = input(
+        f"Listed Equities (%) [{composition['listed_equities']}]: "
+    ).strip()
+    if value:
+        composition["listed_equities"] = value
+
+    value = input(
+        f"Private Business (%) [{composition['private_business']}]: "
+    ).strip()
+    if value:
+        composition["private_business"] = value
+
+    value = input(
+        f"Cash (%) [{composition['cash']}]: "
+    ).strip()
+    if value:
+        composition["cash"] = value
+
+    print("\nAsset composition updated.")
+
+
+def edit_client_declarations(record):
+    """Edit client declarations."""
+
+    print("\n=== Edit Client Declarations ===")
+
+    declarations = record["client_declarations"]
+
+    print("\nPress Enter to keep the existing value.")
+
+    value = input(
+        f"Declared net worth [{declarations['declared_net_worth']}]: "
+    ).strip()
+    if value:
+        declarations["declared_net_worth"] = value
+
+    value = input(
+        f"Expected Assets Under Management "
+        f"[{declarations['expected_assets_under_management']}]: "
+    ).strip()
+    if value:
+        declarations["expected_assets_under_management"] = value
+
+    value = input(
+        f"Owns property? [{declarations['owns_property']}]: "
+    ).strip().lower()
+    if value:
+        declarations["owns_property"] = value
+
+    value = input(
+        f"Owns investments? [{declarations['owns_investments']}]: "
+    ).strip().lower()
+    if value:
+        declarations["owns_investments"] = value
+
+    value = input(
+        f"PEP status [{declarations['pep_status']}]: "
+    ).strip()
+    if value:
+        declarations["pep_status"] = value
+
+    value = input(
+        "Countries where wealth was generated "
+        f"[{declarations['countries_where_wealth_was_generated']}]: "
+    ).strip()
+    if value:
+        declarations["countries_where_wealth_was_generated"] = value
+
+    value = input(
+        f"Date declared [{declarations['date_declared']}]: "
+    ).strip()
+    if value:
+        declarations["date_declared"] = value
+
+    print("\nClient declarations updated.")
+
+
+def edit_sow_declaration(record):
+    """Edit Source of Wealth declaration."""
+
+    print("\n=== Edit Source of Wealth Declaration ===")
+
+    sow = record["sow_declaration"]
+
+    print("\nPress Enter to keep the existing value.")
+
+    value = input(
+        f"Declaration text [{sow['declaration_text']}]: "
+    ).strip()
+    if value:
+        sow["declaration_text"] = value
+
+    value = input(
+        f"Written by [{sow['written_by']}]: "
+    ).strip()
+    if value:
+        sow["written_by"] = value
+
+    value = input(
+        f"Date written [{sow['date_written']}]: "
+    ).strip()
+    if value:
+        sow["date_written"] = value
+
+    print("\nSource of Wealth declaration updated.")
+
+
+def add_supporting_documents(record):
+    """Add supporting documents to an existing client."""
+
+    new_documents = get_supporting_documents()
+
+    if not new_documents:
+        return
+
+    if "supporting_documents" not in record:
+        record["supporting_documents"] = []
+
+    record["supporting_documents"].extend(new_documents)
+
+    print(
+        f"\n{len(new_documents)} document(s) added."
+    )
+
+def edit_existing_client(record):
+    """Allow the user to edit or add information to an existing client."""
+
+    while True:
+
+        print("\n========================================")
+        print("       EDIT / ADD CLIENT INFORMATION")
+        print("========================================")
+
+        print("\n1. Client Profile")
+        print("2. Career History")
+        print("3. Asset History")
+        print("4. Asset Composition")
+        print("5. Client Declarations")
+        print("6. Source of Wealth Declaration")
+        print("7. Supporting Documents")
+        print("8. Finish Editing")
+
+        choice = input(
+            "\nWhat would you like to edit or add? "
+        ).strip()
+
+        if choice == "1":
+
+            edit_client_profile(record)
+
+        elif choice == "2":
+
+            print("\n1. Edit existing career")
+            print("2. Add new career")
+
+            career_choice = input(
+                "\nChoose an option: "
+            ).strip()
+
+            if career_choice == "1":
+                edit_career_record(record)
+
+            elif career_choice == "2":
+                add_career_record(record)
+
+            else:
+                print("Invalid choice.")
+
+        elif choice == "3":
+
+            print("\n1. Edit existing asset")
+            print("2. Add new asset")
+
+            asset_choice = input(
+                "\nChoose an option: "
+            ).strip()
+
+            if asset_choice == "1":
+                edit_asset_record(record)
+
+            elif asset_choice == "2":
+                add_asset_record(record)
+
+            else:
+                print("Invalid choice.")
+
+        elif choice == "4":
+
+            edit_asset_composition(record)
+
+        elif choice == "5":
+
+            edit_client_declarations(record)
+
+        elif choice == "6":
+
+            edit_sow_declaration(record)
+
+        elif choice == "7":
+
+            add_supporting_documents(record)
+
+        elif choice == "8":
+
+            print("\nFinished editing.")
+            break
+
+        else:
+
+            print("\nInvalid choice.")
+
+        print("\n----------------------------------------")
+        print("Would you like to make another change?")
+        print("----------------------------------------")
+
+        again = input(
+            "Enter y to continue or n to finish: "
+        ).strip().lower()
+
+        if again != "y":
+            break
+
+def find_existing_client():
+    """Find, display, edit and manage an existing client from MongoDB."""
+
+    print("\n=== Existing Client ===")
+
+    client_ref = input(
+        "Enter client reference: "
+    ).strip()
+
+    print("\nSearching database...")
+
+    records = load_all_records()
+
+    if not records:
+        print("No client records found in the database.")
+        input("\nPress Enter to return to the main menu...")
+        return
+
+    client_record = None
+
+    for record in records:
+        if record.get("client_ref") == client_ref:
+            client_record = record
+            break
+
+    if client_record is None:
+        print(
+            f"\nNo client found with reference: {client_ref}"
+        )
+        input("\nPress Enter to return to the main menu...")
+        return
+
+    print("\nClient found!")
+
+    # -------------------------------------------------
+    # Initial display
+    # -------------------------------------------------
+
+    display_client_record(client_record)
+
+    # -------------------------------------------------
+    # Existing Client Options
+    # -------------------------------------------------
+
+    while True:
+
+        print("\n========================================")
+        print("       CLIENT RECORD OPTIONS")
+        print("========================================")
+        print("1. Edit or Add Information")
+        print("2. Download Supporting Document")
+        print("3. Finish")
+
+        choice = input(
+            "\nEnter your choice (1-3): "
+        ).strip()
+
+        # ---------------------------------------------
+        # EDIT / ADD
+        # ---------------------------------------------
+
+        if choice == "1":
+
+            edit_existing_client(client_record)
+
+            print("\nSaving changes to MongoDB...")
+
+            success = save_case_record(client_record)
+
+            if success:
+                print(
+                    "\nChanges saved successfully to MongoDB."
+                )
+            else:
+                print(
+                    "\nERROR: Changes could not be saved."
+                )
+
+            print("\n=== UPDATED CLIENT RECORD ===")
+
+            display_client_record(client_record)
+
+        # ---------------------------------------------
+        # DOWNLOAD DOCUMENT
+        # ---------------------------------------------
+
+        elif choice == "2":
+
+            documents = client_record.get(
+                "supporting_documents",
+                []
+            )
+
+            if not documents:
+                print(
+                    "\nNo supporting documents found."
+                )
+                continue
+
+            while True:
+
+                print("\n=== Supporting Documents ===")
+
+                for index, document in enumerate(
+                    documents,
+                    start=1
+                ):
+                    print(
+                        f"{index}. "
+                        f"{document.get('file_name', 'Unknown file')}"
+                    )
+
+                print("0. Return")
+
+                document_choice = input(
+                    "\nSelect a document to download: "
+                ).strip()
+
+                if document_choice == "0":
+                    break
+
+                if not document_choice.isdigit():
+                    print("Invalid choice.")
+                    continue
+
+                document_index = int(document_choice) - 1
+
+                if (
+                    document_index < 0
+                    or document_index >= len(documents)
+                ):
+                    print("Invalid document selection.")
+                    continue
+
+                selected_document = documents[
+                    document_index
+                ]
+
+                file_name = selected_document.get(
+                    "file_name",
+                    "Unknown file"
+                )
+
+                file_id = selected_document.get(
+                    "file_id"
+                )
+
+                if not file_id:
+                    print(
+                        "\nThis document does not have "
+                        "a GridFS file ID."
+                    )
+                    input(
+                        "\nPress Enter to continue..."
+                    )
+                    continue
+
+                print(
+                    f"\nSelected document: {file_name}"
+                )
+
+                # Create a temporary Tkinter root
+                root = tk.Tk()
+                root.withdraw()
+
+                output_path = filedialog.asksaveasfilename(
+                    title="Save Supporting Document",
+                    initialfile=file_name
+                )
+
+                root.destroy()
+
+                if not output_path:
+                    print("Download cancelled.")
+                    continue
+
+                success = download_supporting_document(
+                    file_id,
+                    output_path
+                )
+
+                if success:
+                    print(
+                        "\nDocument downloaded successfully!"
+                    )
+                    print(
+                        f"Saved to: {output_path}"
+                    )
+                else:
+                    print(
+                        "\nERROR: Could not download document."
+                    )
+
+                input(
+                    "\nPress Enter to continue..."
+                )
+
+        # ---------------------------------------------
+        # FINISH
+        # ---------------------------------------------
+
+        elif choice == "3":
+
+            print(
+                "\nFinished viewing client."
+            )
+
+            break
+
+        else:
+
+            print(
+                "\nInvalid choice. "
+                "Please enter 1, 2, or 3."
+            )
+
+    input(
+        "\nPress Enter to return to the main menu..."
+    )
 
 def main():
     """Main program loop."""
@@ -527,22 +1257,8 @@ def main():
             create_new_client()
 
         elif choice == "2":
-
-            print("\n=== Existing Client ===")
-
-            client_ref = input(
-                "Enter client reference: "
-            ).strip()
-
-            print(
-                f"\nExisting client lookup for "
-                f"{client_ref} is not implemented yet."
-            )
-
-            input(
-                "\nPress Enter to return to the main menu..."
-            )
-
+            find_existing_client()
+            
         elif choice == "3":
 
             print(
