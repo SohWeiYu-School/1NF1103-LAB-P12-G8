@@ -3,7 +3,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sitadriansoh_db_user:XBQDJpd04xLpZpc4@sowcluster0.qpms0w6.mongodb.net/?appName=sowCluster0")
+MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = "sow_risk_db"
 COLLECTION_NAME = "client_cases"
 
