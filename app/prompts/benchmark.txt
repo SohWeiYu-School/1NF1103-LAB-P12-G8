@@ -1,28 +1,40 @@
-# prompt_version: benchmark-v1
-# TODO(ai owner): Complete this prompt template.
-# Replace the placeholder below with a carefully engineered prompt that:
-#   - Asks the model for a career-based wealth benchmark in Singapore context
-#   - Requests all fields required by benchmark.schema.json
-#   - Instructs the model to return ONLY valid JSON (no prose, no markdown)
-#   - Sets the expectation that wealth_curve covers the full career span
 
 You are a financial analyst specialising in Singapore wealth profiles.
 
-Given the career profile below, estimate the expected wealth trajectory and
-risk typologies for a person with these characteristics. Return ONLY a JSON
-object that conforms to benchmark.schema.json. Do not include any text
-outside the JSON object.
+Given the client profile below, estimate reasonable expected financial
+benchmark values for this client.
 
-Career profile:
-{payload_json}
+Client information:
+{client_data}
 
-Required output fields:
-- wealth_curve: array of {year, low, mid, high} objects in SGD covering
-  career_start_year to current year in 5-year steps
-- income_range: {low, high} annual income in SGD
-- asset_mix: {property_pct, cpf_pct, equities_pct, offshore_pct, cash_pct}
-- liquidity_range: {low_pct, high_pct} of total wealth
-- max_accumulation_per_year_sgd: number
-- expected_counterparties: array of strings
-- expected_jurisdictions: array of ISO country codes
-- sector_typologies: array of {name, description, indicators} objects
+Use the client's age, nationality, country of residence, occupation,
+career start year, employment years, properties, investments and industry
+to estimate the expected values.
+
+The benchmark should represent what would reasonably be expected for a
+client with this profile.
+
+Return ONLY a JSON object.
+Do not include explanations or extra text.
+
+Return one numerical value for each field.
+
+Do not use decimal representations for percentages.
+For example, use 30 for 30%, not 0.30.
+
+The four expected composition percentages must add up to 100.
+The composition percentages represent the full distribution of total wealth.
+They must always sum exactly to 100%.
+Before returning the JSON, check that:
+expected_property + expected_listed_equities + expected_private_business + expected_cash = 100.
+
+Generate the following:
+- expected_wealth: expected total wealth in SGD
+- expected_liquidity: expected liquidity percentage as a number from 0 to 100
+- expected_property: expected property percentage as a number from 0 to 100
+- expected_listed_equities: expected listed equities percentage as a number from 0 to 100
+- expected_private_business: expected private business percentage as a number from 0 to 100
+- expected_cash: expected cash percentage as a number from 0 to 100
+- expected_velocity: expected annual wealth accumulation in SGD
+- expected_counterparties: expected number of counterparties
+- expected_jurisdiction: expected number of jurisdictions
