@@ -159,7 +159,7 @@ def calculate_composition(client_data, ai_data):
 calculate_composition(client_data, ai_data)
 
 #=============================================================================#
-
+#def calculate_velocity(client_data, ai_data):
 
 # if __name__ == "__main__":
 
