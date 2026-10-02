@@ -28,3 +28,10 @@ Thumbs.db
 data/runtime/
 logs/
 *.corrupt-*
+
+data/raw/
+data/forecasts/
+data/assessments/
+.env
+__pycache__/
+.pytest_cache/
