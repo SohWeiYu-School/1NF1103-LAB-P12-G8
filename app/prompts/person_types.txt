@@ -1,0 +1,19 @@
+# prompt_version: person-types-v1
+# Call 3, step 1: every kind of person this client could be.
+
+TASK: List every kind of person this client could possibly be from {start_year} to
+{last_forecast_year}.
+
+- There is NO fixed list. Build the types from THIS client's profile: his jobs, industries,
+  employers, countries, assets, claimed sources and declaration.
+- Cover the full range his profile allows: the version where his wealth came exactly as
+  declared, versions with tax or disclosure problems, and every kind of financial crime he
+  could realistically be involved in. Include a type only if his profile gives it a real
+  route (access, means and opportunity).
+- type_id "{baseline_type}" MUST be the version where his wealth came exactly as declared.
+  Then "T2", "T3", ... Each type must be a different route.
+- route: the specific route in one sentence (e.g. "over-invoices freight through his Hong
+  Kong brokerage", not "money launderer").
+- rule_out_documents: documents that would show this type is NOT the true one.
+  also_rules_out may ONLY contain type ids from your list ([] if none).
+- Do not rank the types or say which is more likely.

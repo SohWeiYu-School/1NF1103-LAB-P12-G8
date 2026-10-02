@@ -1,0 +1,12 @@
+# prompt_version: market-series-v1
+# Call 1, step 2: the past and future of ONE market.
+
+TASK: Give the history and forecast of the market "{market_id}" ({market_name}),
+measured by "{indicator}".
+
+- market_id: "{market_id}".
+- history: exactly ONE entry for EVERY year {start_year} to {end_year}. change_pct is the %
+  change in the indicator over that year. If you cannot find a year, set change_pct to null
+  and say so in data_gaps. Never invent figures.
+- outlook: exactly ONE entry for EVERY year {forecast_years}: your forecast of change_pct as
+  a low / typical / high range in a steady year, a boom and a downturn.

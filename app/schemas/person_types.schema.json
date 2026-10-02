@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "properties": {
+    "person_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "rule_out_documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "document_code": {
+                  "type": "string",
+                  "x-vocab": "document_codes"
+                },
+                "also_rules_out": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "document_code",
+                "also_rules_out"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type_id",
+          "name",
+          "route",
+          "rule_out_documents"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "person_types"
+  ],
+  "additionalProperties": false
+}

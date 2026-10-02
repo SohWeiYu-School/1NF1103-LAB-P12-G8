@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "properties": {
+    "type_id": {
+      "type": "string"
+    },
+    "reactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "extra_money_change": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "x-vocab": "signal_codes"
+            }
+          }
+        },
+        "required": [
+          "event_id",
+          "extra_money_change",
+          "signals"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "type_id",
+    "reactions"
+  ],
+  "additionalProperties": false
+}

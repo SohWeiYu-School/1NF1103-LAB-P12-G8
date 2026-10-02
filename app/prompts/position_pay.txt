@@ -1,0 +1,14 @@
+# prompt_version: position-pay-v1
+# Call 2, step 1: expected pay and living costs for ONE job.
+
+TASK: Estimate what a person in this job should have earned and spent, every year from
+{first_year} to {last_year}. Set position_index to {position_index}.
+
+- yearly: exactly ONE entry for EVERY year {first_year} to {last_year}. Estimate what THIS
+  occupation, seniority, industry, employer size and country normally paid that year, given
+  that year's market conditions: base_pay, bonus and equity_or_profit_share SEPARATELY.
+- tax_rate_pct: the effective income tax rate on that pay in that country and year.
+- living_costs: yearly living costs of a professional at this level and age in that country.
+- savings_return_pct: what ordinary cash savings earned that year.
+- Convert local pay into {currency} using that year's exchange rate.
+- Pay should follow on sensibly from the earlier years given.
