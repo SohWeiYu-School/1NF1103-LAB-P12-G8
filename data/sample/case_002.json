@@ -1,35 +1,90 @@
 {
-  "case_ref": "SOW-2026-002",
-  "age": 32,
-  "nationality": "Malaysian",
-  "country_of_residence": "Singapore",
-  "occupation": "Consultant",
-  "industry": "Financial Services",
-  "career_start_year": 2016,
-  "pep_status": "none",
-  "declared_net_worth_sgd": 5000000,
-  "expected_aum_sgd": 4000000,
-  "asset_composition": {
-    "property_pct": 10,
-    "cpf_pct": 5,
-    "equities_pct": 20,
-    "offshore_pct": 55,
-    "cash_pct": 10
+  "client_ref": "SOW-2026-0207",
+  "current_date": "2026-09-24",
+  "name": "Priya Nair",
+  "nationality": "Singaporean",
+  "career": {
+    "occupation": "Engineering Manager",
+    "seniority": "Manager",
+    "industry": "Banking technology",
+    "employer_name": "Lion City Bank Ltd",
+    "employer_size": "10,000+ employees",
+    "country_of_residence": "Singapore",
+    "age": 41,
+    "career_start_year": 2008
   },
-  "wealth_countries": ["SG", "MY", "KY"],
-  "declaration_text": "My wealth comes from consulting fees earned over the past eight years working with financial institutions across South-East Asia, as well as an inheritance received from my grandfather in 2019. I also hold investments in a Cayman Islands vehicle managed by a family office.",
-  "evidence": [
+  "career_history": [
     {
-      "doc_type": "bank_statement",
-      "year": 2024,
-      "amount_sgd": 120000,
-      "supports_source": "employment"
+      "start_year": 2008,
+      "end_year": 2014,
+      "occupation": "Software Engineer",
+      "seniority": "Junior",
+      "industry": "Banking technology",
+      "employer_name": "Lion City Bank Ltd",
+      "employer_size": "10,000+ employees",
+      "country": "Singapore"
     },
     {
-      "doc_type": "letter_of_probate",
-      "year": 2019,
-      "amount_sgd": 1500000,
-      "supports_source": "inheritance"
+      "start_year": 2015,
+      "end_year": 2019,
+      "occupation": "Senior Software Engineer",
+      "seniority": "Senior",
+      "industry": "Banking technology",
+      "employer_name": "Lion City Bank Ltd",
+      "employer_size": "10,000+ employees",
+      "country": "Singapore"
+    },
+    {
+      "start_year": 2020,
+      "end_year": null,
+      "occupation": "Engineering Manager",
+      "seniority": "Manager",
+      "industry": "Banking technology",
+      "employer_name": "Lion City Bank Ltd",
+      "employer_size": "10,000+ employees",
+      "country": "Singapore"
+    }
+  ],
+  "investments": [
+    {
+      "asset_type": "Residential property (condominium)",
+      "country": "Singapore",
+      "year_acquired": 2015,
+      "price_paid": 1100000,
+      "current_declared_value": 1450000,
+      "payment_method": "loan",
+      "income_produced": 0
+    },
+    {
+      "asset_type": "Listed equities portfolio (Singapore ETFs)",
+      "country": "Singapore",
+      "year_acquired": 2020,
+      "price_paid": 200000,
+      "current_declared_value": 260000,
+      "payment_method": "cash",
+      "income_produced": 7000
+    }
+  ],
+  "claims": {
+    "declared_net_worth": 1900000,
+    "expected_aum": 400000,
+    "asset_composition": {
+      "property": 0.6,
+      "listed_equities": 0.15,
+      "private_business": 0.0,
+      "cash": 0.25
+    },
+    "wealth_countries": [
+      "Singapore"
+    ],
+    "pep_status": "None"
+  },
+  "sow_declaration": "Ms Nair has worked in technology at Lion City Bank since 2008, first as a software engineer, then as a senior engineer from 2015 and as an engineering manager since 2020. Her wealth comes from her salary and annual bonuses. She bought her condominium in 2015 with a bank mortgage and has invested part of her savings in Singapore ETFs since 2020. The rest of her wealth is cash savings.",
+  "reviews": [
+    {
+      "current_date": "2027-09-24",
+      "current_wealth": 2080000,
+      "officer_notes": "Since the last review: monthly salary credits from Lion City Bank of about SGD 16,500. Annual bonus of SGD 42,000 paid in March. Quarterly ETF dividends of about SGD 2,300. No other activity."
     }
   ]
 }
