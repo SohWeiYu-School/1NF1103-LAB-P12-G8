@@ -13,21 +13,19 @@ from app.data_manager import (
 )
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-6)."""
+    """Display the unified main menu and return the user's choice (1-4)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
     print("1. New Client")
     print("2. Find / Edit Existing Client")
-    print("3. Run Sector Crime Scan (sample)")
-    print("4. Run Benchmark")
-    print("5. Run Forecasting")
-    print("6. Quit")
+    print("3. Run Forecasting")
+    print("4. Quit")
     while True:
-        choice = input("\nEnter your choice (1-6): ").strip()
-        if choice in ("1", "2", "3", "4", "5", "6"):
+        choice = input("\nEnter your choice (1-4): ").strip()
+        if choice in ("1", "2", "3", "4"):
             return choice
-        print("Invalid choice. Please enter 1 to 6.")
+        print("Invalid choice. Please enter 1 to 4.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
@@ -573,8 +571,10 @@ def create_new_client():
 
         print("\nClient was NOT saved to the database.")
         print("The information has been discarded.")
+        client_record = None
 
     input("\nPress Enter to return to the main menu...")
+    return client_record
 
 def edit_client_profile(record):
     """Edit the client's basic profile information."""

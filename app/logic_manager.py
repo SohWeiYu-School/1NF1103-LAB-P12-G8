@@ -98,6 +98,10 @@ def run_benchmark(client_data: dict):
 
     ai_data = get_ai_data(client_data)
 
+    if ai_data is None:
+        print("\n[Benchmark] AI call failed — could not retrieve benchmark data.")
+        return None
+
     result1 = calculate_total_wealth(client_data, ai_data)
     print("\n--- Total Wealth Check ---")
     print("Declared Net Worth:", client_data["declared_net_worth"])
@@ -121,6 +125,8 @@ def run_benchmark(client_data: dict):
         print("Result:             FAIL")
 
     calculate_composition(client_data, ai_data)
+
+    return ai_data
 
     #def calculate_velocity(client_data, ai_data):
 
