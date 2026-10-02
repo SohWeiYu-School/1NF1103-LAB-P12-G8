@@ -1,0 +1,22 @@
+{
+  "client_id": "CID1001",
+  "age": 28,
+  "nationality": "Singaporean",
+  "country_of_residence": "Singapore",
+  "occupation": "Software Engineer",
+  "career_start_year": 2020,
+  "employment_years": 6,
+  "industry": "Information Technology",
+  "properties": "1 condominium",
+  "investment": "Stocks and ETFs",
+  "declared_net_worth": 200000,
+  "expected_aum": null,
+  "asset_composition": null,
+  "source_of_wealth": "Salary savings and long-term investments",
+  "pep_status": "None",
+  "wealth_generation_country": "Singapore",
+  "listed_equities": 11,
+  "cash": 20,
+  "property": 28,
+  "private_business": 41
+}

@@ -26,5 +26,8 @@ Thumbs.db
 
 # Runtime data
 data/runtime/
+data/cache/
 logs/
 *.corrupt-*
+
+docs

@@ -1,4 +1,7 @@
 anthropic==1.7.0
+openai==3.19.2
 python-dotenv==1.2.3
 jsonschema==4.26.0
 pytest==9.1.1
+pymongo==4.18.2
+certifi==2026.7.22

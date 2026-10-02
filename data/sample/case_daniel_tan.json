@@ -1,0 +1,41 @@
+{
+  "client_profile": {
+    "client_ref": "ID-2233",
+    "full_name": "Daniel Tan Wei Ming",
+    "age": 51,
+    "nationality": "Malaysia",
+    "country_of_residence": "Singapore",
+    "latest_occupation": "Chief Operating Officer",
+    "latest_seniority": "C-suite",
+    "latest_industry": "Maritime shipping and freight forwarding",
+    "current_company": "Straits Harbour Logistics Pte Ltd",
+    "career_start_year": 1998,
+    "years_of_employment": 28,
+    "date_profile_created": "2026-09-24"
+  },
+  "career_timeline": [
+    {"start_year": 1998, "end_year": 2009, "job_title": "Operations Planner", "seniority": "Junior to mid", "industry": "Container shipping", "company": "Lion City Container Line", "company_size": "1,000-5,000", "country": "SG"},
+    {"start_year": 2009, "end_year": 2013, "job_title": "Regional Operations Manager", "seniority": "Senior manager", "industry": "Port terminal operations", "company": "Victoria Harbour Terminals Ltd", "company_size": "1,000-5,000", "country": "HK"},
+    {"start_year": 2013, "end_year": null, "job_title": "Chief Operating Officer", "seniority": "C-suite", "industry": "Maritime shipping and freight forwarding", "company": "Straits Harbour Logistics Pte Ltd", "company_size": "500-1,000", "country": "SG"}
+  ],
+  "asset_timeline": [
+    {"asset_type": "Property", "description": "HDB flat in Tampines", "country": "SG", "year_acquired": 2003, "price_paid": 280000, "payment_method": "Salary and CPF", "year_sold": 2015, "sale_price": 610000, "current_value": null, "yearly_income": null, "currency": "SGD"},
+    {"asset_type": "Property", "description": "Rental apartment in Melbourne", "country": "AU", "year_acquired": 2016, "price_paid": 1200000, "payment_method": "Sale of another asset", "year_sold": null, "sale_price": null, "current_value": 1550000, "yearly_income": 54000, "currency": "AUD"}
+  ],
+  "asset_composition": {"property_pct": 28, "listed_equities_pct": 11, "private_business_pct": 41, "cash_pct": 20},
+  "declarations": {
+    "declared_net_worth": 16500000,
+    "expected_aum": 5000000,
+    "owns_property": true,
+    "owns_investments": true,
+    "pep_status": "none",
+    "wealth_countries": ["SG", "HK", "AE"],
+    "date_declared": "2026-09-24"
+  },
+  "sow_declaration": {
+    "text": "Mr Tan started as an operations planner at a Singapore container line in 1998, moved to Hong Kong in 2009 as a regional operations manager, and returned to Singapore in 2013 as COO of Straits Harbour Logistics. He bought an HDB flat in 2003 and sold it in 2015. He holds a stake in a trading company in Dubai through a business associate, which pays regular distributions.",
+    "written_by": "RM-0231",
+    "date_written": "2026-09-24"
+  },
+  "supporting_documents": []
+}

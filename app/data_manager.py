@@ -1,19 +1,30 @@
 import os
+import certifi
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sitadriansoh_db_user:XBQDJpd04xLpZpc4@sowcluster0.qpms0w6.mongodb.net/?appName=sowCluster0")
 DB_NAME = "sow_risk_db"
 COLLECTION_NAME = "client_cases"
+ASSESSMENT_COLLECTION_NAME = "ai_assessments"
 
 
 def get_collection():
     """Returns the MongoDB collection object or None if connection fails."""
     try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
+        client = MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000, tlsCAFile=certifi.where())
         db = client[DB_NAME]
         return db[COLLECTION_NAME]
+    except Exception:
+        return None
+
+
+def get_assessment_collection():
+    """Returns the ai_assessments collection object or None if connection fails."""
+    try:
+        client = MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000, tlsCAFile=certifi.where())
+        db = client[DB_NAME]
+        return db[ASSESSMENT_COLLECTION_NAME]
     except Exception:
         return None
 
@@ -60,6 +71,29 @@ def filter_cases_by_outcome(outcome: str) -> list:
         return list(collection.find({"outcome": outcome}, {"_id": 0}))
     except PyMongoError:
         return []
+
+def save_assessment(record: dict) -> bool:
+    """Saves or updates an AI assessment record in the ai_assessments collection.
+
+    Uses client_ref as the foreign key linking to client_cases.
+    """
+    if not isinstance(record, dict) or "client_ref" not in record:
+        return False
+
+    collection = get_assessment_collection()
+    if collection is None:
+        return False
+
+    try:
+        collection.update_one(
+            {"client_ref": record["client_ref"]},
+            {"$set": record},
+            upsert=True
+        )
+        return True
+    except PyMongoError:
+        return False
+
 
 #supporting documents
 
