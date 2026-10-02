@@ -19,6 +19,10 @@ load_dotenv() #loads your secret/environment variables from the .env file
 openAi_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 #claude_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+# ---------------------------------------------------------------------------
+# Benchmark Section
+# ---------------------------------------------------------------------------
+
 # Generate a prompt using the client's information
 def generate_prompt(client_data):
 
@@ -297,7 +301,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Research call — uses OpenAI Responses API with web_search tool
+# Research AI Function
 # ---------------------------------------------------------------------------
 
 def _build_research_payload(case_input: dict) -> dict:
@@ -557,3 +561,9 @@ def get_research(case_input: dict) -> tuple[dict | None, list[str]]:
         "research", payload, prompt, schema, domains,
         transform=lambda data: _trim_reports(data, max_reports, max_excerpts),
     )
+
+# ---------------------------------------------------------------------------
+# Forecasting Section
+# ---------------------------------------------------------------------------
+
+#INSERT FORECASTING CODES BELOW

@@ -11,10 +11,11 @@ import os
 
 from dotenv import load_dotenv
 
-from app import ai_manager, io_manager
+from app import ai_manager, io_manager, logic_manager
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE_CLIENT_PATH = os.path.join(_BASE, "data", "sample", "case_daniel_tan.json")
+SAMPLE_BENCHMARK_PATH = os.path.join(_BASE, "data", "sample", "case_benchmark.json")
 
 
 def _load_json(path: str) -> dict:
@@ -92,8 +93,8 @@ def main() -> None:
         elif choice == "3":
             _run_sample_assessment()
         elif choice == "4":
-            # TODO: wire up benchmark teammate's logic
-            io_manager.show_message("\n[Benchmark] Not yet wired up.")
+            client_data = _load_json(SAMPLE_BENCHMARK_PATH)
+            logic_manager.run_benchmark(client_data)
         elif choice == "5":
             # TODO: wire up forecasting
             io_manager.show_message("\n[Forecasting] Not yet wired up.")

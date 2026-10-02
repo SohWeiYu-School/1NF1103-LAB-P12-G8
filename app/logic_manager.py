@@ -1,6 +1,9 @@
-from ai_manager import get_ai_data
+from app.ai_manager import get_ai_data
 
-#Limits used to determine the PASS / FAIL for client data against ai data
+# ---------------------------------------------------------------------------
+# Shared — limits used across all features
+# ---------------------------------------------------------------------------
+
 LIMITS = {
     "total_wealth": 3,
     "liquidity": 2,
@@ -10,51 +13,9 @@ LIMITS = {
     "jurisdiction": 1
 }
 
-# Sample client information
-client_data = {
-    "client_id": "CID1001",
-    "age": 28,
-    "nationality": "Singaporean",
-    "country_of_residence": "Singapore",
-    "occupation": "Software Engineer",
-    "career_start_year": 2020,
-    "employment_years": 6,
-    "industry": "Information Technology",
-    "properties": "1 condominium",
-    "investment": "Stocks and ETFs",
-    "declared_net_worth": 200000,
-    "expected_aum": None,
-    "asset_composition": None,
-    "source_of_wealth": "Salary savings and long-term investments",
-    "pep_status": "None",
-    "wealth_generation_country": "Singapore",
-    "listed_equities": 11, #used for liquidity, composition
-    "cash": 20, #used for liquidity, composition
-    "property": 28, #used for composition
-    "private_business": 41, #used for composition
-}
-
-ai_data = get_ai_data(client_data) # Get Ai output using function
-
-# REQUIRED_AI_FIELDS = [
-#     "total_wealth",
-#     "liquidity",
-#     "composition",
-#     "velocity",
-#     "counterparties",
-#     "jurisdiction"
-# ]
-
-# To go through each required field. 
-# If any field is missing, return False. 
-# If everything is there, return True.
-
-# def validate_ai_result(ai_data):
-#     for field in REQUIRED_AI_FIELDS:
-#         if field not in ai_data:
-#             return False
-
-#     return True
+# ---------------------------------------------------------------------------
+# Benchmark Section
+# ---------------------------------------------------------------------------
 
 def calculate_total_wealth(client_data, ai_data):
 
@@ -65,18 +26,7 @@ def calculate_total_wealth(client_data, ai_data):
 
     return result1
 
-result1 = calculate_total_wealth(client_data, ai_data)
-print("\n--- Total Wealth Check ---")
-print("Declared Net Worth:", client_data["declared_net_worth"])
-print("Expected Wealth:   ", ai_data["expected_wealth"])
-print("Ratio:             ", round(result1, 2)) # Round to 2dp
 
-if result1 <= LIMITS["total_wealth"]:
-    print("Result:             PASS")
-else:
-    print("Result:             FAIL")
-
-#=============================================================================#
 def calculate_liquidity(client_data, ai_data):
 
     declared = client_data["listed_equities"] + client_data["cash"]
@@ -86,18 +36,6 @@ def calculate_liquidity(client_data, ai_data):
 
     return result2
 
-result2 = calculate_liquidity(client_data, ai_data)
-print("\n--- Liquidity Check ---")
-print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
-print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
-print("Ratio:             ", round(result2, 2)) # Round to 2dp
-
-if result2 <= LIMITS["liquidity"]:
-    print("Result:             PASS")
-else:
-    print("Result:             FAIL")
-
-#=============================================================================#
 
 def calculate_composition(client_data, ai_data):
 
@@ -131,7 +69,7 @@ def calculate_composition(client_data, ai_data):
     print("Listed Equities       ", declared_listed, "%       ", expected_listed, "%        ", difference_listed, "%")
     print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
     print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
-    
+
     print("\n--- Composition Result ---")
 
     if difference_property <= LIMITS["composition"]:
@@ -153,19 +91,43 @@ def calculate_composition(client_data, ai_data):
         print("Cash: PASS")
     else:
         print("Cash: FAIL")
-    
 
-# Run Asset Composition Check
-calculate_composition(client_data, ai_data)
 
-#=============================================================================#
-#def calculate_velocity(client_data, ai_data):
+def run_benchmark(client_data: dict):
+    """Run the full benchmark check for the given client data."""
 
-# if __name__ == "__main__":
+    ai_data = get_ai_data(client_data)
 
-   
-"""Pure scoring and decision functions. No side effects, no I/O, no network."""
+    result1 = calculate_total_wealth(client_data, ai_data)
+    print("\n--- Total Wealth Check ---")
+    print("Declared Net Worth:", client_data["declared_net_worth"])
+    print("Expected Wealth:   ", ai_data["expected_wealth"])
+    print("Ratio:             ", round(result1, 2))
 
+    if result1 <= LIMITS["total_wealth"]:
+        print("Result:             PASS")
+    else:
+        print("Result:             FAIL")
+
+    result2 = calculate_liquidity(client_data, ai_data)
+    print("\n--- Liquidity Check ---")
+    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
+    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
+    print("Ratio:             ", round(result2, 2))
+
+    if result2 <= LIMITS["liquidity"]:
+        print("Result:             PASS")
+    else:
+        print("Result:             FAIL")
+
+    calculate_composition(client_data, ai_data)
+
+    #def calculate_velocity(client_data, ai_data):
+
+
+# ---------------------------------------------------------------------------
+# Sector Crime Scan Section
+# ---------------------------------------------------------------------------
 
 def decide_outcome(findings: list[dict], policy: dict) -> str:
     """Count breached dimensions and return the escalation outcome."""
@@ -235,3 +197,10 @@ def assess_case(
     documents = build_document_requests(findings, policy)
 
     return {"outcome": outcome, "findings": findings, "documents": documents}
+
+
+# ---------------------------------------------------------------------------
+# Forecasting Section
+# ---------------------------------------------------------------------------
+
+# INSERT FORECASTING LOGIC BELOW
