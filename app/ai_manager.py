@@ -21,8 +21,6 @@ RESEARCH_ALLOWED_FIELDS = ["industry", "country"]
 
 # Must match policy.json "typology_max_patterns"
 _TYPOLOGY_MAX_PATTERNS = 5
-_RESEARCH_MAX_REPORTS = 8
-_RESEARCH_MAX_EXCERPTS = 3
 
 # User-facing one-line messages per error type (full detail goes to log)
 _USER_MESSAGES = {
@@ -218,24 +216,24 @@ def _build_research_payload(case_input: dict) -> dict:
     return payload
 
 
-def _trim_reports(data: dict) -> tuple[dict, list[str]]:
-    """Trim reports to _RESEARCH_MAX_REPORTS and excerpts to _RESEARCH_MAX_EXCERPTS."""
+def _trim_reports(data: dict, max_reports: int, max_excerpts: int) -> tuple[dict, list[str]]:
+    """Trim reports and excerpts to policy limits. Coerce year strings to int."""
     warnings: list[str] = []
     reports = data.get("reports", [])
 
-    if len(reports) > _RESEARCH_MAX_REPORTS:
+    if len(reports) > max_reports:
         warning = (
             f"AI returned {len(reports)} reports; "
-            f"kept first {_RESEARCH_MAX_REPORTS} per policy."
+            f"kept first {max_reports} per policy."
         )
         logger.warning(warning)
         warnings.append(warning)
-        reports = reports[:_RESEARCH_MAX_REPORTS]
+        reports = reports[:max_reports]
 
     for r in reports:
         excerpts = r.get("excerpts", [])
-        if len(excerpts) > _RESEARCH_MAX_EXCERPTS:
-            r["excerpts"] = excerpts[:_RESEARCH_MAX_EXCERPTS]
+        if len(excerpts) > max_excerpts:
+            r["excerpts"] = excerpts[:max_excerpts]
         if isinstance(r.get("year"), str):
             try:
                 r["year"] = int(r["year"])
@@ -450,8 +448,8 @@ def get_research(case_input: dict) -> tuple[dict | None, list[str]]:
 
     policy = load_policy()
     domains = policy.get("trusted_sources", [])
-    max_reports = policy.get("research_max_reports", _RESEARCH_MAX_REPORTS)
-    max_excerpts = policy.get("research_max_excerpts_per_report", _RESEARCH_MAX_EXCERPTS)
+    max_reports = policy.get("research_max_reports")
+    max_excerpts = policy.get("research_max_excerpts_per_report")
 
     template = load_prompt("research.txt")
     prompt = (
@@ -464,5 +462,6 @@ def get_research(case_input: dict) -> tuple[dict | None, list[str]]:
     schema = load_schema("research_response.schema.json")
 
     return _call_ai_research(
-        "research", payload, prompt, schema, domains, transform=_trim_reports,
+        "research", payload, prompt, schema, domains,
+        transform=lambda data: _trim_reports(data, max_reports, max_excerpts),
     )

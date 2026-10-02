@@ -389,6 +389,7 @@ def _valid_report(title: str = "Test Report") -> dict:
         "year": 2020,
         "url": "https://www.fatf-gafi.org/test-report",
         "excerpts": ["Excerpt from the report."],
+        "summary": ["Over-invoicing of goods to move funds.", "Use of shell companies in shipping."],
     }
 
 
@@ -511,7 +512,7 @@ def test_nine_reports_trimmed_to_eight(tmp_path, monkeypatch):
     with patch("app.ai_manager.client", return_value=mock_client):
         result, warnings = _call_ai_research(
             "research", _SAMPLE_RESEARCH_PAYLOAD, _RESEARCH_PROMPT,
-            RESEARCH_SCHEMA, _DOMAINS, transform=ai_manager._trim_reports,
+            RESEARCH_SCHEMA, _DOMAINS, transform=lambda d: ai_manager._trim_reports(d, 8, 3),
         )
 
     assert result is not None
