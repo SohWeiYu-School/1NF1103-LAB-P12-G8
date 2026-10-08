@@ -220,6 +220,14 @@ else:
 def clean_country(country):
     if country == "SG":
         return "Singapore"
+    elif country == "MY":
+        return "Malaysia"
+    elif country == "ID":
+        return "Indonesia"
+    elif country == "HK":
+        return "Hong Kong"
+    elif country == "AE":
+        return "United Arab Emirates"
 
     return country
 
