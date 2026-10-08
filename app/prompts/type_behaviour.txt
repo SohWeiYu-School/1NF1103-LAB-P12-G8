@@ -1,21 +1,30 @@
-# prompt_version: type-behaviour-v1
+# prompt_version: type-behaviour-v3
 # Call 3, step 2: what ONE type's money and bank activity would look like.
+# v2: types are T1 (honest) or a standard crime category tied to the job/asset/source
+#     that enables it (see this_type in the input).
 
 TASK: Forecast the money and account activity of type "{type_id}" ({type_name}).
 The rules engine already models his declared pay and assets. You forecast only what is
 DIFFERENT about this type.
 
 - type_id: "{type_id}".
-- route_open_from / route_open_to: the first and last year this route is possible, between
-  {start_year} and {last_forecast_year}.
-- extra_money_history: ONE entry for EVERY year from route_open_from to {end_year} (none if
-  route_open_from is after {end_year}): the money this type would have brought in that year
-  ON TOP of his declared pay and assets, as a range. {baseline_note}
+- route_open_from / route_open_to: copy EXACTLY this_type.open_from and this_type.open_to
+  from the input. Do not change them.
+- extra_money_history: ONE entry for EVERY year from route_open_from to whichever is
+  EARLIER, route_open_to or {end_year}. No entries after route_open_to (the crime had
+  stopped), and none at all if route_open_from is after {end_year}. Each entry is the money
+  this type would have brought in that year ON TOP of his declared pay and assets, as a
+  range. {baseline_note}
 - extra_money_forecast: ONE entry for EVERY year {forecast_years}: the same, in a steady
-  year, a boom and a downturn. Use 0 for years the route is closed.
+  year, a boom and a downturn. Use 0 for years after route_open_to.
+- The size of the extra money must match what the channel in this_type (the job, asset or
+  declared source named in enabled_by) could realistically carry for this crime category.
 - signals: the account activity this type would produce, INCLUDING his ordinary salary,
   bonus and asset income if this type would still receive them: signal_code, the first and
-  last year it would show, count_per_year and amount_per_year (in {currency}).
+  last year it would show, count_per_year and amount_per_year (in {currency}). For a crime
+  type, include the signals that are typical of its category (for example trade invoice
+  mismatches for trade-based money laundering, high-risk jurisdiction flows for sanctions
+  evasion, government contract links for bribery).
 - linked_market_ids: the markets (market_id from the list) this type's extra money depends on.
 - market_fall_response: the % change in this type's extra money when those markets fall 1%
   (positive if the money RISES when they fall, negative if it falls with them).

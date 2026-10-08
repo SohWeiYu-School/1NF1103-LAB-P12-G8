@@ -12,7 +12,9 @@ The onboarding run is five steps, each made of small requests ("pieces"):
     Step 0  read_declaration    free text -> list of claimed sources
     Call 1  forecast_markets    market list + scenario chances, then one request per market
     Call 2  forecast_earnings   one request per job, future pay, one request per asset
-    Call 3  forecast_types      the types, then one behaviour forecast per type
+    Call 3  forecast_types      honest type + standard crime categories his background
+                                makes possible (each tied to a job/asset/source), then
+                                one behaviour forecast per type
     Call 4  forecast_events     the events, then one reaction forecast per type
 At each review:
             read_review_notes   officer notes -> structured payments, market moves, events seen
@@ -57,6 +59,8 @@ RETRY_WAIT_SECONDS = 2
 RATE_LIMIT_WAIT_SECONDS = 60
 REQUEST_TIMEOUT_SECONDS = 600
 MIN_EVENTS, MAX_EVENTS = 3, 6
+MAX_CRIME_TYPES = int(os.getenv("MAX_CRIME_TYPES", "5"))   # crime types after the honest one
+HONEST_CATEGORY = "HONEST"
 
 
 def _read_seed() -> int | None:
@@ -355,28 +359,97 @@ def check_asset_model(data: dict, index: int, years: list[int], market_ids: set)
     return errors
 
 
-def check_person_types(data: dict) -> list[str]:
-    ids = [t["type_id"] for t in data["person_types"]]
+def check_person_types(data: dict, record: dict, source_records: list[dict]) -> list[str]:
+    """
+    T1 is the honest person. Every other type is ONE standard crime category from the
+    vocabulary, tied to the job, asset or declared source that makes it possible for him,
+    and open only in the years that job/asset/source existed.
+    """
+    types = data["person_types"]
+    ids = [t["type_id"] for t in types]
+    start, end = common.career_years(record)
+    last_forecast_year = common.future_years(record)[-1]
+    jobs = common.career_positions(record)
+    sources = {s["source_id"]: s for s in source_records}
+    assets = record.get("investments", [])
     errors = []
+
     if not ids or ids[0] != common.BASELINE_TYPE:
         errors.append(f"the first type must be {common.BASELINE_TYPE} (wealth exactly as declared)")
     if len(ids) < 2:
-        errors.append("at least one type other than the as-declared one is required")
+        errors.append("at least one crime type besides the honest one is required")
+    if len(ids) - 1 > MAX_CRIME_TYPES:
+        errors.append(f"at most {MAX_CRIME_TYPES} crime types, ranked most relevant first; got {len(ids) - 1}")
     if len(ids) != len(set(ids)):
         errors.append("type_id values must be unique")
-    for person_type in data["person_types"]:
+
+    categories = [t["category"] for t in types]
+    if types and categories[0] != HONEST_CATEGORY:
+        errors.append(f"{common.BASELINE_TYPE} must use category {HONEST_CATEGORY}")
+    if HONEST_CATEGORY in categories[1:]:
+        errors.append(f"only {common.BASELINE_TYPE} may use category {HONEST_CATEGORY}")
+    crime_categories = categories[1:]
+    if len(crime_categories) != len(set(crime_categories)):
+        errors.append("each crime category may appear only once")
+
+    for person_type in types:
+        type_id = person_type["type_id"]
+        first, last = person_type["open_from"], person_type["open_to"]
+        if not start <= first <= last <= last_forecast_year:
+            errors.append(f"{type_id}: open years must sit inside {start}-{last_forecast_year}, "
+                          f"open_from <= open_to (got {first}-{last})")
         for document in person_type["rule_out_documents"]:
-            errors += _unknown_ids(f"{person_type['type_id']} also_rules_out",
-                                   document["also_rules_out"], set(ids))
+            errors += _unknown_ids(f"{type_id} also_rules_out", document["also_rules_out"], set(ids))
+        if type_id == common.BASELINE_TYPE:
+            # The honest type covers his whole career and every forecast year.
+            if (first, last) != (start, last_forecast_year):
+                errors.append(f"{type_id}: open_from/open_to must be {start}-{last_forecast_year}")
+            continue
+
+        # What makes this crime possible for HIM. At least one link, and the years must fit it.
+        job_index = person_type["enabled_by_position_index"]
+        asset_index = person_type["enabled_by_asset_index"]
+        source_id = person_type["enabled_by_source_id"]
+        if job_index is None and asset_index is None and source_id is None:
+            errors.append(f"{type_id}: must name the job, asset or declared source that makes it possible")
+        if job_index is not None:
+            if not 0 <= job_index < len(jobs):
+                errors.append(f"{type_id}: enabled_by_position_index {job_index} doesn't exist")
+            else:
+                job = jobs[job_index]
+                job_first = int(job["start_year"])
+                # A job he still holds can carry the crime into the forecast years; a past job can't.
+                job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+                if not job_first <= first <= job_last:
+                    errors.append(f"{type_id}: open_from {first} must fall while job {job_index} was held "
+                                  f"({job_first}-{job_last})")
+                elif asset_index is None and source_id is None and last > job_last:
+                    errors.append(f"{type_id}: open_to {last} is after job {job_index} ended ({job_last}); "
+                                  f"a crime that only this job enables must stop when the job does")
+        if asset_index is not None:
+            if not 0 <= asset_index < len(assets):
+                errors.append(f"{type_id}: enabled_by_asset_index {asset_index} doesn't exist")
+            elif first < int(assets[asset_index]["year_acquired"]):
+                errors.append(f"{type_id}: open_from {first} is before asset {asset_index} was bought "
+                              f"({assets[asset_index]['year_acquired']})")
+        if source_id is not None:
+            if source_id not in sources:
+                errors.append(f"{type_id}: enabled_by_source_id '{source_id}' is not a declared source")
+            elif sources[source_id].get("start_year") and first < int(sources[source_id]["start_year"]):
+                errors.append(f"{type_id}: open_from {first} is before declared source {source_id} "
+                              f"started ({sources[source_id]['start_year']})")
     return errors
 
 
 def check_type_behaviour(data: dict, type_id: str, start: int, end: int,
-                         forecast_years: list[int], market_ids: set) -> list[str]:
+                         forecast_years: list[int], market_ids: set,
+                         open_years: tuple[int, int] | None = None) -> list[str]:
     errors = [] if data["type_id"] == type_id else [f"type_id must be '{type_id}'"]
     first, last = data["route_open_from"], data["route_open_to"]
     if not start <= first <= last <= forecast_years[-1]:
         errors.append(f"route years must sit inside {start}-{forecast_years[-1]}, first <= last")
+    if open_years is not None and (first, last) != tuple(open_years):
+        errors.append(f"route years must be {open_years[0]}-{open_years[1]}, the years given in the type list")
     history_years = list(range(first, min(last, end) + 1)) if first <= end else []
     errors += _years_errors("extra_money_history", [h["year"] for h in data["extra_money_history"]],
                             history_years)
@@ -572,7 +645,13 @@ def _market_outlooks(markets: dict) -> dict:
 
 
 def _types_brief(types: dict) -> list[dict]:
-    return [{k: t[k] for k in ("type_id", "name", "route")} for t in types["person_types"]]
+    return [{k: t[k] for k in ("type_id", "category", "name", "route")} for t in types["person_types"]]
+
+
+def _crime_categories() -> list[dict]:
+    """The fixed list of crime categories the AI must choose from (config vocabulary)."""
+    return [{"category": code, "description": text}
+            for code, text in common.vocabulary().get("crime_categories", {}).items()]
 
 
 def read_declaration(client: AIClient, record: dict, cache: dict, results: dict) -> dict | None:
@@ -677,18 +756,26 @@ def forecast_earnings(client: AIClient, record: dict, markets: dict,
 
 def forecast_types(client: AIClient, record: dict, declaration: dict, markets: dict,
                    earnings: dict, cache: dict, results: dict) -> dict | None:
-    """Call 3: every kind of person he could be, then one behaviour forecast per type."""
+    """
+    Call 3: T1 (honest) plus the standard crime categories his jobs, assets and declared
+    sources make possible, each tied to what enables it; then one behaviour forecast per type.
+    """
     start, end = common.career_years(record)
     years = common.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
-              "last_forecast_year": years[-1], "baseline_type": common.BASELINE_TYPE}
+              "last_forecast_year": years[-1], "baseline_type": common.BASELINE_TYPE,
+              "honest_category": HONEST_CATEGORY, "max_crime_types": MAX_CRIME_TYPES}
+    claimed_sources = declaration["claimed_sources"]
 
     name = "call3_types.list"
     listing = call_ai(client, name, "person_types", values,
                       {"client": client_facts(record, include_declaration=True),
                        "claimed_sources": declaration["claimed_sources"],
-                       "career_outlook": earnings["future_pay"]["career_outlook"]},
-                      "person_types", check_person_types, cache.get(name))
+                       "markets": _markets_brief(markets),
+                       "career_outlook": earnings["future_pay"]["career_outlook"],
+                       "crime_categories": _crime_categories()},
+                      "person_types", lambda data: check_person_types(data, record, claimed_sources),
+                      cache.get(name))
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -699,7 +786,10 @@ def forecast_types(client: AIClient, record: dict, declaration: dict, markets: d
         if type_id == common.BASELINE_TYPE:
             baseline_note = "This is the as-declared type, so its extra money is 0 every year."
         else:
-            baseline_note = "Give only the money this route ADDS on top of his declared sources."
+            baseline_note = ("Give only the money this crime ADDS on top of his declared sources, and "
+                             "only in the years it was open. It must come through the job, asset or "
+                             "source named in enabled_by, at the size that channel could realistically carry.")
+        open_years = (person_type["open_from"], person_type["open_to"])
         name = f"call3_types.behaviour.{type_id}"
         piece = call_ai(client, name, "type_behaviour",
                         {**values, "type_id": type_id, "type_name": person_type["name"],
@@ -708,8 +798,8 @@ def forecast_types(client: AIClient, record: dict, declaration: dict, markets: d
                          "claimed_sources": declaration["claimed_sources"],
                          "markets": _markets_brief(markets), "client": client_facts(record)},
                         "type_behaviour",
-                        lambda data, t=type_id: check_type_behaviour(data, t, start, end, years,
-                                                                     set(markets["series"])),
+                        lambda data, t=type_id, o=open_years: check_type_behaviour(
+                            data, t, start, end, years, set(markets["series"]), o),
                         cache.get(name))
         results[name] = piece
         if not piece["ok"]:

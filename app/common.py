@@ -59,7 +59,7 @@ def config_problems() -> list[str]:
     """Anything missing from the config folder that would stop the app working."""
     problems = []
     vocab = vocabulary()
-    for key in ("signal_codes", "document_codes", "source_types"):
+    for key in ("signal_codes", "document_codes", "source_types", "crime_categories"):
         if not vocab.get(key):
             problems.append(f"config/vocabulary.json is missing '{key}'")
     rules = policy()

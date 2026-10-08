@@ -7,6 +7,8 @@ from config/policy.json. No AI is called here, so the same forecast and the same
 client always give the same answer.
 
 Onboarding (assess_onboarding):
+    Types: T1 is the honest person; T2+ are standard crime categories (trade-based money
+    laundering, sanctions evasion, ...) each tied to the job/asset/source that enables it.
     1. Back-test every type: build each type's wealth, year by year, from the forecasts
     2. Fit score per type: does his declared wealth, asset values and purchases fit it?
     3. Affordability per type: could he have paid for each purchase that year?
@@ -86,6 +88,31 @@ def same_country(name: str, policy: dict) -> str:
     """Lower-case a country name and map short forms (UAE, Dubai) to one spelling."""
     text = (name or "").strip().lower()
     return policy.get("country_aliases", {}).get(text, text)
+
+
+def category_name(code: str) -> str:
+    """'TRADE_BASED_ML' -> its readable name from the vocabulary file."""
+    return common.vocabulary().get("crime_categories", {}).get(code, code)
+
+
+def enabled_by_text(person_type: dict, record: dict) -> str:
+    """What makes this type possible for him, in words: the job, asset or declared source."""
+    if person_type["type_id"] == common.BASELINE_TYPE:
+        return "everything he declared"
+    parts = []
+    jobs = common.career_positions(record)
+    assets = record.get("investments", [])
+    job_index = person_type.get("enabled_by_position_index")
+    asset_index = person_type.get("enabled_by_asset_index")
+    if job_index is not None and 0 <= job_index < len(jobs):
+        job = jobs[job_index]
+        parts.append(f"job {job_index} ({job.get('title') or job.get('occupation') or 'position'}, "
+                     f"{job.get('country', '')})")
+    if asset_index is not None and 0 <= asset_index < len(assets):
+        parts.append(f"asset {asset_index} ({assets[asset_index].get('asset_type', 'asset')})")
+    if person_type.get("enabled_by_source_id"):
+        parts.append(f"declared source {person_type['enabled_by_source_id']}")
+    return " and ".join(parts) or "not stated"
 
 
 def asset_category(asset_type: str, policy: dict) -> str:
@@ -620,7 +647,12 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     type_table = []
     for type_id, fit in main["fits"].items():
         behaviour = forecast["types"]["behaviour"][type_id]
-        type_table.append({**fit, "name": names[type_id]["name"], "route": names[type_id]["route"],
+        person_type = names[type_id]
+        type_table.append({**fit, "category": person_type["category"],
+                           "category_name": category_name(person_type["category"]),
+                           "name": person_type["name"], "route": person_type["route"],
+                           "enabled_by": enabled_by_text(person_type, record),
+                           "why_it_applies": person_type.get("why_it_applies", ""),
                            "route_years": f"{behaviour['route_open_from']}-{behaviour['route_open_to']}",
                            "score": round(fit["fit_score"] / total_fit, 3)})
 
@@ -628,12 +660,15 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     t1 = main["fits"][common.BASELINE_TYPE]
     declared = record["claims"]["declared_net_worth"]
     others_fit = [t for t, f in main["fits"].items() if t != common.BASELINE_TYPE and f["fits"]]
-    reasons = [f"Declared net worth {declared:,.0f}; the as-declared version explains "
+    reasons = [f"Declared net worth {declared:,.0f}; the honest version explains "
                f"{t1['wealth_now']['cautious']:,.0f} to {t1['wealth_now']['optimistic']:,.0f}."]
     if not t1["fits"]:
-        reasons.append("The as-declared version does not fit his figures.")
+        reasons.append("The honest version does not fit his figures.")
     if others_fit:
-        reasons.append(f"Types that do fit: {', '.join(others_fit)}.")
+        reasons.append("Crime types that do fit: " + "; ".join(
+            f"{t} {category_name(names[t]['category'])} via {enabled_by_text(names[t], record)} "
+            f"({forecast['types']['behaviour'][t]['route_open_from']}-"
+            f"{forecast['types']['behaviour'][t]['route_open_to']})" for t in others_fit) + ".")
     for row in main["affordability"][common.BASELINE_TYPE]:
         if not row["affordable"]:
             reasons.append(f"{row['year']}: he needed {row['needed']:,.0f} in cash but the as-declared "

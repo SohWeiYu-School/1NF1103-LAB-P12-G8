@@ -41,7 +41,23 @@
     "DOC_SHIPPING_DOCUMENTS": "Bills of lading / shipping records",
     "DOC_INHERITANCE_PROBATE": "Will / probate documents",
     "DOC_GIFT_LETTER": "Gift letter with donor's source of funds",
-    "DOC_PEP_DECLARATION": "PEP declaration and role history"
+    "DOC_PEP_DECLARATION": "PEP declaration and role history",
+    "DOC_VESSEL_TRACKING": "Vessel tracking (AIS) records and counterparty list",
+    "DOC_TRADING_RECORDS": "Trading desk records for the years in question",
+    "DOC_EMPLOYER_CONFIRMATION": "Employer letter confirming role, pay and permitted outside work"
+  },
+  "crime_categories": {
+    "HONEST": "Honest - wealth exactly as declared",
+    "TRADE_BASED_ML": "Trade-based money laundering (over- or under-invoicing goods or services)",
+    "SANCTIONS_EVASION": "Sanctions evasion (vessel routing, ship-to-ship transfers, front companies)",
+    "MARKET_MANIPULATION": "Market or commodity price manipulation",
+    "BRIBERY_CORRUPTION": "Bribery and corruption (kickbacks, secret commissions)",
+    "TAX_EVASION": "Tax evasion (undeclared income or offshore accounts)",
+    "EMPLOYER_FRAUD": "Fraud or embezzlement against an employer",
+    "THIRD_PARTY_ML": "Money laundering for others (acting as a channel or nominee)",
+    "CUSTOMS_FRAUD": "Customs fraud or smuggling",
+    "INSIDER_DEALING": "Insider dealing",
+    "PROCEEDS_OF_PEP": "Proceeds of abuse of public office (PEP-linked)"
   },
   "source_types": {
     "employment": "Salary from a job",
