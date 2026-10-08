@@ -160,11 +160,12 @@ def main() -> None:
                     for w in typ_warnings:
                         io_manager.show_error(w)
                     if typology_response is not None:
-                        results, typ_verify_warnings = logic_manager.verify_typology_sources(
+                        cleaned_typologies, typ_verify_warnings = logic_manager.verify_typology_sources(
                             typology_response.get("sector_typologies", []), clean_research, policy,
                         )
                         for w in typ_verify_warnings:
                             io_manager.show_error(w)
+                        typology_response = {**typology_response, "sector_typologies": cleaned_typologies}
 
             io_manager.show_message("Calling AI to parse declaration...")
             declaration, decl_warnings = ai_manager.get_declaration(case_input)

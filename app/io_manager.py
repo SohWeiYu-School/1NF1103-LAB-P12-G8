@@ -71,12 +71,22 @@ def show_ai_output(
     print(f"\nSector Crime Scan: {len(typologies)} pattern(s)")
     for i, t in enumerate(typologies, 1):
         source_ids = t.get("source_ids", [])
+        outdated_ids = set(t.get("outdated_source_ids", []))
         resolved = []
         for rid in source_ids:
             label = report_lookup.get(rid)
-            resolved.append(f"{rid} ({label})" if label else f"{rid} (unknown source)")
+            base = f"{rid} ({label})" if label else f"{rid} (unknown source)"
+            if rid in outdated_ids:
+                base += ", may be outdated"
+            resolved.append(base)
         suffix = f" — sources: {', '.join(resolved)}" if resolved else ""
         print(f"  {i}. {t.get('name', '—')}{suffix}")
+
+        corroborated = t.get("corroborated")
+        if corroborated is True:
+            print(f"       Corroborated: 2+ independent organisations")
+        elif corroborated is False:
+            print(f"       Single source organisation")
 
         for sq in t.get("source_quotes", []):
             print(f"       [{sq.get('report_id','')}] \"{sq.get('quote','')}\"")
