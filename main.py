@@ -51,12 +51,23 @@ def _run_sample_assessment() -> None:
     if research is not None:
         io_manager.show_research_output(research)
 
-    io_manager.show_message("Calling AI for sector typologies...")
-    typology_response, typ_warnings = ai_manager.get_typologies(case_input)
-    for w in typ_warnings:
-        io_manager.show_error(w)
-    if typology_response is None:
-        return
+    if research is None:
+        io_manager.show_error(
+            "Sector Crime Scan skipped: research failed. This case needs manual review."
+        )
+        typology_response = None
+    elif len(research.get("reports", [])) == 0:
+        io_manager.show_message("No published typologies found for this industry.")
+        typology_response = {
+            "sector_typologies": [],
+            "expected_jurisdictions": [],
+            "max_accumulation_per_year_sgd": 0,
+        }
+    else:
+        io_manager.show_message("Calling AI for sector typologies...")
+        typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
+        for w in typ_warnings:
+            io_manager.show_error(w)
 
     io_manager.show_message("Calling AI to parse declaration...")
     declaration, decl_warnings = ai_manager.get_declaration(case_input)
@@ -65,7 +76,7 @@ def _run_sample_assessment() -> None:
     if declaration is None:
         return
 
-    io_manager.show_ai_output(case_input, typology_response, declaration)
+    io_manager.show_ai_output(case_input, typology_response, declaration, research=research)
 
 
 def _configure_logging() -> None:
@@ -112,10 +123,23 @@ def main() -> None:
             if research is not None:
                 io_manager.show_research_output(research)
 
-            io_manager.show_message("Calling AI for sector typologies...")
-            typology_response, typ_warnings = ai_manager.get_typologies(case_input)
-            for w in typ_warnings:
-                io_manager.show_error(w)
+            if research is None:
+                io_manager.show_error(
+                    "Sector Crime Scan skipped: research failed. This case needs manual review."
+                )
+                typology_response = None
+            elif len(research.get("reports", [])) == 0:
+                io_manager.show_message("No published typologies found for this industry.")
+                typology_response = {
+                    "sector_typologies": [],
+                    "expected_jurisdictions": [],
+                    "max_accumulation_per_year_sgd": 0,
+                }
+            else:
+                io_manager.show_message("Calling AI for sector typologies...")
+                typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
+                for w in typ_warnings:
+                    io_manager.show_error(w)
 
             io_manager.show_message("Calling AI to parse declaration...")
             declaration, decl_warnings = ai_manager.get_declaration(case_input)
@@ -123,7 +147,7 @@ def main() -> None:
                 io_manager.show_error(w)
 
             if typology_response is not None and declaration is not None:
-                io_manager.show_ai_output(case_input, typology_response, declaration)
+                io_manager.show_ai_output(case_input, typology_response, declaration, research=research)
 
             # --- Benchmark ---
             comp = client_record["asset_composition"]

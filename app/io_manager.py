@@ -46,23 +46,45 @@ def show_research_output(research_response: dict) -> None:
         print(f"  {rid}  {org} — {title} ({year})")
     print()
 
-def show_ai_output(case_input: dict, typology_response: dict, declaration: dict) -> None:
+def show_ai_output(
+    case_input: dict,
+    typology_response: dict,
+    declaration: dict,
+    research: dict | None = None,
+) -> None:
     """Print a short summary of AI results for the officer."""
     client_ref = case_input.get("client_ref", "—")
     print(f"\n--- Sector Crime Scan ---")
     print(f"Client: {client_ref} | Fields sent to AI: 5 (safe fields only)")
 
-    typologies = typology_response.get("sector_typologies", [])
-    print(f"\nTypologies: {len(typologies)} found")
+    # Build lookup: report_id → "Organisation Year" for display
+    report_lookup: dict[str, str] = {}
+    if research:
+        for r in research.get("reports", []):
+            rid = r.get("report_id", "")
+            org = r.get("organisation", "")
+            year = r.get("year", "")
+            if rid:
+                report_lookup[rid] = f"{org} {year}".strip()
+
+    typologies = typology_response.get("sector_typologies", []) if typology_response else []
+    print(f"\nSector Crime Scan: {len(typologies)} pattern(s)")
     for i, t in enumerate(typologies, 1):
-        ref = t.get("source_reference", "")
-        suffix = f" | {ref}" if ref else ""
+        source_ids = t.get("source_ids", [])
+        resolved = []
+        for rid in source_ids:
+            label = report_lookup.get(rid)
+            resolved.append(f"{rid} ({label})" if label else f"{rid} (unknown source)")
+        suffix = f" — sources: {', '.join(resolved)}" if resolved else ""
         print(f"  {i}. {t.get('name', '—')}{suffix}")
+
+        for sq in t.get("source_quotes", []):
+            print(f"       [{sq.get('report_id','')}] \"{sq.get('quote','')}\"")
 
     sources = declaration.get("sources", [])
     print(f"\nDeclaration: {len(sources)} source(s) found")
 
-    cache_path = typology_response.get("_cache_path", "")
+    cache_path = typology_response.get("_cache_path", "") if typology_response else ""
     if cache_path:
         print(f"Cache: {cache_path}")
     print()

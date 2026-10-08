@@ -114,6 +114,7 @@ logger = logging.getLogger(__name__)
 
 BENCHMARK_ALLOWED_FIELDS = ["occupation", "industry", "age", "career_start_year", "country"]
 RESEARCH_ALLOWED_FIELDS = ["industry", "country"]
+_TYPOLOGY_REPORT_FIELDS = ["report_id", "organisation", "title", "year", "summary", "excerpts"]
 
 # Must match policy.json "typology_max_patterns"
 _TYPOLOGY_MAX_PATTERNS = 5
@@ -268,19 +269,36 @@ def _call_ai(
     return None, [_user_warning(kind, error_type)]
 
 
-def get_typologies(case_input: dict) -> tuple[dict | None, list[str]]:
-    """Call AI for sector abuse typologies only.
+def _build_typology_reports(research: dict) -> list[dict]:
+    """Extract only safe fields from research reports (no URLs)."""
+    return [
+        {k: r[k] for k in _TYPOLOGY_REPORT_FIELDS if k in r}
+        for r in research.get("reports", [])
+    ]
 
-    Only the fields in BENCHMARK_ALLOWED_FIELDS are sent to the AI.
-    The client's declared figures are never included.
+
+def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
+    """Call AI for sector abuse typologies, grounded in the provided research reports.
+
+    Only BENCHMARK_ALLOWED_FIELDS are sent as the client profile.
+    Reports are injected from the research result (no URLs included).
     Returns: (response_dict | None, warnings)
     """
-    payload = {k: case_input[k] for k in BENCHMARK_ALLOWED_FIELDS if k in case_input}
-    if "country" not in payload:
-        payload["country"] = case_input.get("country_of_residence", "Singapore")
+    profile_payload = {k: case_input[k] for k in BENCHMARK_ALLOWED_FIELDS if k in case_input}
+    if "country" not in profile_payload:
+        profile_payload["country"] = case_input.get("country_of_residence", "Singapore")
+
+    reports = _build_typology_reports(research) if research is not None else []
+
+    # payload includes reports so the cache key changes when research changes
+    payload = {**profile_payload, "reports": reports}
 
     template = load_prompt("typology.txt")
-    prompt = template.replace("{payload_json}", json.dumps(payload, indent=2))
+    prompt = (
+        template
+        .replace("{payload_json}", json.dumps(profile_payload, indent=2))
+        .replace("{reports_json}", json.dumps(reports, indent=2))
+    )
     schema = load_schema("typology_response.schema.json")
 
     return _call_ai("typology", payload, prompt, schema, transform=_trim_typologies)

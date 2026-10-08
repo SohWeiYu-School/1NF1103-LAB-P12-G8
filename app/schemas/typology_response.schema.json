@@ -28,9 +28,8 @@
           "typology_id",
           "name",
           "description",
-          "source_reference",
-          "source_url",
-          "source_quote",
+          "source_ids",
+          "source_quotes",
           "indicators",
           "typical_documents"
         ],
@@ -47,17 +46,34 @@
           "description": {
             "type": "string"
           },
-          "source_reference": {
-            "type": "string",
-            "description": "Organisation, report title and year (e.g. 'FATF, Trade-Based Money Laundering, 2020')."
+          "source_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^R[0-9]+$"
+            },
+            "description": "Report IDs (e.g. R1, R2) from the research reports that support this typology."
           },
-          "source_url": {
-            "type": "string",
-            "description": "Exact URL of the source page used."
-          },
-          "source_quote": {
-            "type": "string",
-            "description": "Short sentence copied word for word from the source page."
+          "source_quotes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["report_id", "quote"],
+              "additionalProperties": false,
+              "properties": {
+                "report_id": {
+                  "type": "string",
+                  "pattern": "^R[0-9]+$"
+                },
+                "quote": {
+                  "type": "string",
+                  "description": "Verbatim passage from that report's excerpts."
+                }
+              }
+            },
+            "description": "Verbatim quotes from the research reports, each linked to a report_id."
           },
           "indicators": {
             "type": "array",
