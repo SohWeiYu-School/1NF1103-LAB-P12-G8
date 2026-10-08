@@ -1,17 +1,5 @@
 {
-<<<<<<< HEAD
-  "policy_version": "2026.10-v4",
-  "loan_to_value_max": 0.8,
-  "stability_shift": 0.1,
-  "tolerance": {
-    "net_worth": 0.1,
-    "typical_band": 0.1,
-    "asset_value": 0.15,
-    "asset_income": 0.25,
-    "review_growth": 0.1,
-    "signal_amount": 0.25
-=======
-  "policy_version": "2026.4",
+  "policy_version": "2026.10-v5",
   "thresholds": {
     "wealth_multiple_limit": 3.0,
     "liquidity_multiple_limit": 2.0,
@@ -23,7 +11,37 @@
     "typology_full_match_severity": 4,
     "typology_partial_match_severity": 2,
     "typology_full_match_counts_as_breach": true
->>>>>>> cc91561
+  },
+  "outcome_rules": {
+    "serious_risk_min_breaches": 4,
+    "risky_min_breaches": 2,
+    "manual_review_min_breaches": 1
+  },
+  "document_map": {
+    "unaffordable_purchase": "Title deeds and financing records",
+    "unexpected_offshore_entity": "Incorporation documents and statement of purpose",
+    "unexplained_equity": "Share sale agreement and completion statement",
+    "unsupported_inheritance": "Grant of probate and estate distribution schedule"
+  },
+  "typology_max_patterns": 5,
+  "trusted_sources": [
+    "fatf-gafi.org",
+    "mas.gov.sg",
+    "egmontgroup.org",
+    "unodc.org",
+    "wolfsberg-group.org"
+  ],
+  "research_max_reports": 8,
+  "research_max_excerpts_per_report": 5,
+  "loan_to_value_max": 0.8,
+  "stability_shift": 0.1,
+  "tolerance": {
+    "net_worth": 0.1,
+    "typical_band": 0.1,
+    "asset_value": 0.15,
+    "asset_income": 0.25,
+    "review_growth": 0.1,
+    "signal_amount": 0.25
   },
   "fit": {
     "weight_net_worth": 0.5,
@@ -32,7 +50,6 @@
     "minimum_fit": 0.7,
     "miss_weight": 0.2
   },
-<<<<<<< HEAD
   "review_interval_months": {
     "PASSED": 24,
     "MANUAL_REVIEW": 12,
@@ -149,22 +166,4 @@
     ]
   },
   "max_documents": 6
-=======
-  "document_map": {
-    "unaffordable_purchase": "Title deeds and financing records",
-    "unexpected_offshore_entity": "Incorporation documents and statement of purpose",
-    "unexplained_equity": "Share sale agreement and completion statement",
-    "unsupported_inheritance": "Grant of probate and estate distribution schedule"
-  },
-  "typology_max_patterns": 5,
-  "trusted_sources": [
-    "fatf-gafi.org",
-    "mas.gov.sg",
-    "egmontgroup.org",
-    "unodc.org",
-    "wolfsberg-group.org"
-  ],
-  "research_max_reports": 8,
-  "research_max_excerpts_per_report": 5
->>>>>>> cc91561
 }
