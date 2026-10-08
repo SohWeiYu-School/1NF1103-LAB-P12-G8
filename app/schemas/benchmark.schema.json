@@ -38,10 +38,16 @@
       "type": "number"
     },
     "expected_counterparties": {
-      "type": "number"
+      "type": "array",
+      "items": {
+          "type": "string"
+        }
     },
     "expected_jurisdiction": {
-      "type": "number"
+      "type": "array",
+      "items": {
+          "type": "string"
+        }
     }
   }
 }

@@ -36,5 +36,5 @@ Generate the following:
 - expected_private_business: expected private business percentage as a number from 0 to 100
 - expected_cash: expected cash percentage as a number from 0 to 100
 - expected_velocity: expected annual wealth accumulation in SGD
-- expected_counterparties: expected number of counterparties
-- expected_jurisdiction: expected number of jurisdictions
+- expected_counterparties: For expected_counterparties, return a list of reasonable expected counterparties based on the client's profile.
+- expected_jurisdiction: For expected_jurisdiction, return a list of reasonable expected countries/jurisdictions based on the client's profile.
