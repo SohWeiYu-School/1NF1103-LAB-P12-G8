@@ -37,23 +37,23 @@ client_data = {
 }
 
 # Temporary test values for Counterparties and Jurisdictions
-expected_counterparties = [
-    "employer",
-    "CPF Board",
-    "local bank",
-    "HDB or developer"
-]
+# expected_counterparties = [
+#     "employer",
+#     "CPF Board",
+#     "local bank",
+#     "HDB or developer"
+# ]
 
 declared_counterparties = [
     "friend",
     "BVI entity"
 ]
 
-expected_countries = [
-    "Singapore",
-    "Malaysia",
-    "Indonesia"
-]
+# expected_countries = [
+#     "Singapore",
+#     "Malaysia",
+#     "Indonesia"
+# ]
 
 declared_countries = [
     "SG",
@@ -199,6 +199,7 @@ def calculate_counterparties(declared, expected):
 
     return unknown
 
+expected_counterparties = ai_data["expected_counterparties"]
 unknown_counterparties = calculate_counterparties(
     declared_counterparties,
     expected_counterparties
@@ -232,6 +233,8 @@ def calculate_jurisdiction(declared, expected):
             unknown.append(country)
 
     return unknown
+
+expected_countries = ai_data["expected_jurisdiction"]
 unknown_countries = calculate_jurisdiction(
     declared_countries,
     expected_countries
