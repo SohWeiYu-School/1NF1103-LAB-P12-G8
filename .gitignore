@@ -30,13 +30,10 @@ data/cache/
 logs/
 *.corrupt-*
 
-<<<<<<< HEAD
+# Old forecasting file storage (everything is in MongoDB now; stops old local files being committed)
 data/raw/
 data/forecasts/
 data/assessments/
-.env
-__pycache__/
-.pytest_cache/
-=======
+
+# Docs folder (teammates)
 docs
->>>>>>> cc91561
