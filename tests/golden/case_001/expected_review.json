@@ -1,36 +1,15 @@
 {
   "case_ref": "SOW-2026-0142",
-  "documents": [
-    {
-      "document": "Historic bank statements",
-      "document_code": "DOC_BANK_STATEMENTS",
-      "reason": "rules out T1"
-    },
-    {
-      "document": "Audited company accounts",
-      "document_code": "DOC_COMPANY_ACCOUNTS",
-      "reason": "rules out T3"
-    },
-    {
-      "document": "Personal tax returns / assessments",
-      "document_code": "DOC_TAX_RETURNS",
-      "reason": "rules out T1"
-    },
-    {
-      "document": "Trade invoices",
-      "document_code": "DOC_TRADE_INVOICES",
-      "reason": "rules out T3"
-    }
-  ],
+  "documents": [],
   "findings": [
     {
-      "detail": "Wealth grew 3,300,000 since onboarding; the as-declared version (steady year) grows 383,339 to 2,146,132.",
+      "detail": "Wealth grew 3,300,000 since onboarding; the honest version (steady year) grows 137,235 to 1,767,533.",
       "failed": true,
       "rule_id": "A_GROWTH"
     },
     {
-      "detail": "Highest running score: T3 (26%); as-declared: 26%.",
-      "failed": true,
+      "detail": "Highest running score: T1 (25%); honest: 25%.",
+      "failed": false,
       "rule_id": "B_OTHER_TYPE_LEADS"
     },
     {
@@ -39,13 +18,13 @@
       "rule_id": "C_INCOME_AGAINST_MARKET"
     },
     {
-      "detail": "SIG_SALARY_REGULAR: 816,000 is above 750,000; SIG_CONSULTING_FEES: not expected for the as-declared version; SIG_OFFSHORE_INFLOW: not expected for the as-declared version; SIG_OFFSHORE_INFLOW: from British Virgin Islands, a country with no link to him",
+      "detail": "SIG_DIVIDEND_INCOME: 884,000 is above 500,000; SIG_CONSULTING_FEES: not expected for the honest version; SIG_OFFSHORE_INFLOW: not expected for the honest version; SIG_OFFSHORE_INFLOW: from British Virgin Islands, a country with no link to him",
       "failed": true,
       "rule_id": "D_UNUSUAL_PAYMENTS"
     }
   ],
-  "next_review_date": "2028-03-24",
-  "outcome": "RISKY",
+  "next_review_date": "2028-09-24",
+  "outcome": "MANUAL_REVIEW",
   "payments": [
     {
       "amount_sgd": 816000,
@@ -59,7 +38,7 @@
       "amount_sgd": 420000,
       "counterparty_country": "Singapore",
       "currency": "SGD",
-      "quote": "Annual bonus of SGD 420k paid in March.",
+      "quote": "Annual bonus of SGD 420k paid in March",
       "signal_code": "SIG_BONUS_ANNUAL",
       "times_received": 1
     },
@@ -67,23 +46,23 @@
       "amount_sgd": null,
       "counterparty_country": "Australia",
       "currency": "AUD",
-      "quote": "Rent from the Melbourne apartment arriving quarterly.",
+      "quote": "Rent from the Melbourne apartment arriving quarterly",
       "signal_code": "SIG_RENTAL_INCOME",
       "times_received": 4
     },
     {
-      "amount_sgd": null,
+      "amount_sgd": 884000,
       "counterparty_country": "Hong Kong",
       "currency": "HKD",
-      "quote": "The Hong Kong brokerage paid a dividend of HKD 5.2m in June, higher than last year even though freight rates fell sharply in Q2.",
+      "quote": "The Hong Kong brokerage paid a dividend of HKD 5.2m in June",
       "signal_code": "SIG_DIVIDEND_INCOME",
       "times_received": 1
     },
     {
-      "amount_sgd": null,
+      "amount_sgd": 1020000,
       "counterparty_country": "United Arab Emirates",
       "currency": "USD",
-      "quote": "Three transfers of USD 250,000 each came in from a Dubai-registered company, described by the client as consulting fees.",
+      "quote": "Three transfers of USD 250,000 each came in from a Dubai-registered company, described by the client as consulting fees",
       "signal_code": "SIG_CONSULTING_FEES",
       "times_received": 3
     },
@@ -91,14 +70,14 @@
       "amount_sgd": null,
       "counterparty_country": "British Virgin Islands",
       "currency": "USD",
-      "quote": "One further transfer from a BVI company with no amount noted on the statement summary; client says it relates to the brokerage.",
+      "quote": "One further transfer from a BVI company with no amount noted on the statement summary; client says it relates to the brokerage",
       "signal_code": "SIG_OFFSHORE_INFLOW",
       "times_received": 1
     }
   ],
-  "policy_version": "2026.10-v4",
+  "policy_version": "2026.10-v5",
   "review_date": "2027-09-24",
-  "routing": "Additional documents requested from the client.",
+  "routing": "Queued for the KYC officer.",
   "scenario": "steady",
   "type_scores": [
     {
@@ -108,9 +87,9 @@
         "payments": 0.5,
         "wealth": 0.2
       },
-      "previous": 0.122,
+      "previous": 0.118,
       "review_fit": 0.1,
-      "score": 0.258,
+      "score": 0.25,
       "type_id": "T1"
     },
     {
@@ -120,9 +99,9 @@
         "payments": 0.2,
         "wealth": 0.2
       },
-      "previous": 0.285,
+      "previous": 0.265,
       "review_fit": 0.04,
-      "score": 0.241,
+      "score": 0.225,
       "type_id": "T2"
     },
     {
@@ -132,9 +111,9 @@
         "payments": 0.2,
         "wealth": 0.2
       },
-      "previous": 0.309,
+      "previous": 0.265,
       "review_fit": 0.04,
-      "score": 0.261,
+      "score": 0.225,
       "type_id": "T3"
     },
     {
@@ -144,10 +123,34 @@
         "payments": 0.2,
         "wealth": 0.2
       },
-      "previous": 0.285,
+      "previous": 0.118,
       "review_fit": 0.04,
-      "score": 0.241,
+      "score": 0.1,
       "type_id": "T4"
+    },
+    {
+      "parts": {
+        "events": 1.0,
+        "market": 1.0,
+        "payments": 0.2,
+        "wealth": 0.2
+      },
+      "previous": 0.118,
+      "review_fit": 0.04,
+      "score": 0.1,
+      "type_id": "T5"
+    },
+    {
+      "parts": {
+        "events": 1.0,
+        "market": 1.0,
+        "payments": 0.2,
+        "wealth": 0.2
+      },
+      "previous": 0.118,
+      "review_fit": 0.04,
+      "score": 0.1,
+      "type_id": "T6"
     }
   ]
 }

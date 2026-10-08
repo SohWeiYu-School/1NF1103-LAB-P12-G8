@@ -4,9 +4,9 @@
       "affordable": true,
       "asset_index": 0,
       "available": {
-        "cautious": 192847.12,
-        "optimistic": 549005.94,
-        "typical": 349960.03
+        "cautious": -17099.87,
+        "optimistic": 506440.33,
+        "typical": 218985.39
       },
       "needed": 330000,
       "payment_method": "loan",
@@ -16,9 +16,9 @@
       "affordable": true,
       "asset_index": 1,
       "available": {
-        "cautious": 496858.43,
-        "optimistic": 1446928.93,
-        "typical": 921793.2
+        "cautious": -37169.33,
+        "optimistic": 1906683.29,
+        "typical": 831847.62
       },
       "needed": 1200000,
       "payment_method": "asset_sale",
@@ -28,21 +28,21 @@
       "affordable": true,
       "asset_index": 2,
       "available": {
-        "cautious": -229985.13,
-        "optimistic": 1421791.82,
-        "typical": 524832.75
+        "cautious": -807303.47,
+        "optimistic": 2577187.76,
+        "typical": 707974.49
       },
       "needed": 900000,
       "payment_method": "cash",
       "year": 2019
     },
     {
-      "affordable": false,
+      "affordable": true,
       "asset_index": 3,
       "available": {
-        "cautious": -625954.0,
-        "optimistic": 1851798.38,
-        "typical": 496505.97
+        "cautious": -1417122.82,
+        "optimistic": 2993657.95,
+        "typical": 558376.85
       },
       "needed": 2500000,
       "payment_method": "cash",
@@ -54,73 +54,73 @@
     {
       "asset_index": 0,
       "category": "property",
-      "ceiling": 4353696,
+      "ceiling": 2485470,
       "declared": 3100000,
-      "detail": "Asset 0 (Residential property (condominium)): declared 3,100,000, markets explain about 3,100,133 (up to 4,353,696)",
+      "detail": "Asset 0 (Residential property (condominium)): declared 3,100,000, markets explain about 1,945,437 (up to 2,485,470)",
       "expected": {
-        "cautious": 2528814.02,
-        "optimistic": 3785822.49,
-        "typical": 3100132.95
+        "cautious": 1749566.09,
+        "optimistic": 2161277.84,
+        "typical": 1945437.3
       },
-      "failed": false,
+      "failed": true,
       "rule_id": "ASSET_VALUE",
-      "valuation_basis": "Residential properties are normally valued using comparable market transactions of similar units in the vicinity."
+      "valuation_basis": "Valued based on recent comparable sales of similar condominiums in the same location, adjusted for unit size, floor, and condition."
     },
     {
       "asset_index": 1,
       "category": "property",
-      "ceiling": 2171075,
+      "ceiling": 1539014,
       "declared": 1550000,
-      "detail": "Asset 1 (Residential property (apartment, rented out)): declared 1,550,000, markets explain about 1,770,832 (up to 2,171,075)",
+      "detail": "Asset 1 (Residential property (apartment, rented out)): declared 1,550,000, markets explain about 1,302,042 (up to 1,539,014)",
       "expected": {
-        "cautious": 1658994.21,
-        "optimistic": 1887891.2,
-        "typical": 1770832.46
+        "cautious": 1263094.84,
+        "optimistic": 1338272.89,
+        "typical": 1302041.95
       },
-      "failed": false,
+      "failed": true,
       "rule_id": "ASSET_VALUE",
-      "valuation_basis": "Residential properties are normally valued using comparable market transactions and rental capitalization rates."
+      "valuation_basis": "Valued based on recent sales of comparable rental apartments in the same area, adjusted for property condition and rental yield."
     },
     {
       "asset_index": 2,
       "category": "listed_equities",
-      "ceiling": 2694073,
+      "ceiling": 1972415,
       "declared": 1750000,
-      "detail": "Asset 2 (Listed equities portfolio): declared 1,750,000, markets explain about 2,113,161 (up to 2,694,073)",
+      "detail": "Asset 2 (Listed equities portfolio): declared 1,750,000, markets explain about 1,536,076 (up to 1,972,415)",
       "expected": {
-        "cautious": 1961783.57,
-        "optimistic": 2342671.98,
-        "typical": 2113160.56
+        "cautious": 1336386.8,
+        "optimistic": 1715143.58,
+        "typical": 1536076.0
       },
       "failed": false,
       "rule_id": "ASSET_VALUE",
-      "valuation_basis": "Listed equities are valued using public exchange closing prices and market capitalization of the constituent securities."
+      "valuation_basis": "A listed equities portfolio is normally valued at its latest market price in the relevant exchange, converted to SGD at the prevailing exchange rate."
     },
     {
       "asset_index": 3,
       "category": "private_business",
-      "ceiling": 3372439,
+      "ceiling": 3376462,
       "declared": 6800000,
-      "detail": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,822,586 (up to 3,372,439)",
+      "detail": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,626,714 (up to 3,376,462)",
       "expected": {
-        "cautious": 2679615.1,
-        "optimistic": 2932555.73,
-        "typical": 2822585.9
+        "cautious": 2338701.88,
+        "optimistic": 2936053.67,
+        "typical": 2626713.72
       },
       "failed": true,
       "rule_id": "ASSET_VALUE",
-      "valuation_basis": "A private company stake like this is normally valued using discounted cash flow analysis or comparable market multiples of earnings."
+      "valuation_basis": "Valued based on a multiple of EBITDA or net profit, benchmarked against comparable private freight brokerages in Hong Kong."
     },
     {
       "asset_index": 0,
       "category": "property",
-      "ceiling": 141968,
+      "ceiling": 67540,
       "declared": 0,
-      "detail": "Asset 0: declared income 0, expected about 77,503 (up to 141,968)",
+      "detail": "Asset 0: declared income 0, expected about 33,072 (up to 67,540)",
       "expected": {
-        "cautious": 50576.28,
-        "optimistic": 113574.67,
-        "typical": 77503.32
+        "cautious": 19245.23,
+        "optimistic": 54031.95,
+        "typical": 33072.43
       },
       "failed": false,
       "rule_id": "ASSET_INCOME"
@@ -128,13 +128,13 @@
     {
       "asset_index": 1,
       "category": "property",
-      "ceiling": 117993,
+      "ceiling": 71932,
       "declared": 54000,
-      "detail": "Asset 1: declared income 54,000, expected about 70,833 (up to 117,993)",
+      "detail": "Asset 1: declared income 54,000, expected about 42,967 (up to 71,932)",
       "expected": {
-        "cautious": 49769.83,
-        "optimistic": 94394.56,
-        "typical": 70833.3
+        "cautious": 29051.18,
+        "optimistic": 57545.73,
+        "typical": 42967.38
       },
       "failed": false,
       "rule_id": "ASSET_INCOME"
@@ -142,13 +142,13 @@
     {
       "asset_index": 2,
       "category": "listed_equities",
-      "ceiling": 67352,
+      "ceiling": 57886,
       "declared": 28000,
-      "detail": "Asset 2: declared income 28,000, expected about 38,037 (up to 67,352)",
+      "detail": "Asset 2: declared income 28,000, expected about 30,722 (up to 57,886)",
       "expected": {
-        "cautious": 25503.19,
-        "optimistic": 53881.46,
-        "typical": 38036.89
+        "cautious": 17373.03,
+        "optimistic": 46308.88,
+        "typical": 30721.52
       },
       "failed": false,
       "rule_id": "ASSET_INCOME"
@@ -156,830 +156,830 @@
     {
       "asset_index": 3,
       "category": "private_business",
-      "ceiling": 201613,
+      "ceiling": 172493,
       "declared": 410000,
-      "detail": "Asset 3: declared income 410,000, expected about 98,791 (up to 201,613)",
+      "detail": "Asset 3: declared income 410,000, expected about 86,682 (up to 172,493)",
       "expected": {
-        "cautious": 53592.3,
-        "optimistic": 161290.57,
-        "typical": 98790.51
+        "cautious": 35080.53,
+        "optimistic": 137994.52,
+        "typical": 86681.55
       },
       "failed": true,
       "rule_id": "ASSET_INCOME"
     }
   ],
-  "borderline": true,
-  "career_outlook": "The client is established as Chief Operating Officer at Straits Harbour Logistics Pte Ltd and may progress to executive board roles or advisory positions within the maritime shipping industry. Continued tenure in senior leadership is anticipated given his extensive operational background.",
+  "borderline": false,
+  "career_outlook": "He is likely to remain in a C-suite or board-level role in the maritime or logistics sector, with potential for transition to advisory, non-executive director, or consulting positions as he approaches traditional retirement age.",
   "career_savings": [
     {
       "after_tax": {
-        "cautious": 31620.0,
-        "optimistic": 42140.0,
-        "typical": 36480.0
+        "cautious": 17460.0,
+        "optimistic": 32076.0,
+        "typical": 24696.0
       },
       "living_costs": {
-        "cautious": 26000,
-        "optimistic": 18000,
-        "typical": 22000
+        "cautious": 24000,
+        "optimistic": 12000,
+        "typical": 18000
       },
       "saved": {
-        "cautious": 5620.0,
-        "optimistic": 24140.0,
-        "typical": 14480.0
+        "cautious": -6540.0,
+        "optimistic": 20076.0,
+        "typical": 6696.0
       },
       "savings": {
-        "cautious": 5620.0,
-        "optimistic": 24140.0,
-        "typical": 14480.0
+        "cautious": -6540.0,
+        "optimistic": 20076.0,
+        "typical": 6696.0
       },
       "total_pay": {
-        "cautious": 34000,
-        "optimistic": 43000,
-        "typical": 38000
+        "cautious": 18000,
+        "optimistic": 32400,
+        "typical": 25200
       },
       "year": 1998
     },
     {
       "after_tax": {
-        "cautious": 33015.0,
-        "optimistic": 44100.0,
-        "typical": 37920.0
+        "cautious": 18624.0,
+        "optimistic": 33858.0,
+        "typical": 26166.0
       },
       "living_costs": {
-        "cautious": 26000,
-        "optimistic": 18000,
-        "typical": 22000
+        "cautious": 24600,
+        "optimistic": 12600,
+        "typical": 18600
       },
       "saved": {
-        "cautious": 7015.0,
-        "optimistic": 26100.0,
-        "typical": 15920.0
+        "cautious": -5976.0,
+        "optimistic": 21258.0,
+        "typical": 7566.0
       },
       "savings": {
-        "cautious": 12691.2,
-        "optimistic": 50964.2,
-        "typical": 30689.6
+        "cautious": -12594.48,
+        "optimistic": 41775.67,
+        "typical": 14375.83
       },
       "total_pay": {
-        "cautious": 35500,
-        "optimistic": 45000,
-        "typical": 39500
+        "cautious": 19200,
+        "optimistic": 34200,
+        "typical": 26700
       },
       "year": 1999
     },
     {
       "after_tax": {
-        "cautious": 34410.0,
-        "optimistic": 48020.0,
-        "typical": 40800.0
+        "cautious": 19788.0,
+        "optimistic": 35640.0,
+        "typical": 27636.0
       },
       "living_costs": {
-        "cautious": 27000,
-        "optimistic": 19000,
-        "typical": 23000
+        "cautious": 25200,
+        "optimistic": 13200,
+        "typical": 19200
       },
       "saved": {
-        "cautious": 7410.0,
-        "optimistic": 29020.0,
-        "typical": 17800.0
+        "cautious": -5412.0,
+        "optimistic": 22440.0,
+        "typical": 8436.0
       },
       "savings": {
-        "cautious": 20253.49,
-        "optimistic": 81615.05,
-        "typical": 49164.77
+        "cautious": -18145.02,
+        "optimistic": 65051.19,
+        "typical": 23027.47
       },
       "total_pay": {
-        "cautious": 37000,
-        "optimistic": 49000,
-        "typical": 42500
+        "cautious": 20400,
+        "optimistic": 36000,
+        "typical": 28200
       },
       "year": 2000
     },
     {
       "after_tax": {
-        "cautious": 34410.0,
-        "optimistic": 47530.0,
-        "typical": 40800.0
+        "cautious": 20370.0,
+        "optimistic": 35046.0,
+        "typical": 27636.0
       },
       "living_costs": {
-        "cautious": 26000,
-        "optimistic": 18000,
-        "typical": 22000
+        "cautious": 25500,
+        "optimistic": 13500,
+        "typical": 19500
       },
       "saved": {
-        "cautious": 8410.0,
-        "optimistic": 29530.0,
-        "typical": 18800.0
+        "cautious": -5130.0,
+        "optimistic": 21546.0,
+        "typical": 8136.0
       },
       "savings": {
-        "cautious": 28825.52,
-        "optimistic": 113185.43,
-        "typical": 68702.24
+        "cautious": -23420.18,
+        "optimistic": 87703.06,
+        "typical": 31439.8
       },
       "total_pay": {
-        "cautious": 37000,
-        "optimistic": 48500,
-        "typical": 42500
+        "cautious": 21000,
+        "optimistic": 35400,
+        "typical": 28200
       },
       "year": 2001
     },
     {
       "after_tax": {
-        "cautious": 35805.0,
-        "optimistic": 49000.0,
-        "typical": 42240.0
+        "cautious": 20952.0,
+        "optimistic": 36234.0,
+        "typical": 28518.0
       },
       "living_costs": {
-        "cautious": 25000,
-        "optimistic": 18000,
-        "typical": 21000
+        "cautious": 25800,
+        "optimistic": 13800,
+        "typical": 19800
       },
       "saved": {
-        "cautious": 10805.0,
-        "optimistic": 31000.0,
-        "typical": 21240.0
+        "cautious": -4848.0,
+        "optimistic": 22434.0,
+        "typical": 8718.0
       },
       "savings": {
-        "cautious": 39774.65,
-        "optimistic": 146222.77,
-        "typical": 90629.27
+        "cautious": -28432.12,
+        "optimistic": 111452.6,
+        "typical": 40472.2
       },
       "total_pay": {
-        "cautious": 38500,
-        "optimistic": 50000,
-        "typical": 44000
+        "cautious": 21600,
+        "optimistic": 36600,
+        "typical": 29100
       },
       "year": 2002
     },
     {
       "after_tax": {
-        "cautious": 36270.0,
-        "optimistic": 49490.0,
-        "typical": 42720.0
+        "cautious": 21534.0,
+        "optimistic": 37422.0,
+        "typical": 29400.0
       },
       "living_costs": {
-        "cautious": 24000,
-        "optimistic": 17000,
-        "typical": 20000
+        "cautious": 26100,
+        "optimistic": 14100,
+        "typical": 20100
       },
       "saved": {
-        "cautious": 12270.0,
-        "optimistic": 32490.0,
-        "typical": 22720.0
+        "cautious": -4566.0,
+        "optimistic": 23322.0,
+        "typical": 9300.0
       },
       "savings": {
-        "cautious": 52163.97,
-        "optimistic": 180906.11,
-        "typical": 114074.3
+        "cautious": -33168.71,
+        "optimistic": 136223.49,
+        "typical": 50136.45
       },
       "total_pay": {
-        "cautious": 39000,
-        "optimistic": 50500,
-        "typical": 44500
+        "cautious": 22200,
+        "optimistic": 37800,
+        "typical": 30000
       },
       "year": 2003
     },
     {
       "after_tax": {
-        "cautious": 45570.0,
-        "optimistic": 60140.0,
-        "typical": 51300.0
+        "cautious": 37050.0,
+        "optimistic": 67620.0,
+        "typical": 46560.0
       },
       "living_costs": {
-        "cautious": 32000,
-        "optimistic": 24000,
-        "typical": 28000
+        "cautious": 36000,
+        "optimistic": 18000,
+        "typical": 24000
       },
       "saved": {
-        "cautious": 13570.0,
-        "optimistic": 36140.0,
-        "typical": 23300.0
+        "cautious": 1050.0,
+        "optimistic": 49620.0,
+        "typical": 22560.0
       },
       "savings": {
-        "cautious": 66255.61,
-        "optimistic": 220664.23,
-        "typical": 139085.41
+        "cautious": -32185.05,
+        "optimistic": 187205.72,
+        "typical": 72947.13
       },
       "total_pay": {
-        "cautious": 49000,
-        "optimistic": 62000,
-        "typical": 54000
+        "cautious": 39000,
+        "optimistic": 69000,
+        "typical": 48000
       },
       "year": 2004
     },
     {
       "after_tax": {
-        "cautious": 51150.0,
-        "optimistic": 68385.0,
-        "typical": 57475.0
+        "cautious": 40375.0,
+        "optimistic": 73010.0,
+        "typical": 50440.0
       },
       "living_costs": {
-        "cautious": 33000,
-        "optimistic": 25000,
-        "typical": 29000
+        "cautious": 37200,
+        "optimistic": 19200,
+        "typical": 25200
       },
       "saved": {
-        "cautious": 18150.0,
-        "optimistic": 43385.0,
-        "typical": 28475.0
+        "cautious": 3175.0,
+        "optimistic": 53810.0,
+        "typical": 25240.0
       },
       "savings": {
-        "cautious": 85200.68,
-        "optimistic": 270227.83,
-        "typical": 170342.12
+        "cautious": -29074.42,
+        "optimistic": 242887.78,
+        "typical": 98551.86
       },
       "total_pay": {
-        "cautious": 55000,
-        "optimistic": 70500,
-        "typical": 60500
+        "cautious": 42500,
+        "optimistic": 74500,
+        "typical": 52000
       },
       "year": 2005
     },
     {
       "after_tax": {
-        "cautious": 56120.0,
-        "optimistic": 77760.0,
-        "typical": 64860.0
+        "cautious": 43700.0,
+        "optimistic": 78400.0,
+        "typical": 54320.0
       },
       "living_costs": {
-        "cautious": 36000,
-        "optimistic": 26000,
-        "typical": 31000
+        "cautious": 38400,
+        "optimistic": 20400,
+        "typical": 26400
       },
       "saved": {
-        "cautious": 20120.0,
-        "optimistic": 51760.0,
-        "typical": 33860.0
+        "cautious": 5300.0,
+        "optimistic": 58000.0,
+        "typical": 27920.0
       },
       "savings": {
-        "cautious": 107024.69,
-        "optimistic": 331445.8,
-        "typical": 208971.7
+        "cautious": -23861.64,
+        "optimistic": 303802.43,
+        "typical": 127161.73
       },
       "total_pay": {
-        "cautious": 61000,
-        "optimistic": 81000,
-        "typical": 69000
+        "cautious": 46000,
+        "optimistic": 80000,
+        "typical": 56000
       },
       "year": 2006
     },
     {
       "after_tax": {
-        "cautious": 61880.0,
-        "optimistic": 89300.0,
-        "typical": 73005.0
+        "cautious": 47500.0,
+        "optimistic": 86240.0,
+        "typical": 59170.0
       },
       "living_costs": {
-        "cautious": 40000,
-        "optimistic": 28000,
-        "typical": 34000
+        "cautious": 39600,
+        "optimistic": 21600,
+        "typical": 27600
       },
       "saved": {
-        "cautious": 21880.0,
-        "optimistic": 61300.0,
-        "typical": 39005.0
+        "cautious": 7900.0,
+        "optimistic": 64640.0,
+        "typical": 31570.0
       },
       "savings": {
-        "cautious": 131045.19,
-        "optimistic": 402689.18,
-        "typical": 253200.99
+        "cautious": -16080.95,
+        "optimistic": 372999.47,
+        "typical": 160003.35
       },
       "total_pay": {
-        "cautious": 68000,
-        "optimistic": 94000,
-        "typical": 78500
+        "cautious": 50000,
+        "optimistic": 88000,
+        "typical": 61000
       },
       "year": 2007
     },
     {
       "after_tax": {
-        "cautious": 61640.0,
-        "optimistic": 84480.0,
-        "typical": 70970.0
+        "cautious": 48450.0,
+        "optimistic": 79380.0,
+        "typical": 58200.0
       },
       "living_costs": {
-        "cautious": 42000,
-        "optimistic": 30000,
-        "typical": 36000
+        "cautious": 40800,
+        "optimistic": 22800,
+        "typical": 28800
       },
       "saved": {
-        "cautious": 19640.0,
-        "optimistic": 54480.0,
-        "typical": 34970.0
+        "cautious": 7650.0,
+        "optimistic": 56580.0,
+        "typical": 29400.0
       },
       "savings": {
-        "cautious": 151340.41,
-        "optimistic": 464417.58,
-        "typical": 290703.0
+        "cautious": -8511.36,
+        "optimistic": 435174.46,
+        "typical": 191003.38
       },
       "total_pay": {
-        "cautious": 67000,
-        "optimistic": 88000,
-        "typical": 75500
+        "cautious": 51000,
+        "optimistic": 81000,
+        "typical": 60000
       },
       "year": 2008
     },
     {
       "after_tax": {
-        "cautious": 80750.0,
-        "optimistic": 105300.0,
-        "typical": 91350.0
+        "cautious": 57420.0,
+        "optimistic": 105090.0,
+        "typical": 75600.0
       },
       "living_costs": {
-        "cautious": 40000,
-        "optimistic": 30000,
-        "typical": 35000
+        "cautious": 66000,
+        "optimistic": 36000,
+        "typical": 48000
       },
       "saved": {
-        "cautious": 40750.0,
-        "optimistic": 75300.0,
-        "typical": 56350.0
+        "cautious": -8580.0,
+        "optimistic": 69090.0,
+        "typical": 27600.0
       },
       "savings": {
-        "cautious": 192847.12,
-        "optimistic": 549005.94,
-        "typical": 349960.03
+        "cautious": -17099.87,
+        "optimistic": 506440.33,
+        "typical": 218985.39
       },
       "total_pay": {
-        "cautious": 95000,
-        "optimistic": 117000,
-        "typical": 105000
+        "cautious": 66000,
+        "optimistic": 113000,
+        "typical": 84000
       },
       "year": 2009
     },
     {
       "after_tax": {
-        "cautious": 86700.0,
-        "optimistic": 113400.0,
-        "typical": 98310.0
+        "cautious": 60900.0,
+        "optimistic": 113460.0,
+        "typical": 81450.0
       },
       "living_costs": {
-        "cautious": 42000,
-        "optimistic": 32000,
-        "typical": 37000
+        "cautious": 68400,
+        "optimistic": 37200,
+        "typical": 49500
       },
       "saved": {
-        "cautious": 44700.0,
-        "optimistic": 81400.0,
-        "typical": 61310.0
+        "cautious": -7500.0,
+        "optimistic": 76260.0,
+        "typical": 31950.0
       },
       "savings": {
-        "cautious": 237932.81,
-        "optimistic": 635896.0,
-        "typical": 413019.83
+        "cautious": -24616.97,
+        "optimistic": 585232.53,
+        "typical": 251373.36
       },
       "total_pay": {
-        "cautious": 102000,
-        "optimistic": 126000,
-        "typical": 113000
+        "cautious": 70000,
+        "optimistic": 122000,
+        "typical": 90500
       },
       "year": 2010
     },
     {
       "after_tax": {
-        "cautious": 88400.0,
-        "optimistic": 114300.0,
-        "typical": 99615.0
+        "cautious": 63510.0,
+        "optimistic": 119970.0,
+        "typical": 86400.0
       },
       "living_costs": {
-        "cautious": 45000,
-        "optimistic": 34000,
-        "typical": 39000
+        "cautious": 70800,
+        "optimistic": 38400,
+        "typical": 51000
       },
       "saved": {
-        "cautious": 43400.0,
-        "optimistic": 80300.0,
-        "typical": 60615.0
+        "cautious": -7290.0,
+        "optimistic": 81570.0,
+        "typical": 35400.0
       },
       "savings": {
-        "cautious": 281808.68,
-        "optimistic": 723826.75,
-        "typical": 476112.95
+        "cautious": -31931.59,
+        "optimistic": 669728.7,
+        "typical": 287276.1
       },
       "total_pay": {
-        "cautious": 104000,
-        "optimistic": 127000,
-        "typical": 114500
+        "cautious": 73000,
+        "optimistic": 129000,
+        "typical": 96000
       },
       "year": 2011
     },
     {
       "after_tax": {
-        "cautious": 91800.0,
-        "optimistic": 119700.0,
-        "typical": 103530.0
+        "cautious": 66120.0,
+        "optimistic": 124620.0,
+        "typical": 90000.0
       },
       "living_costs": {
-        "cautious": 47000,
-        "optimistic": 35000,
-        "typical": 41000
+        "cautious": 73200,
+        "optimistic": 39600,
+        "typical": 52500
       },
       "saved": {
-        "cautious": 44800.0,
-        "optimistic": 84700.0,
-        "typical": 62530.0
+        "cautious": -7080.0,
+        "optimistic": 85020.0,
+        "typical": 37500.0
       },
       "savings": {
-        "cautious": 326890.49,
-        "optimistic": 815041.19,
-        "typical": 540547.41
+        "cautious": -39043.52,
+        "optimistic": 758097.34,
+        "typical": 325350.65
       },
       "total_pay": {
-        "cautious": 108000,
-        "optimistic": 133000,
-        "typical": 119000
+        "cautious": 76000,
+        "optimistic": 134000,
+        "typical": 100000
       },
       "year": 2012
     },
     {
       "after_tax": {
-        "cautious": 95625.0,
-        "optimistic": 125100.0,
-        "typical": 108315.0
+        "cautious": 69600.0,
+        "optimistic": 132060.0,
+        "typical": 95400.0
       },
       "living_costs": {
-        "cautious": 50000,
-        "optimistic": 37000,
-        "typical": 43000
+        "cautious": 75600,
+        "optimistic": 40800,
+        "typical": 54000
       },
       "saved": {
-        "cautious": 45625.0,
-        "optimistic": 88100.0,
-        "typical": 65315.0
+        "cautious": -6000.0,
+        "optimistic": 91260.0,
+        "typical": 41400.0
       },
       "savings": {
-        "cautious": 372842.38,
-        "optimistic": 911291.6,
-        "typical": 608565.14
+        "cautious": -45082.56,
+        "optimistic": 853147.83,
+        "typical": 367401.36
       },
       "total_pay": {
-        "cautious": 112500,
-        "optimistic": 139000,
-        "typical": 124500
+        "cautious": 80000,
+        "optimistic": 142000,
+        "typical": 106000
       },
       "year": 2013
     },
     {
       "after_tax": {
-        "cautious": 108000.0,
-        "optimistic": 145350.0,
-        "typical": 124620.0
+        "cautious": 126000.0,
+        "optimistic": 329000.0,
+        "typical": 202400.0
       },
       "living_costs": {
-        "cautious": 60000.0,
-        "optimistic": 40000.0,
-        "typical": 50000.0
+        "cautious": 110000,
+        "optimistic": 48000,
+        "typical": 72000
       },
       "saved": {
-        "cautious": 48000.0,
-        "optimistic": 105350.0,
-        "typical": 74620.0
+        "cautious": 16000.0,
+        "optimistic": 281000.0,
+        "typical": 130400.0
       },
       "savings": {
-        "cautious": 422706.59,
-        "optimistic": 1030310.97,
-        "typical": 689270.79
+        "cautious": -29105.1,
+        "optimistic": 1137133.84,
+        "typical": 498352.46
       },
       "total_pay": {
-        "cautious": 120000.0,
-        "optimistic": 153000.0,
-        "typical": 134000.0
+        "cautious": 140000,
+        "optimistic": 350000,
+        "typical": 220000
       },
       "year": 2014
     },
     {
       "after_tax": {
-        "cautious": 110700.0,
-        "optimistic": 146300.0,
-        "typical": 126480.0
+        "cautious": 128700.0,
+        "optimistic": 329000.0,
+        "typical": 205160.0
       },
       "living_costs": {
-        "cautious": 62000.0,
-        "optimistic": 42000.0,
-        "typical": 52000.0
+        "cautious": 112000,
+        "optimistic": 49000,
+        "typical": 74000
       },
       "saved": {
-        "cautious": 48700.0,
-        "optimistic": 104300.0,
-        "typical": 74480.0
+        "cautious": 16700.0,
+        "optimistic": 280000.0,
+        "typical": 131160.0
       },
       "savings": {
-        "cautious": 473520.12,
-        "optimistic": 1150065.64,
-        "typical": 770643.5
+        "cautious": -12419.65,
+        "optimistic": 1421113.81,
+        "typical": 630259.99
       },
       "total_pay": {
-        "cautious": 123000.0,
-        "optimistic": 154000.0,
-        "typical": 136000.0
+        "cautious": 143000,
+        "optimistic": 350000,
+        "typical": 223000
       },
       "year": 2015
     },
     {
       "after_tax": {
-        "cautious": 114300.0,
-        "optimistic": 152950.0,
-        "typical": 130665.0
+        "cautious": 131400.0,
+        "optimistic": 338400.0,
+        "typical": 211600.0
       },
       "living_costs": {
-        "cautious": 64000.0,
-        "optimistic": 43000.0,
-        "typical": 53000.0
+        "cautious": 115000,
+        "optimistic": 50000,
+        "typical": 76000
       },
       "saved": {
-        "cautious": 50300.0,
-        "optimistic": 109950.0,
-        "typical": 77665.0
+        "cautious": 16400.0,
+        "optimistic": 288400.0,
+        "typical": 135600.0
       },
       "savings": {
-        "cautious": 526187.72,
-        "optimistic": 1277266.62,
-        "typical": 856014.94
+        "cautious": 3974.14,
+        "optimistic": 1714487.71,
+        "typical": 766805.38
       },
       "total_pay": {
-        "cautious": 127000.0,
-        "optimistic": 161000.0,
-        "typical": 140500.0
+        "cautious": 146000,
+        "optimistic": 360000,
+        "typical": 230000
       },
       "year": 2016
     },
     {
       "after_tax": {
-        "cautious": 168000.0,
-        "optimistic": 262550.0,
-        "typical": 211925.0
+        "cautious": 255000.0,
+        "optimistic": 533600.0,
+        "typical": 360800.0
       },
       "living_costs": {
-        "cautious": 110000,
+        "cautious": 180000,
         "optimistic": 70000,
-        "typical": 85000
+        "typical": 110000
       },
       "saved": {
-        "cautious": 58000.0,
-        "optimistic": 192550.0,
-        "typical": 126925.0
+        "cautious": 75000.0,
+        "optimistic": 463600.0,
+        "typical": 250800.0
       },
       "savings": {
-        "cautious": 589449.6,
-        "optimistic": 1497916.49,
-        "typical": 995780.16
+        "cautious": 78978.11,
+        "optimistic": 2186660.15,
+        "typical": 1019905.79
       },
       "total_pay": {
-        "cautious": 200000,
-        "optimistic": 295000,
-        "typical": 245000
+        "cautious": 300000,
+        "optimistic": 580000,
+        "typical": 410000
       },
       "year": 2017
     },
     {
       "after_tax": {
-        "cautious": 181195.0,
-        "optimistic": 285855.0,
-        "typical": 225320.0
+        "cautious": 265200.0,
+        "optimistic": 552000.0,
+        "typical": 375760.0
       },
       "living_costs": {
-        "cautious": 113000,
+        "cautious": 185000,
         "optimistic": 72000,
-        "typical": 88000
+        "typical": 115000
       },
       "saved": {
-        "cautious": 68195.0,
-        "optimistic": 213855.0,
-        "typical": 137320.0
+        "cautious": 80200.0,
+        "optimistic": 480000.0,
+        "typical": 260760.0
       },
       "savings": {
-        "cautious": 664717.99,
-        "optimistic": 1749219.4,
-        "typical": 1151024.2
+        "cautious": 159336.07,
+        "optimistic": 2681966.77,
+        "typical": 1284745.42
       },
       "total_pay": {
-        "cautious": 217000,
-        "optimistic": 323000,
-        "typical": 262000
+        "cautious": 312000,
+        "optimistic": 600000,
+        "typical": 427000
       },
       "year": 2018
     },
     {
       "after_tax": {
-        "cautious": 185370.0,
-        "optimistic": 293820.0,
-        "typical": 232200.0
+        "cautious": 270300.0,
+        "optimistic": 570400.0,
+        "typical": 386320.0
       },
       "living_costs": {
-        "cautious": 115000,
-        "optimistic": 73000,
-        "typical": 90000
+        "cautious": 190000,
+        "optimistic": 74000,
+        "typical": 118000
       },
       "saved": {
-        "cautious": 70370.0,
-        "optimistic": 220820.0,
-        "typical": 142200.0
+        "cautious": 80300.0,
+        "optimistic": 496400.0,
+        "typical": 268320.0
       },
       "savings": {
-        "cautious": 741735.17,
-        "optimistic": 2008522.23,
-        "typical": 1311640.59
+        "cautious": 239954.74,
+        "optimistic": 3199822.5,
+        "typical": 1559489.14
       },
       "total_pay": {
-        "cautious": 222000,
-        "optimistic": 332000,
-        "typical": 270000
+        "cautious": 318000,
+        "optimistic": 620000,
+        "typical": 439000
       },
       "year": 2019
     },
     {
       "after_tax": {
-        "cautious": 218625.0,
-        "optimistic": 400400.0,
-        "typical": 294975.0
+        "cautious": 258000.0,
+        "optimistic": 539400.0,
+        "typical": 367570.0
       },
       "living_costs": {
-        "cautious": 110000,
-        "optimistic": 70000,
-        "typical": 86000
+        "cautious": 185000,
+        "optimistic": 72000,
+        "typical": 116000
       },
       "saved": {
-        "cautious": 108625.0,
-        "optimistic": 330400.0,
-        "typical": 208975.0
+        "cautious": 73000.0,
+        "optimistic": 467400.0,
+        "typical": 251570.0
       },
       "savings": {
-        "cautious": 854068.85,
-        "optimistic": 2369050.06,
-        "typical": 1532420.36
+        "cautious": 313194.69,
+        "optimistic": 3680021.79,
+        "typical": 1814178.12
       },
       "total_pay": {
-        "cautious": 265000,
-        "optimistic": 455000,
-        "typical": 345000
+        "cautious": 300000,
+        "optimistic": 580000,
+        "typical": 413000
       },
       "year": 2020
     },
     {
       "after_tax": {
-        "cautious": 299700.0,
-        "optimistic": 617700.0,
-        "typical": 435175.0
+        "cautious": 280500.0,
+        "optimistic": 607200.0,
+        "typical": 409200.0
       },
       "living_costs": {
-        "cautious": 125000,
+        "cautious": 195000,
         "optimistic": 75000,
-        "typical": 95000
+        "typical": 120000
       },
       "saved": {
-        "cautious": 174700.0,
-        "optimistic": 542700.0,
-        "typical": 340175.0
+        "cautious": 85500.0,
+        "optimistic": 532200.0,
+        "typical": 289200.0
       },
       "savings": {
-        "cautious": 1035601.4,
-        "optimistic": 2954392.96,
-        "typical": 1890984.4
+        "cautious": 399007.89,
+        "optimistic": 4226941.88,
+        "typical": 2107006.48
       },
       "total_pay": {
-        "cautious": 370000,
-        "optimistic": 710000,
-        "typical": 515000
+        "cautious": 330000,
+        "optimistic": 660000,
+        "typical": 465000
       },
       "year": 2021
     },
     {
       "after_tax": {
-        "cautious": 265650.0,
-        "optimistic": 527650.0,
-        "typical": 378000.0
+        "cautious": 283050.0,
+        "optimistic": 602600.0,
+        "typical": 408320.0
       },
       "living_costs": {
-        "cautious": 135000,
-        "optimistic": 80000,
-        "typical": 102000
+        "cautious": 200000,
+        "optimistic": 77000,
+        "typical": 123000
       },
       "saved": {
-        "cautious": 130650.0,
-        "optimistic": 447650.0,
-        "typical": 276000.0
+        "cautious": 83050.0,
+        "optimistic": 525600.0,
+        "typical": 285320.0
       },
       "savings": {
-        "cautious": 1186963.43,
-        "optimistic": 3526127.47,
-        "typical": 2223713.93
+        "cautious": 484052.93,
+        "optimistic": 4815946.01,
+        "typical": 2413396.54
       },
       "total_pay": {
-        "cautious": 330000,
-        "optimistic": 610000,
-        "typical": 450000
+        "cautious": 333000,
+        "optimistic": 655000,
+        "typical": 464000
       },
       "year": 2022
     },
     {
       "after_tax": {
-        "cautious": 225400.0,
-        "optimistic": 415200.0,
-        "typical": 306600.0
+        "cautious": 286450.0,
+        "optimistic": 602600.0,
+        "typical": 407440.0
       },
       "living_costs": {
-        "cautious": 145000,
-        "optimistic": 85000,
-        "typical": 110000
+        "cautious": 205000,
+        "optimistic": 79000,
+        "typical": 126000
       },
       "saved": {
-        "cautious": 80400.0,
-        "optimistic": 330200.0,
-        "typical": 196600.0
+        "cautious": 81450.0,
+        "optimistic": 523600.0,
+        "typical": 281440.0
       },
       "savings": {
-        "cautious": 1297037.51,
-        "optimistic": 4032633.84,
-        "typical": 2504815.06
+        "cautious": 570343.46,
+        "optimistic": 5435864.93,
+        "typical": 2731037.49
       },
       "total_pay": {
-        "cautious": 280000,
-        "optimistic": 480000,
-        "typical": 365000
+        "cautious": 337000,
+        "optimistic": 655000,
+        "typical": 463000
       },
       "year": 2023
     },
     {
       "after_tax": {
-        "cautious": 256000.0,
-        "optimistic": 485900.0,
-        "typical": 354875.0
+        "cautious": 291550.0,
+        "optimistic": 621000.0,
+        "typical": 418880.0
       },
       "living_costs": {
-        "cautious": 150000,
-        "optimistic": 90000,
-        "typical": 115000
+        "cautious": 210000,
+        "optimistic": 81000,
+        "typical": 129000
       },
       "saved": {
-        "cautious": 106000.0,
-        "optimistic": 395900.0,
-        "typical": 239875.0
+        "cautious": 81550.0,
+        "optimistic": 540000.0,
+        "typical": 289880.0
       },
       "savings": {
-        "cautious": 1431572.34,
-        "optimistic": 4610002.36,
-        "typical": 2824844.14
+        "cautious": 660448.61,
+        "optimistic": 6111761.55,
+        "typical": 3075538.24
       },
       "total_pay": {
-        "cautious": 320000,
-        "optimistic": 565000,
-        "typical": 425000
+        "cautious": 343000,
+        "optimistic": 675000,
+        "typical": 476000
       },
       "year": 2024
     },
     {
       "after_tax": {
-        "cautious": 254400.0,
-        "optimistic": 477300.0,
-        "typical": 350700.0
+        "cautious": 296650.0,
+        "optimistic": 639400.0,
+        "typical": 426800.0
       },
       "living_costs": {
-        "cautious": 155000,
-        "optimistic": 92000,
-        "typical": 118000
+        "cautious": 215000,
+        "optimistic": 83000,
+        "typical": 132000
       },
       "saved": {
-        "cautious": 99400.0,
-        "optimistic": 385300.0,
-        "typical": 232700.0
+        "cautious": 81650.0,
+        "optimistic": 556400.0,
+        "typical": 294800.0
       },
       "savings": {
-        "cautious": 1559603.79,
-        "optimistic": 5179702.46,
-        "typical": 3142289.47
+        "cautious": 752005.34,
+        "optimistic": 6820955.59,
+        "typical": 3431849.01
       },
       "total_pay": {
-        "cautious": 318000,
-        "optimistic": 555000,
-        "typical": 420000
+        "cautious": 349000,
+        "optimistic": 695000,
+        "typical": 485000
       },
       "year": 2025
     },
     {
       "after_tax": {
-        "cautious": 252000.0,
-        "optimistic": 473000.0,
-        "typical": 346525.0
+        "cautious": 301750.0,
+        "optimistic": 657800.0,
+        "typical": 433840.0
       },
       "living_costs": {
-        "cautious": 160000,
-        "optimistic": 95000,
-        "typical": 122000
+        "cautious": 220000,
+        "optimistic": 85000,
+        "typical": 135000
       },
       "saved": {
-        "cautious": 92000.0,
-        "optimistic": 378000.0,
-        "typical": 224525.0
+        "cautious": 81750.0,
+        "optimistic": 572800.0,
+        "typical": 298840.0
       },
       "savings": {
-        "cautious": 1679676.65,
-        "optimistic": 5754531.15,
-        "typical": 3454798.57
+        "cautious": 845035.42,
+        "optimistic": 7564279.48,
+        "typical": 3799325.99
       },
       "total_pay": {
-        "cautious": 315000,
-        "optimistic": 550000,
-        "typical": 415000
+        "cautious": 355000,
+        "optimistic": 715000,
+        "typical": 493000
       },
       "year": 2026
     }
@@ -989,111 +989,125 @@
     {
       "country": "Singapore",
       "listings": [],
-      "source_name": "Model knowledge (unverified)",
-      "summary": "Country of residence, employment history, and property ownership."
+      "source_name": "client data",
+      "summary": "Country of residence, main employment, property and asset sales, and savings."
     },
     {
       "country": "Hong Kong",
       "listings": [],
-      "source_name": "Model knowledge (unverified)",
-      "summary": "Employment history, corporate stake ownership, and named country."
+      "source_name": "client data",
+      "summary": "Employment, private company stake, and investment income."
     },
     {
       "country": "Australia",
       "listings": [],
-      "source_name": "Model knowledge (unverified)",
-      "summary": "Property ownership location."
+      "source_name": "client data",
+      "summary": "Location of rental property asset."
     },
     {
       "country": "United States",
       "listings": [],
-      "source_name": "Model knowledge (unverified)",
-      "summary": "Listed equities portfolio location."
+      "source_name": "client data",
+      "summary": "Location of listed equities portfolio."
     },
     {
       "country": "United Arab Emirates",
       "listings": [],
-      "source_name": "Model knowledge (unverified)",
-      "summary": "Named country and advisory work location."
+      "source_name": "client data",
+      "summary": "Advisory work for a Dubai trading firm."
     }
   ],
   "data_quality": {
     "data_gaps": [
-      "Exact historical exchange rates for non-SGD assets.",
-      "Exact valuation history of private company stake in Hong Kong.",
-      "Figures need checking against an official source",
-      "Figures need checking against an official source.",
-      "The figures need checking against an official source such as the Bureau of Economic Analysis (BEA).",
-      "The figures need checking against an official source."
+      "1998 change_pct not available from sources",
+      "2012",
+      "2013",
+      "2014",
+      "2015",
+      "2016",
+      "2017",
+      "2018",
+      "2019",
+      "2020",
+      "2021",
+      "2022",
+      "2023",
+      "2024",
+      "2025",
+      "2025 S&P 500 total return not available as of 2026-09-24",
+      "2025: No actual data available as of 2026-09-24; forecast only.",
+      "2026",
+      "2026 S&P 500 total return not available as of 2026-09-24",
+      "2026: No actual data available as of 2026-09-24; forecast only.",
+      "Annual change_pct data for years 1998\u20132024 and 2026 not available; only quarterly index data exists",
+      "Figures for 2024-2026 are industry consensus estimates, not official statistics",
+      "No details on the exact timing or amounts of annual bonuses and incentive payouts.",
+      "No details on the sale price or acquisition year of the smaller Singapore flat sold in 2016.",
+      "No details on the specific Dubai trading firm or the nature of advisory work.",
+      "No details on the specific equities held in the US portfolio (broad market index used).",
+      "No details on the specific freight brokerage company in Hong Kong (private company sector performance is estimated).",
+      "No sector-specific revenue growth data available for 1998-2003"
     ],
     "market_figures": 435,
-    "unverified_share": 1.0
+    "unverified_share": 0.145
   },
   "declared_net_worth": 16500000,
   "declared_sources": [
     {
-      "detail": "S1 Salary (?-?, Singapore): backed",
+      "detail": "S1 Salary from various roles in shipping, trading, and logistics since 1998 (1998-?, Singapore): backed",
       "failed": false,
-      "quote": "salary",
+      "quote": "His wealth comes mainly from salary",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S1",
       "source_type": "employment"
     },
     {
-      "detail": "S2 Annual bonuses (?-?, Singapore): backed",
+      "detail": "S2 Annual bonuses from employment (?-?, Singapore): backed",
       "failed": false,
-      "quote": "annual bonuses",
+      "quote": "His wealth comes mainly from salary, annual bonuses",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S2",
       "source_type": "bonus_incentive"
     },
     {
-      "detail": "S3 Long-term incentive plan (2020-2023, Singapore): backed",
+      "detail": "S3 Long-term incentive plan paid out in 2020 and 2023 (2020-2023, Singapore): backed",
       "failed": false,
-      "quote": "long-term incentive plan paid out in 2020 and 2023",
+      "quote": "a long-term incentive plan paid out in 2020 and 2023",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S3",
       "source_type": "bonus_incentive"
     },
     {
-      "detail": "S4 Sale of a smaller Singapore flat (2016-2016, Singapore): no amount and no job or asset behind it",
+      "detail": "S4 Sale of a smaller Singapore flat bought early in career (2016-2016, Singapore): no amount and no job or asset behind it",
       "failed": true,
-      "quote": "sold a smaller Singapore flat bought early in his career",
+      "quote": "In 2016 he sold a smaller Singapore flat bought early in his career and used the proceeds to buy a rental apartment in Melbourne.",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S4",
       "source_type": "asset_sale"
     },
     {
-      "detail": "S5 Annual dividends from freight brokerage (2021-?, Hong Kong): backed",
+      "detail": "S5 Dividends from a Hong Kong freight brokerage stake (2021-?, Hong Kong): backed",
       "failed": false,
-      "quote": "pays him annual dividends",
+      "quote": "In 2021 he invested in a Hong Kong freight brokerage run by a former colleague, which has grown strongly since and pays him annual dividends",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S5",
       "source_type": "investment_income"
     },
     {
-      "detail": "S6 Advisory work for a Dubai trading firm (2021-2021, United Arab Emirates): no amount and no job or asset behind it",
+      "detail": "S6 Advisory work for a Dubai trading firm around 2021 (2021-2021, United Arab Emirates): no amount and no job or asset behind it",
       "failed": true,
-      "quote": "did some advisory work for a Dubai trading firm around the same time",
+      "quote": "he also did some advisory work for a Dubai trading firm around the same time",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S6",
       "source_type": "advisory_fees"
     },
     {
-      "detail": "S7 Savings (?-?, Singapore): backed",
+      "detail": "S7 Cash from accumulated savings and the 2023 incentive payout (?-2023, Singapore): backed",
       "failed": false,
-      "quote": "savings",
+      "quote": "The remaining cash comes from savings and the 2023 incentive payout.",
       "rule_id": "UNQUANTIFIED_SOURCE",
       "source_id": "S7",
       "source_type": "savings"
-    },
-    {
-      "detail": "S8 2023 incentive payout (2023-2023, Singapore): backed",
-      "failed": false,
-      "quote": "the 2023 incentive payout",
-      "rule_id": "UNQUANTIFIED_SOURCE",
-      "source_id": "S8",
-      "source_type": "bonus_incentive"
     }
   ],
   "divergence": [
@@ -1108,276 +1122,456 @@
     {
       "distinguishable_from": null,
       "type_id": "T4"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T5"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T6"
     }
   ],
   "documents": [
     {
       "document": "Personal tax returns / assessments",
       "document_code": "DOC_TAX_RETURNS",
-      "reason": "Declared net worth 16,500,000; the as-declared version explains 5,871,976 to 13,754,455."
+      "reason": "Declared net worth 16,500,000; the honest version explains 2,427,580 to 12,160,392."
     },
     {
       "document": "Historic bank statements",
       "document_code": "DOC_BANK_STATEMENTS",
-      "reason": "Declared net worth 16,500,000; the as-declared version explains 5,871,976 to 13,754,455."
+      "reason": "Declared net worth 16,500,000; the honest version explains 2,427,580 to 12,160,392."
+    },
+    {
+      "document": "Property title deed",
+      "document_code": "DOC_PROPERTY_TITLE",
+      "reason": "Asset 0 (Residential property (condominium)): declared 3,100,000, markets explain about 1,945,437 (up to 2,485,470)"
     },
     {
       "document": "Audited company accounts",
       "document_code": "DOC_COMPANY_ACCOUNTS",
-      "reason": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,822,586 (up to 3,372,439)"
+      "reason": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,626,714 (up to 3,376,462)"
     },
     {
       "document": "Shareholder register",
       "document_code": "DOC_SHAREHOLDER_REGISTER",
-      "reason": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,822,586 (up to 3,372,439)"
+      "reason": "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,626,714 (up to 3,376,462)"
     },
     {
       "document": "Sale and purchase agreement",
       "document_code": "DOC_SALE_AGREEMENT",
-      "reason": "S4 Sale of a smaller Singapore flat (2016-2016, Singapore): no amount and no job or asset behind it"
-    },
-    {
-      "document": "Consulting or advisory agreement",
-      "document_code": "DOC_CONSULTING_AGREEMENT",
-      "reason": "S6 Advisory work for a Dubai trading firm (2021-2021, United Arab Emirates): no amount and no job or asset behind it"
+      "reason": "S4 Sale of a smaller Singapore flat bought early in career (2016-2016, Singapore): no amount and no job or asset behind it"
     }
   ],
   "event_impacts": [
     {
-      "chance": 0.25,
-      "event": "Global AI Stock Market Correction",
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
       "event_id": "E1",
-      "impact": -293318,
+      "impact": -157063,
       "type_id": "T1",
-      "weighted_impact": -73329,
-      "year": 2027
+      "weighted_impact": -47119,
+      "year": 2028
     },
     {
-      "chance": 0.25,
-      "event": "Global AI Stock Market Correction",
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
       "event_id": "E1",
-      "impact": -293318,
+      "impact": -557063,
       "type_id": "T2",
-      "weighted_impact": -73329,
-      "year": 2027
+      "weighted_impact": -167119,
+      "year": 2028
     },
     {
-      "chance": 0.25,
-      "event": "Global AI Stock Market Correction",
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
       "event_id": "E1",
-      "impact": -283318,
+      "impact": -337063,
       "type_id": "T3",
-      "weighted_impact": -70829,
-      "year": 2027
+      "weighted_impact": -101119,
+      "year": 2028
     },
     {
-      "chance": 0.25,
-      "event": "Global AI Stock Market Correction",
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
       "event_id": "E1",
-      "impact": -283318,
+      "impact": -157063,
       "type_id": "T4",
-      "weighted_impact": -70829,
-      "year": 2027
+      "weighted_impact": -47119,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
+      "event_id": "E1",
+      "impact": -277063,
+      "type_id": "T5",
+      "weighted_impact": -83119,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "Global economic slowdown triggered by AI-driven stock market correction",
+      "event_id": "E1",
+      "impact": -357063,
+      "type_id": "T6",
+      "weighted_impact": -107119,
+      "year": 2028
     },
     {
       "chance": 0.2,
-      "event": "Maritime Freight Rate Collapse",
+      "event": "Major disruption in global container shipping due to new environmental regulations",
       "event_id": "E2",
-      "impact": -225398,
+      "impact": 141504,
       "type_id": "T1",
-      "weighted_impact": -45080,
-      "year": 2028
+      "weighted_impact": 28301,
+      "year": 2029
     },
     {
       "chance": 0.2,
-      "event": "Maritime Freight Rate Collapse",
+      "event": "Major disruption in global container shipping due to new environmental regulations",
       "event_id": "E2",
-      "impact": -225398,
+      "impact": 741504,
       "type_id": "T2",
-      "weighted_impact": -45080,
-      "year": 2028
+      "weighted_impact": 148301,
+      "year": 2029
     },
     {
       "chance": 0.2,
-      "event": "Maritime Freight Rate Collapse",
+      "event": "Major disruption in global container shipping due to new environmental regulations",
       "event_id": "E2",
-      "impact": -325398,
+      "impact": 541504,
       "type_id": "T3",
-      "weighted_impact": -65080,
-      "year": 2028
+      "weighted_impact": 108301,
+      "year": 2029
     },
     {
       "chance": 0.2,
-      "event": "Maritime Freight Rate Collapse",
+      "event": "Major disruption in global container shipping due to new environmental regulations",
       "event_id": "E2",
-      "impact": -275398,
+      "impact": 141504,
       "type_id": "T4",
-      "weighted_impact": -55080,
-      "year": 2028
+      "weighted_impact": 28301,
+      "year": 2029
     },
     {
-      "chance": 0.3,
-      "event": "Singapore Property Market Cooling Measures",
+      "chance": 0.2,
+      "event": "Major disruption in global container shipping due to new environmental regulations",
+      "event_id": "E2",
+      "impact": 191504,
+      "type_id": "T5",
+      "weighted_impact": 38301,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major disruption in global container shipping due to new environmental regulations",
+      "event_id": "E2",
+      "impact": 341504,
+      "type_id": "T6",
+      "weighted_impact": 68301,
+      "year": 2029
+    },
+    {
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
       "event_id": "E3",
-      "impact": -75645,
+      "impact": 0,
       "type_id": "T1",
-      "weighted_impact": -22694,
-      "year": 2029
+      "weighted_impact": 0,
+      "year": 2027
     },
     {
-      "chance": 0.3,
-      "event": "Singapore Property Market Cooling Measures",
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
       "event_id": "E3",
-      "impact": -70645,
+      "impact": 0,
       "type_id": "T2",
-      "weighted_impact": -21194,
-      "year": 2029
+      "weighted_impact": 0,
+      "year": 2027
     },
     {
-      "chance": 0.3,
-      "event": "Singapore Property Market Cooling Measures",
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
       "event_id": "E3",
-      "impact": -70645,
+      "impact": 250000,
       "type_id": "T3",
-      "weighted_impact": -21194,
-      "year": 2029
+      "weighted_impact": 45000,
+      "year": 2027
     },
     {
-      "chance": 0.3,
-      "event": "Singapore Property Market Cooling Measures",
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
       "event_id": "E3",
-      "impact": -70645,
+      "impact": 0,
       "type_id": "T4",
-      "weighted_impact": -21194,
-      "year": 2029
+      "weighted_impact": 0,
+      "year": 2027
+    },
+    {
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
+      "event_id": "E3",
+      "impact": 120000,
+      "type_id": "T5",
+      "weighted_impact": 21600,
+      "year": 2027
+    },
+    {
+      "chance": 0.18,
+      "event": "Sharp oil price spike following geopolitical tensions in the Middle East",
+      "event_id": "E3",
+      "impact": 600000,
+      "type_id": "T6",
+      "weighted_impact": 108000,
+      "year": 2027
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -89949,
+      "type_id": "T1",
+      "weighted_impact": -22487,
+      "year": 2030
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -289949,
+      "type_id": "T2",
+      "weighted_impact": -72487,
+      "year": 2030
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -129949,
+      "type_id": "T3",
+      "weighted_impact": -32487,
+      "year": 2030
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -89949,
+      "type_id": "T4",
+      "weighted_impact": -22487,
+      "year": 2030
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -139949,
+      "type_id": "T5",
+      "weighted_impact": -34987,
+      "year": 2030
+    },
+    {
+      "chance": 0.25,
+      "event": "Hong Kong private freight brokerage sector consolidation after regulatory changes",
+      "event_id": "E4",
+      "impact": -289949,
+      "type_id": "T6",
+      "weighted_impact": -72487,
+      "year": 2030
     }
   ],
   "forward_paths": {
     "T1": [
       {
-        "cautious": 5871976.44,
-        "optimistic": 13754455.33,
-        "typical": 9406399.06,
+        "cautious": 2427580.3,
+        "optimistic": 12160392.01,
+        "typical": 6833596.93,
         "year": 2026
       },
       {
-        "cautious": 6151537.36,
-        "optimistic": 16008053.95,
-        "typical": 10414759.63,
+        "cautious": 2496642.46,
+        "optimistic": 13941478.74,
+        "typical": 7497391.4,
         "year": 2027
       },
       {
-        "cautious": 6495478.1,
-        "optimistic": 18698580.45,
-        "typical": 11576703.55,
+        "cautious": 2527942.33,
+        "optimistic": 15881622.9,
+        "typical": 8149506.08,
         "year": 2028
       },
       {
-        "cautious": 7009770.22,
-        "optimistic": 22370036.49,
-        "typical": 13131916.47,
+        "cautious": 2520391.36,
+        "optimistic": 17974382.54,
+        "typical": 8775591.79,
         "year": 2029
       },
       {
-        "cautious": 7523804.17,
-        "optimistic": 26643462.34,
-        "typical": 14783351.12,
+        "cautious": 2625835.3,
+        "optimistic": 20552289.5,
+        "typical": 9581436.13,
         "year": 2030
       }
     ],
     "T2": [
       {
-        "cautious": 6441976.44,
-        "optimistic": 16604455.33,
-        "typical": 10826399.06,
+        "cautious": 3627580.3,
+        "optimistic": 19360392.01,
+        "typical": 10433596.93,
         "year": 2026
       },
       {
-        "cautious": 6821537.36,
-        "optimistic": 19358053.95,
-        "typical": 12084759.63,
+        "cautious": 3906642.46,
+        "optimistic": 22341478.74,
+        "typical": 11737391.4,
         "year": 2027
       },
       {
-        "cautious": 7265478.1,
-        "optimistic": 22548580.45,
-        "typical": 13496703.55,
+        "cautious": 4132942.33,
+        "optimistic": 25401622.9,
+        "typical": 12989506.08,
         "year": 2028
       },
       {
-        "cautious": 7887270.22,
-        "optimistic": 26750036.49,
-        "typical": 15316916.47,
+        "cautious": 4305391.36,
+        "optimistic": 28534382.54,
+        "typical": 14175591.79,
         "year": 2029
       },
       {
-        "cautious": 8503804.17,
-        "optimistic": 31533462.34,
-        "typical": 17223351.12,
+        "cautious": 4605835.3,
+        "optimistic": 32232289.5,
+        "typical": 15581436.13,
         "year": 2030
       }
     ],
     "T3": [
       {
-        "cautious": 9521976.44,
-        "optimistic": 21454455.33,
-        "typical": 14726399.06,
+        "cautious": 2707580.3,
+        "optimistic": 16060392.01,
+        "typical": 8283596.93,
         "year": 2026
       },
       {
-        "cautious": 10051537.36,
-        "optimistic": 24212053.95,
-        "typical": 16088759.63,
+        "cautious": 2776642.46,
+        "optimistic": 17841478.74,
+        "typical": 8947391.4,
         "year": 2027
       },
       {
-        "cautious": 10645478.1,
-        "optimistic": 27406580.45,
-        "typical": 17604703.55,
+        "cautious": 2807942.33,
+        "optimistic": 19781622.9,
+        "typical": 9599506.08,
         "year": 2028
       },
       {
-        "cautious": 11424770.22,
-        "optimistic": 31612036.49,
-        "typical": 19536416.47,
+        "cautious": 2800391.36,
+        "optimistic": 21874382.54,
+        "typical": 10225591.79,
         "year": 2029
       },
       {
-        "cautious": 12193804.17,
-        "optimistic": 36399462.34,
-        "typical": 21549351.12,
+        "cautious": 2905835.3,
+        "optimistic": 24452289.5,
+        "typical": 11031436.13,
         "year": 2030
       }
     ],
     "T4": [
       {
-        "cautious": 6521976.44,
-        "optimistic": 16954455.33,
-        "typical": 11006399.06,
+        "cautious": 2677580.3,
+        "optimistic": 14660392.01,
+        "typical": 7833596.93,
         "year": 2026
       },
       {
-        "cautious": 6951537.36,
-        "optimistic": 19868053.95,
-        "typical": 12354759.63,
+        "cautious": 2746642.46,
+        "optimistic": 16441478.74,
+        "typical": 8497391.4,
         "year": 2027
       },
       {
-        "cautious": 7445478.1,
-        "optimistic": 23218580.45,
-        "typical": 13856703.55,
+        "cautious": 2777942.33,
+        "optimistic": 18381622.9,
+        "typical": 9149506.08,
         "year": 2028
       },
       {
-        "cautious": 8124770.22,
-        "optimistic": 27580036.49,
-        "typical": 15774416.47,
+        "cautious": 2770391.36,
+        "optimistic": 20474382.54,
+        "typical": 9775591.79,
         "year": 2029
       },
       {
-        "cautious": 8793804.17,
-        "optimistic": 32523462.34,
-        "typical": 17773351.12,
+        "cautious": 2875835.3,
+        "optimistic": 23052289.5,
+        "typical": 10581436.13,
+        "year": 2030
+      }
+    ],
+    "T5": [
+      {
+        "cautious": 2477580.3,
+        "optimistic": 12410392.01,
+        "typical": 6953596.93,
+        "year": 2026
+      },
+      {
+        "cautious": 2546642.46,
+        "optimistic": 14191478.74,
+        "typical": 7617391.4,
+        "year": 2027
+      },
+      {
+        "cautious": 2577942.33,
+        "optimistic": 16131622.9,
+        "typical": 8269506.08,
+        "year": 2028
+      },
+      {
+        "cautious": 2570391.36,
+        "optimistic": 18224382.54,
+        "typical": 8895591.79,
+        "year": 2029
+      },
+      {
+        "cautious": 2675835.3,
+        "optimistic": 20802289.5,
+        "typical": 9701436.13,
+        "year": 2030
+      }
+    ],
+    "T6": [
+      {
+        "cautious": 2627580.3,
+        "optimistic": 13660392.01,
+        "typical": 7433596.93,
+        "year": 2026
+      },
+      {
+        "cautious": 2696642.46,
+        "optimistic": 15441478.74,
+        "typical": 8097391.4,
+        "year": 2027
+      },
+      {
+        "cautious": 2727942.33,
+        "optimistic": 17381622.9,
+        "typical": 8749506.08,
+        "year": 2028
+      },
+      {
+        "cautious": 2720391.36,
+        "optimistic": 19474382.54,
+        "typical": 9375591.79,
+        "year": 2029
+      },
+      {
+        "cautious": 2825835.3,
+        "optimistic": 22052289.5,
+        "typical": 10181436.13,
         "year": 2030
       }
     ]
@@ -1394,131 +1588,131 @@
       "country": "Singapore",
       "indicator": "real GDP",
       "market_id": "ECO_SG",
-      "name": "Singapore Economy"
+      "name": "Singapore economy"
     },
     {
       "country": "Hong Kong",
       "indicator": "real GDP",
       "market_id": "ECO_HK",
-      "name": "Hong Kong Economy"
-    },
-    {
-      "country": "Australia",
-      "indicator": "real GDP",
-      "market_id": "ECO_AU",
-      "name": "Australia Economy"
-    },
-    {
-      "country": "United States",
-      "indicator": "real GDP",
-      "market_id": "ECO_US",
-      "name": "United States Economy"
+      "name": "Hong Kong economy"
     },
     {
       "country": "United Arab Emirates",
       "indicator": "real GDP",
       "market_id": "ECO_AE",
-      "name": "United Arab Emirates Economy"
+      "name": "United Arab Emirates economy"
+    },
+    {
+      "country": "Global",
+      "indicator": "freight rate index",
+      "market_id": "IND_CONTAINER_SHIP",
+      "name": "Container shipping industry"
+    },
+    {
+      "country": "Global",
+      "indicator": "oil price index",
+      "market_id": "IND_COMM_TRADING",
+      "name": "Commodity trading (oil and petrochemicals) industry"
+    },
+    {
+      "country": "Global",
+      "indicator": "container throughput index",
+      "market_id": "IND_PORT_TERMINAL",
+      "name": "Port terminal operations industry"
+    },
+    {
+      "country": "Global",
+      "indicator": "freight rate index",
+      "market_id": "IND_MARITIME_FREIGHT",
+      "name": "Maritime shipping and freight forwarding industry"
     },
     {
       "country": "Singapore",
-      "indicator": "a freight rate index",
-      "market_id": "IND_CONTAINER",
-      "name": "Container Shipping"
-    },
-    {
-      "country": "Singapore",
-      "indicator": "real GDP",
-      "market_id": "IND_COMMODITY",
-      "name": "Commodity Trading"
-    },
-    {
-      "country": "Hong Kong",
-      "indicator": "real GDP",
-      "market_id": "IND_PORT",
-      "name": "Port Terminal Operations"
-    },
-    {
-      "country": "Singapore",
-      "indicator": "a freight rate index",
-      "market_id": "IND_MARITIME",
-      "name": "Maritime Shipping and Freight Forwarding"
-    },
-    {
-      "country": "Singapore",
-      "indicator": "a property price index",
+      "indicator": "residential property price index",
       "market_id": "PROP_SG",
-      "name": "Singapore Residential Property"
+      "name": "Singapore residential property market"
     },
     {
       "country": "Australia",
-      "indicator": "a property price index",
+      "indicator": "residential property price index",
       "market_id": "PROP_AU",
-      "name": "Australia Residential Property"
+      "name": "Australia residential property market"
     },
     {
       "country": "United States",
-      "indicator": "an index total return",
-      "market_id": "STK_US",
-      "name": "United States Equities"
+      "indicator": "S&P 500 total return",
+      "market_id": "EQ_US",
+      "name": "United States listed equities market"
+    },
+    {
+      "country": "United States",
+      "indicator": "USD/SGD exchange rate",
+      "market_id": "FX_USD",
+      "name": "US dollar to SGD exchange rate"
     },
     {
       "country": "Australia",
-      "indicator": "the currency's value in SGD",
+      "indicator": "AUD/SGD exchange rate",
       "market_id": "FX_AUD",
-      "name": "Australian Dollar"
-    },
-    {
-      "country": "United States",
-      "indicator": "the currency's value in SGD",
-      "market_id": "FX_USD",
-      "name": "United States Dollar"
+      "name": "Australian dollar to SGD exchange rate"
     },
     {
       "country": "Hong Kong",
-      "indicator": "the currency's value in SGD",
+      "indicator": "HKD/SGD exchange rate",
       "market_id": "FX_HKD",
-      "name": "Hong Kong Dollar"
+      "name": "Hong Kong dollar to SGD exchange rate"
+    },
+    {
+      "country": "United Arab Emirates",
+      "indicator": "AED/SGD exchange rate",
+      "market_id": "FX_AED",
+      "name": "UAE dirham to SGD exchange rate"
+    },
+    {
+      "country": "Hong Kong",
+      "indicator": "sector revenue growth",
+      "market_id": "PRIVATE_FREIGHT_HK",
+      "name": "Hong Kong private freight brokerage sector"
     }
   ],
   "monitoring_ranges": {
     "SIG_BONUS_ANNUAL": {
       "amount_max": 500000,
-      "count_max": 1.25
+      "count_max": 2.5
     },
     "SIG_DIVIDEND_INCOME": {
-      "amount_max": 187500,
+      "amount_max": 500000,
       "count_max": 5.0
     },
     "SIG_RENTAL_INCOME": {
-      "amount_max": 125000,
+      "amount_max": 150000,
       "count_max": 15.0
     },
     "SIG_SALARY_REGULAR": {
-      "amount_max": 750000,
+      "amount_max": 1500000,
       "count_max": 15.0
     }
   },
   "next_review_date": "2026-12-24",
   "outcome": "SERIOUS_RISK",
-  "policy_version": "2026.10-v4",
+  "policy_version": "2026.10-v5",
   "prompt_versions": {
     "call1_markets.list": "markets-list-v1",
     "call1_markets.series.ECO_AE": "market-series-v1",
-    "call1_markets.series.ECO_AU": "market-series-v1",
     "call1_markets.series.ECO_HK": "market-series-v1",
     "call1_markets.series.ECO_SG": "market-series-v1",
-    "call1_markets.series.ECO_US": "market-series-v1",
+    "call1_markets.series.EQ_US": "market-series-v1",
+    "call1_markets.series.FX_AED": "market-series-v1",
     "call1_markets.series.FX_AUD": "market-series-v1",
     "call1_markets.series.FX_HKD": "market-series-v1",
     "call1_markets.series.FX_USD": "market-series-v1",
-    "call1_markets.series.IND_COMMODITY": "market-series-v1",
-    "call1_markets.series.IND_CONTAINER": "market-series-v1",
-    "call1_markets.series.IND_MARITIME": "market-series-v1",
-    "call1_markets.series.IND_PORT": "market-series-v1",
+    "call1_markets.series.IND_COMM_TRADING": "market-series-v1",
+    "call1_markets.series.IND_CONTAINER_SHIP": "market-series-v1",
+    "call1_markets.series.IND_MARITIME_FREIGHT": "market-series-v1",
+    "call1_markets.series.IND_PORT_TERMINAL": "market-series-v1",
+    "call1_markets.series.PRIVATE_FREIGHT_HK": "market-series-v1",
     "call1_markets.series.PROP_AU": "market-series-v1",
     "call1_markets.series.PROP_SG": "market-series-v1",
-    "call1_markets.series.STK_US": "market-series-v1",
     "call2_earnings.asset.0": "asset-model-v1",
     "call2_earnings.asset.1": "asset-model-v1",
     "call2_earnings.asset.2": "asset-model-v1",
@@ -1529,117 +1723,183 @@
     "call2_earnings.position.2": "position-pay-v1",
     "call2_earnings.position.3": "position-pay-v1",
     "call2_earnings.position.4": "position-pay-v1",
-    "call3_types.behaviour.T1": "type-behaviour-v1",
-    "call3_types.behaviour.T2": "type-behaviour-v1",
-    "call3_types.behaviour.T3": "type-behaviour-v1",
-    "call3_types.behaviour.T4": "type-behaviour-v1",
-    "call3_types.list": "person-types-v1",
+    "call3_types.behaviour.T1": "type-behaviour-v3",
+    "call3_types.behaviour.T2": "type-behaviour-v3",
+    "call3_types.behaviour.T3": "type-behaviour-v3",
+    "call3_types.behaviour.T4": "type-behaviour-v3",
+    "call3_types.behaviour.T5": "type-behaviour-v3",
+    "call3_types.behaviour.T6": "type-behaviour-v3",
+    "call3_types.list": "person-types-v4",
     "call4_events.list": "events-v1",
     "call4_events.reactions.T1": "type-reactions-v1",
     "call4_events.reactions.T2": "type-reactions-v1",
     "call4_events.reactions.T3": "type-reactions-v1",
     "call4_events.reactions.T4": "type-reactions-v1",
+    "call4_events.reactions.T5": "type-reactions-v1",
+    "call4_events.reactions.T6": "type-reactions-v1",
     "step0_declaration": "declaration-v1"
   },
   "reasons": [
-    "Declared net worth 16,500,000; the as-declared version explains 5,871,976 to 13,754,455.",
-    "The as-declared version does not fit his figures.",
-    "Types that do fit: T2, T3, T4.",
-    "2021: he needed 2,500,000 in cash but the as-declared version had at most 1,851,798.",
-    "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,822,586 (up to 3,372,439)",
-    "Asset 3: declared income 410,000, expected about 98,791 (up to 201,613)",
-    "S4 Sale of a smaller Singapore flat (2016-2016, Singapore): no amount and no job or asset behind it",
-    "S6 Advisory work for a Dubai trading firm (2021-2021, United Arab Emirates): no amount and no job or asset behind it",
-    "Borderline: the outcome changes when the forecasts move 10% ({'-10%': 'SERIOUS_RISK', '+0%': 'SERIOUS_RISK', '+10%': 'RISKY'})."
+    "Declared net worth 16,500,000; the honest version explains 2,427,580 to 12,160,392.",
+    "The honest version does not fit his figures.",
+    "Crime types that do fit: T2 Trade-based money laundering (over- or under-invoicing goods or services) via asset 3 (Private company stake (20% of a freight brokerage)) (2021-2030); T3 Sanctions evasion (vessel routing, ship-to-ship transfers, front companies) via job 2 (Regional Operations Manager, Hong Kong) (2009-2013).",
+    "Asset 0 (Residential property (condominium)): declared 3,100,000, markets explain about 1,945,437 (up to 2,485,470)",
+    "Asset 1 (Residential property (apartment, rented out)): declared 1,550,000, markets explain about 1,302,042 (up to 1,539,014)",
+    "Asset 3 (Private company stake (20% of a freight brokerage)): declared 6,800,000, markets explain about 2,626,714 (up to 3,376,462)",
+    "Asset 3: declared income 410,000, expected about 86,682 (up to 172,493)",
+    "S4 Sale of a smaller Singapore flat bought early in career (2016-2016, Singapore): no amount and no job or asset behind it",
+    "S6 Advisory work for a Dubai trading firm around 2021 (2021-2021, United Arab Emirates): no amount and no job or asset behind it"
   ],
   "routing": "Escalated to the Compliance Officer with a full case file.",
   "stability": {
     "+0%": "SERIOUS_RISK",
-    "+10%": "RISKY",
+    "+10%": "SERIOUS_RISK",
     "-10%": "SERIOUS_RISK"
   },
   "types": [
     {
-      "fit_score": 0.375,
+      "category": "HONEST",
+      "category_name": "Honest - wealth exactly as declared",
+      "enabled_by": "everything he declared",
+      "fit_score": 0.4,
       "fits": false,
       "fits_at_typical": false,
-      "name": "Declared Executive Career and Investment Income",
+      "name": "Honest - wealth exactly as declared",
       "net_worth_fits": false,
-      "purchases_affordable": "3 of 4",
-      "route": "accumulates wealth strictly through corporate salary, bonuses, long-term incentive plans, property transactions, legitimate brokerage dividends, and advisory fees.",
+      "purchases_affordable": "4 of 4",
+      "route": "All wealth is derived from declared employment income, bonuses, incentive plans, asset sales, investment income, advisory fees, and savings as described in the client's declaration.",
       "route_years": "1998-2030",
-      "score": 0.122,
+      "score": 0.118,
       "type_id": "T1",
       "wealth_now": {
-        "cautious": 5871976.44,
-        "optimistic": 13754455.33,
-        "typical": 9406399.06
-      }
+        "cautious": 2427580.3,
+        "optimistic": 12160392.01,
+        "typical": 6833596.93
+      },
+      "why_it_applies": "The client has provided a detailed career history and sources of wealth that align with his roles in shipping, trading, logistics, and related investments."
     },
     {
-      "fit_score": 0.875,
+      "category": "TRADE_BASED_ML",
+      "category_name": "Trade-based money laundering (over- or under-invoicing goods or services)",
+      "enabled_by": "asset 3 (Private company stake (20% of a freight brokerage))",
+      "fit_score": 0.9,
       "fits": true,
       "fits_at_typical": false,
-      "name": "Undeclared Offshore Tax Non-Compliance",
-      "net_worth_fits": true,
-      "purchases_affordable": "3 of 4",
-      "route": "omits offshore advisory fees from Dubai and foreign brokerage dividends from Singapore personal income tax filings.",
-      "route_years": "2021-2030",
-      "score": 0.285,
-      "type_id": "T2",
-      "wealth_now": {
-        "cautious": 6441976.44,
-        "optimistic": 16604455.33,
-        "typical": 10826399.06
-      }
-    },
-    {
-      "fit_score": 0.95,
-      "fits": true,
-      "fits_at_typical": false,
-      "name": "Maritime Commission Kickbacks",
+      "name": "Trade-based money laundering through the Hong Kong freight brokerage",
       "net_worth_fits": true,
       "purchases_affordable": "4 of 4",
-      "route": "receives undeclared commission kickbacks from freight forwarding and chartering counterparties routed through accounts in Hong Kong.",
-      "route_years": "2004-2030",
-      "score": 0.309,
-      "type_id": "T3",
+      "route": "Illicit funds could be disguised as legitimate freight payments or commissions, routed through the Hong Kong freight brokerage and associated shipping transactions.",
+      "route_years": "2021-2030",
+      "score": 0.265,
+      "type_id": "T2",
       "wealth_now": {
-        "cautious": 9521976.44,
-        "optimistic": 21454455.33,
-        "typical": 14726399.06
-      }
+        "cautious": 3627580.3,
+        "optimistic": 19360392.01,
+        "typical": 10433596.93
+      },
+      "why_it_applies": "The client holds a 20% stake in a Hong Kong freight brokerage (asset_index 3), a sector known for complex cross-border transactions and potential for over- or under-invoicing."
     },
     {
-      "fit_score": 0.875,
+      "category": "SANCTIONS_EVASION",
+      "category_name": "Sanctions evasion (vessel routing, ship-to-ship transfers, front companies)",
+      "enabled_by": "job 2 (Regional Operations Manager, Hong Kong)",
+      "fit_score": 0.9,
       "fits": true,
       "fits_at_typical": false,
-      "name": "Freight Brokerage Trade Over-Invoicing",
+      "name": "Sanctions evasion via vessel routing and front companies in shipping operations",
       "net_worth_fits": true,
-      "purchases_affordable": "3 of 4",
-      "route": "over-invoices shipping and freight services via his Hong Kong brokerage stake to facilitate cross-border value transfer.",
-      "route_years": "2021-2030",
-      "score": 0.285,
+      "purchases_affordable": "4 of 4",
+      "route": "Funds could be generated by facilitating or concealing sanctioned cargoes or routes, using complex vessel movements and front companies to obscure the true nature of transactions.",
+      "route_years": "2009-2013",
+      "score": 0.265,
+      "type_id": "T3",
+      "wealth_now": {
+        "cautious": 2707580.3,
+        "optimistic": 16060392.01,
+        "typical": 8283596.93
+      },
+      "why_it_applies": "The client has held senior operational roles in maritime shipping and port terminal operations in Singapore and Hong Kong, both key global shipping hubs with exposure to sanctioned jurisdictions."
+    },
+    {
+      "category": "BRIBERY_CORRUPTION",
+      "category_name": "Bribery and corruption (kickbacks, secret commissions)",
+      "enabled_by": "job 2 (Regional Operations Manager, Hong Kong)",
+      "fit_score": 0.4,
+      "fits": false,
+      "fits_at_typical": false,
+      "name": "Bribery and corruption through port terminal and shipping contracts",
+      "net_worth_fits": false,
+      "purchases_affordable": "4 of 4",
+      "route": "Kickbacks or secret commissions could be received in exchange for awarding contracts or facilitating preferential treatment in port or shipping operations.",
+      "route_years": "2009-2013",
+      "score": 0.118,
       "type_id": "T4",
       "wealth_now": {
-        "cautious": 6521976.44,
-        "optimistic": 16954455.33,
-        "typical": 11006399.06
-      }
+        "cautious": 2677580.3,
+        "optimistic": 14660392.01,
+        "typical": 7833596.93
+      },
+      "why_it_applies": "As Regional Operations Manager (position_index 2) and later as Director/COO (position_index 3/4) in shipping and port terminal companies, the client would have had authority over major contracts and vendor relationships."
+    },
+    {
+      "category": "TAX_EVASION",
+      "category_name": "Tax evasion (undeclared income or offshore accounts)",
+      "enabled_by": "asset 3 (Private company stake (20% of a freight brokerage)) and declared source S6",
+      "fit_score": 0.4,
+      "fits": false,
+      "fits_at_typical": false,
+      "name": "Tax evasion via undeclared offshore income and accounts",
+      "net_worth_fits": false,
+      "purchases_affordable": "4 of 4",
+      "route": "Income from advisory work, dividends, or offshore investments could be under-reported or held in undeclared accounts in Hong Kong or the UAE.",
+      "route_years": "2021-2030",
+      "score": 0.118,
+      "type_id": "T5",
+      "wealth_now": {
+        "cautious": 2477580.3,
+        "optimistic": 12410392.01,
+        "typical": 6953596.93
+      },
+      "why_it_applies": "The client has income sources and assets in multiple jurisdictions, including Hong Kong and the UAE, which are known for financial secrecy and could facilitate undeclared income."
+    },
+    {
+      "category": "THIRD_PARTY_ML",
+      "category_name": "Money laundering for others (acting as a channel or nominee)",
+      "enabled_by": "declared source S6",
+      "fit_score": 0.4,
+      "fits": false,
+      "fits_at_typical": false,
+      "name": "Money laundering for others via advisory work and cross-border transactions",
+      "net_worth_fits": false,
+      "purchases_affordable": "4 of 4",
+      "route": "The client could act as a channel for moving funds on behalf of third parties, disguising the origin through advisory fees or investment flows between Singapore, Hong Kong, and the UAE.",
+      "route_years": "2021-2021",
+      "score": 0.118,
+      "type_id": "T6",
+      "wealth_now": {
+        "cautious": 2627580.3,
+        "optimistic": 13660392.01,
+        "typical": 7433596.93
+      },
+      "why_it_applies": "The client performed advisory work for a Dubai trading firm (S6) and has cross-border business ties, providing plausible channels for third-party money movement."
     }
   ],
   "watch_dates": [
     {
       "date": "2027-01-01",
-      "what": "E1 Global AI Stock Market Correction could happen"
+      "what": "E3 Sharp oil price spike following geopolitical tensions in the Middle East could happen"
     },
     {
       "date": "2028-01-01",
-      "what": "E2 Maritime Freight Rate Collapse could happen"
+      "what": "E1 Global economic slowdown triggered by AI-driven stock market correction could happen"
     },
     {
       "date": "2029-01-01",
-      "what": "E3 Singapore Property Market Cooling Measures could happen"
+      "what": "E2 Major disruption in global container shipping due to new environmental regulations could happen"
+    },
+    {
+      "date": "2030-01-01",
+      "what": "E4 Hong Kong private freight brokerage sector consolidation after regulatory changes could happen"
     }
   ]
 }
