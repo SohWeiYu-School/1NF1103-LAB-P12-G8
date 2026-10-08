@@ -27,7 +27,6 @@
           "open_to": {"type": "integer"},
           "rule_out_documents": {
             "type": "array",
-            "minItems": 1,
             "items": {
               "type": "object",
               "additionalProperties": false,

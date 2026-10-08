@@ -1,10 +1,15 @@
 """
 helpers.py - shared helpers for the golden and cross-check tests.
 
-The real AI replies are read straight from where the system saves them:
-    data/raw/<client_ref>/        (written when you run the system on a case)
+The real AI replies are read straight from where the system saves them: the
+ai_raw_replies collection in MongoDB (written when you run the system on a case).
 
-Tests that need those replies are skipped, with a message, until the case has been run.
+Only sample files in the forecasting format (career_history, investments, claims) are
+used. data/sample also holds client records in the New Client form's format
+(case_daniel_tan.json, case_benchmark.json); those go through the menu, not these tests.
+
+Tests that need saved replies are skipped, with a message, until the case has been run
+(or when the database can't be reached).
 """
 
 import json
@@ -17,7 +22,13 @@ from app import ai_manager, data_manager, logic_manager
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 GOLDEN_DIR = os.path.join(TESTS_DIR, "golden")
 CROSSCHECK_DIR = os.path.join(TESTS_DIR, "crosscheck")
-CASE_IDS = sorted(os.path.splitext(os.path.basename(path))[0] for path in data_manager.list_sample_cases())
+def _is_forecasting_case(path: str) -> bool:
+    case = data_manager.load_case(path)
+    return isinstance(case, dict) and "career_history" in case and "client_ref" in case
+
+
+CASE_IDS = sorted(os.path.splitext(os.path.basename(path))[0]
+                  for path in data_manager.list_sample_cases() if _is_forecasting_case(path))
 
 
 def load_case(case_id: str) -> dict:
@@ -35,11 +46,12 @@ def first_review(case: dict) -> dict | None:
 
 
 def saved_replies(case_id: str) -> dict:
-    """The real AI replies saved in data/raw/<client_ref>/, or skip the test if there are none."""
+    """The real AI replies saved in the database for this case, or skip the test if there are none."""
     client_ref = load_case(case_id)["client_ref"]
     replies = data_manager.load_raw_replies(client_ref)
     if not replies:
-        pytest.skip(f"no AI replies in data/raw/{client_ref} yet - run the system on {case_id} first")
+        pytest.skip(f"no saved AI replies for {client_ref} in the database yet - run the system on "
+                    f"{case_id} first (python main.py --case data/sample/{case_id}.json)")
     return replies
 
 

@@ -593,8 +593,16 @@ RETRY_WAIT_SECONDS = 2
 RATE_LIMIT_WAIT_SECONDS = 60
 REQUEST_TIMEOUT_SECONDS = 600
 MIN_EVENTS, MAX_EVENTS = 3, 6
+# Sense limits: answers outside these are rejected and asked again (they are not about format,
+# they catch numbers that can't be right, e.g. a market figure copied into a sensitivity).
+MAX_ASSET_EXPOSURES = 4
+SENSITIVITY_RANGE = (-1.0, 3.0)          # how many % an asset moves when its market moves 1%
+OWN_GROWTH_RANGE = (-10.0, 10.0)         # an asset's own % growth a year, apart from its markets
+MARKET_CHANGE_RANGE = (-99.9, 500.0)     # a market's % change in one year: it can't lose more than
+                                         # everything; freight really did fall ~92% in 2008 and rise 120% in 2021
 MAX_CRIME_TYPES = int(os.getenv("MAX_CRIME_TYPES", "5"))   # crime types after the honest one
 HONEST_CATEGORY = "HONEST"
+_full_options_accepted = True      # set to False the first time the model rejects JSON mode / temperature
 
 # Free-text wrappers, so the model treats the text as data, not instructions
 DECLARATION_OPEN, DECLARATION_CLOSE = "<<<BEGIN_DECLARATION>>>", "<<<END_DECLARATION>>>"
@@ -763,6 +771,24 @@ def range_errors(value: Any, where: str = "") -> list[str]:
     return errors
 
 
+def sort_ranges(value: Any) -> Any:
+    """Put every {low, typical, high} range in order (e.g. -1/-2/-3 for a fall becomes -3/-2/-1).
+    The model sometimes labels a negative range back to front; the three numbers are kept,
+    only relabelled, so nothing is invented. Same reply in, same result out."""
+    if isinstance(value, dict):
+        if set(value) == set(common.RANGE_KEYS):
+            numbers = [value[k] for k in common.RANGE_KEYS]
+            if all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in numbers):
+                value["low"], value["typical"], value["high"] = sorted(numbers)
+            return value
+        for item in value.values():
+            sort_ranges(item)
+    elif isinstance(value, list):
+        for item in value:
+            sort_ranges(item)
+    return value
+
+
 def parse_reply(raw: str | None) -> tuple[dict | None, str | None]:
     """Pull the JSON object out of the model's reply. Returns (data, error)."""
     if not raw or not raw.strip():
@@ -779,15 +805,29 @@ def parse_reply(raw: str | None) -> tuple[dict | None, str | None]:
         return None, f"invalid JSON: {error}"
 
 
+def _top_level_keys(schema: dict) -> list[str]:
+    return list(schema.get("required") or schema.get("properties", {}).keys())
+
+
+def _looks_like_schema(data: object) -> bool:
+    """The model sometimes sends the schema back instead of filling it in."""
+    return isinstance(data, dict) and ("$schema" in data or {"type", "properties"} <= set(data))
+
+
 def validate_reply(raw: str | None, schema_name: str,
                    check: CheckFunction | None = None) -> tuple[dict | None, list[str]]:
     """Parse, then check the schema, then the ranges, then the piece's own rules."""
     data, error = parse_reply(raw)
     if error:
         return None, [error]
-    errors = schema_errors(data, load_forecast_schema(schema_name))
+    schema = load_forecast_schema(schema_name)
+    if _looks_like_schema(data) and not _looks_like_schema(schema.get("properties", {})):
+        keys = ", ".join(f'"{k}"' for k in _top_level_keys(schema))
+        return None, [f"you returned the JSON schema itself instead of an answer. Return the ANSWER: "
+                      f"one JSON object whose top-level keys are {keys}, filled in with real values."]
+    errors = schema_errors(data, schema)
     if not errors:
-        errors = range_errors(data)
+        errors = range_errors(sort_ranges(data))
     if not errors and check is not None:
         errors = check(data)
     return (data if not errors else None), errors
@@ -854,6 +894,14 @@ def check_market_series(data: dict, market_id: str, history_years: list[int],
     errors = [] if data["market_id"] == market_id else [f"market_id must be '{market_id}'"]
     errors += _years_errors(f"{market_id} history", [h["year"] for h in data["history"]], history_years)
     errors += _years_errors(f"{market_id} outlook", [o["year"] for o in data["outlook"]], forecast_years)
+    known = [h["change_pct"] for h in data["history"] if h["change_pct"] is not None]
+    if len(known) >= 5 and all(change == 0 for change in known):
+        errors.append(f"{market_id} history: every year is 0. Use null for years you don't know; "
+                      "0 means the market really didn't move")
+    low, high = MARKET_CHANGE_RANGE
+    errors += [f"{market_id} {h['year']}: {h['change_pct']}% is not a believable one-year change "
+               f"(give the % change from the year before, not an index level)"
+               for h in data["history"] if h["change_pct"] is not None and not low <= h["change_pct"] <= high]
     return errors
 
 
@@ -872,9 +920,71 @@ def check_asset_model(data: dict, index: int, years: list[int], market_ids: set)
     if not data["exposures"]:
         errors.append("at least one market exposure is required")
     errors += _unknown_ids("exposures", [e["market_id"] for e in data["exposures"]], market_ids)
+    if len(data["exposures"]) > MAX_ASSET_EXPOSURES:
+        errors.append(f"at most {MAX_ASSET_EXPOSURES} market exposures: only the markets that really drive "
+                      f"this asset's value (e.g. a property follows its property market and currency)")
+    low, high = SENSITIVITY_RANGE
+    for exposure in data["exposures"]:
+        values = exposure["sensitivity"].values()
+        if not all(low <= v <= high for v in values):
+            errors.append(f"{exposure['market_id']}: sensitivity {exposure['sensitivity']} must be between "
+                          f"{low} and {high} (1.0 = the asset moves 1% when the market moves 1%)")
+    low, high = OWN_GROWTH_RANGE
+    if not all(low <= v <= high for v in data["own_growth_pct"].values()):
+        errors.append(f"own_growth_pct {data['own_growth_pct']} must be between {low} and {high} (% a year)")
     errors += _years_errors(f"asset {index} income_yield_by_year",
                             [row["year"] for row in data["income_yield_by_year"]], years)
     return errors
+
+
+def repair_person_types(data: dict, record: dict, source_records: list[dict]) -> dict:
+    """Fix the years the code can work out itself, before the reply is checked.
+
+    T1 (honest) always covers his whole career and every forecast year. A crime type's
+    years are moved inside the window of the job / asset / source that enables it
+    (e.g. open from 2008 through a job held 2015-2019 becomes 2015). Only a type whose
+    years can't overlap its enabler at all is left for check_person_types to reject.
+    Same reply in, same repair out, so saved replies give identical results.
+    """
+    start, end = common.career_years(record)
+    last_forecast_year = common.future_years(record)[-1]
+    jobs = common.career_positions(record)
+    assets = record.get("investments", [])
+    sources = {s["source_id"]: s for s in source_records}
+    for person_type in data.get("person_types", []):
+        if person_type.get("type_id") == common.BASELINE_TYPE:
+            person_type["open_from"], person_type["open_to"] = start, last_forecast_year
+            if not person_type.get("rule_out_documents"):
+                # the documents that test the declared story as a whole (policy: NET_WORTH)
+                codes = common.policy().get("breach_documents", {}).get("NET_WORTH") \
+                    or ["DOC_TAX_RETURNS", "DOC_BANK_STATEMENTS"]
+                person_type["rule_out_documents"] = [{"document_code": c, "also_rules_out": []} for c in codes]
+            continue
+        windows = []
+        job_index = person_type.get("enabled_by_position_index")
+        if isinstance(job_index, int) and 0 <= job_index < len(jobs):
+            job = jobs[job_index]
+            job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+            windows.append((int(job["start_year"]), job_last))
+        asset_index = person_type.get("enabled_by_asset_index")
+        if isinstance(asset_index, int) and 0 <= asset_index < len(assets):
+            windows.append((int(assets[asset_index]["year_acquired"]), last_forecast_year))
+        source = sources.get(person_type.get("enabled_by_source_id"))
+        if source:
+            windows.append((int(source.get("start_year") or start), last_forecast_year))
+        if not windows:
+            continue
+        first = max([start, min(w[0] for w in windows)])
+        last = min([last_forecast_year, max(w[1] for w in windows)])
+        open_from, open_to = person_type.get("open_from"), person_type.get("open_to")
+        if not isinstance(open_from, int) or not isinstance(open_to, int):
+            continue
+        new_from, new_to = max(open_from, first), min(open_to, last)
+        if new_from <= new_to and (new_from, new_to) != (open_from, open_to):
+            logger.info("%s: years %d-%d moved to %d-%d to fit what enables it",
+                        person_type.get("type_id"), open_from, open_to, new_from, new_to)
+            person_type["open_from"], person_type["open_to"] = new_from, new_to
+    return data
 
 
 def check_person_types(data: dict, record: dict, source_records: list[dict]) -> list[str]:
@@ -918,6 +1028,8 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
                           f"open_from <= open_to (got {first}-{last})")
         for document in person_type["rule_out_documents"]:
             errors += _unknown_ids(f"{type_id} also_rules_out", document["also_rules_out"], set(ids))
+        if type_id != common.BASELINE_TYPE and not person_type["rule_out_documents"]:
+            errors.append(f"{type_id}: list at least one document that would prove this type wrong")
         if type_id == common.BASELINE_TYPE:
             # The honest type covers his whole career and every forecast year.
             if (first, last) != (start, last_forecast_year):
@@ -959,6 +1071,44 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
     return errors
 
 
+def repair_type_behaviour(data: dict, type_id: str, end: int, forecast_years: list[int],
+                          open_years: tuple[int, int] | None, market_ids: set) -> dict:
+    """Fix what the code can work out itself, before the reply is checked:
+    the type id and route years come from the type list; years outside the route (or
+    repeated) are dropped; unknown market ids are dropped. Missing years are NOT invented,
+    so those still go back to the AI."""
+    data["type_id"] = type_id
+    if open_years is not None:
+        data["route_open_from"], data["route_open_to"] = open_years
+    first, last = data.get("route_open_from"), data.get("route_open_to")
+    if isinstance(first, int) and isinstance(last, int):
+        history_years = set(range(first, min(last, end) + 1))
+        for key, allowed in (("extra_money_history", history_years), ("extra_money_forecast", set(forecast_years))):
+            rows, seen = [], set()
+            for row in data.get(key) or []:
+                year = row.get("year") if isinstance(row, dict) else None
+                if year in allowed and year not in seen:
+                    seen.add(year)
+                    rows.append(row)
+            data[key] = rows
+    if isinstance(data.get("linked_market_ids"), list):
+        data["linked_market_ids"] = [m for m in data["linked_market_ids"] if m in market_ids]
+    return data
+
+
+def repair_type_reactions(data: dict, type_id: str, event_ids: list[str]) -> dict:
+    """Keep one reaction per known event (extras and repeats dropped). Missing ones still go back to the AI."""
+    data["type_id"] = type_id
+    kept, seen = [], set()
+    for reaction in data.get("reactions") or []:
+        event_id = reaction.get("event_id") if isinstance(reaction, dict) else None
+        if event_id in event_ids and event_id not in seen:
+            seen.add(event_id)
+            kept.append(reaction)
+    data["reactions"] = kept
+    return data
+
+
 def check_type_behaviour(data: dict, type_id: str, start: int, end: int,
                          forecast_years: list[int], market_ids: set,
                          open_years: tuple[int, int] | None = None) -> list[str]:
@@ -979,6 +1129,11 @@ def check_type_behaviour(data: dict, type_id: str, start: int, end: int,
     for signal in data["signals"]:
         if signal["first_year"] > signal["last_year"]:
             errors.append(f"{signal['signal_code']}: first_year is after last_year")
+        if signal["amount_per_year"]["high"] <= 0:
+            errors.append(f"{signal['signal_code']}: amount_per_year is 0; give the money this activity "
+                          f"would really show in his account each year (in SGD)")
+    if type_id == common.BASELINE_TYPE and "SIG_SALARY_REGULAR" not in {s["signal_code"] for s in data["signals"]}:
+        errors.append("the honest type must include his regular salary (SIG_SALARY_REGULAR) among its signals")
     return errors
 
 
@@ -1037,9 +1192,15 @@ def _build_request(instructions: str, user_text: str, schema: dict,
                    web_search: bool, full_options: bool) -> dict:
     """One OpenAI Responses API request. The schema goes in the instructions and the
     reply is checked locally, because our schemas use features strict JSON mode rejects."""
-    request = {"model": FORECAST_MODEL, "input": user_text, "max_output_tokens": MAX_OUTPUT_TOKENS,
+    # JSON mode needs the word "JSON" in the input itself, not only in the instructions
+    request = {"model": FORECAST_MODEL, "input": user_text + "\n\nAnswer with ONE JSON object.",
+               "max_output_tokens": MAX_OUTPUT_TOKENS,
                "store": False,
-               "instructions": instructions + "\n\nYour answer must be ONE JSON object matching this schema:\n"
+               "instructions": instructions
+                               + "\n\nYour answer must be ONE JSON object whose top-level keys are "
+                               + ", ".join(f'"{k}"' for k in _top_level_keys(schema))
+                               + ", filled in with your answer. It must follow the JSON schema below. "
+                                 "Do NOT repeat or return the schema itself.\nSchema:\n"
                                + json.dumps(schema, separators=(",", ":"))}
     if web_search:
         request["tools"] = [{"type": "web_search"}]       # web search can't be combined with JSON mode
@@ -1079,7 +1240,8 @@ def call_ai(client: AIClient, call_name: str, prompt_name: str, values: dict, us
         return result
 
     user_text = json.dumps(user_data, indent=2, ensure_ascii=False)
-    full_options = True
+    global _full_options_accepted
+    full_options = _full_options_accepted
     rate_limited = False
     last_errors: list[str] = []
 
@@ -1100,6 +1262,7 @@ def call_ai(client: AIClient, call_name: str, prompt_name: str, values: dict, us
                 logger.warning("%s: request options rejected by the model, retrying without JSON mode "
                                "and temperature", call_name)
                 full_options = False
+                _full_options_accepted = False         # don't waste a request on this again
                 continue
             if status in (400, 401, 403, 404):
                 logger.error("%s: %s (not retrying - check the API key and model name)", call_name, error)
@@ -1290,7 +1453,9 @@ def forecast_types(client: AIClient, record: dict, declaration: dict, markets: d
                        "markets": _markets_brief(markets),
                        "career_outlook": earnings["future_pay"]["career_outlook"],
                        "crime_categories": _crime_categories()},
-                      "person_types", lambda data: check_person_types(data, record, claimed_sources),
+                      "person_types",
+                      lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
+                                                      record, claimed_sources),
                       cache.get(name))
     results[name] = listing
     if not listing["ok"]:
@@ -1315,7 +1480,8 @@ def forecast_types(client: AIClient, record: dict, declaration: dict, markets: d
                          "markets": _markets_brief(markets), "client": client_facts(record)},
                         "type_behaviour",
                         lambda data, t=type_id, o=open_years: check_type_behaviour(
-                            data, t, start, end, years, set(markets["series"]), o),
+                            repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
+                            t, start, end, years, set(markets["series"]), o),
                         cache.get(name))
         results[name] = piece
         if not piece["ok"]:
@@ -1348,7 +1514,9 @@ def forecast_events(client: AIClient, record: dict, markets: dict, types: dict,
                         {"type_id": type_id, "type_name": person_type["name"], "event_ids": ", ".join(event_ids)},
                         {"this_type": person_type, "its_signals": types["behaviour"][type_id]["signals"],
                          "events": events["events"]},
-                        "type_reactions", lambda data, t=type_id: check_type_reactions(data, t, event_ids),
+                        "type_reactions",
+                        lambda data, t=type_id: check_type_reactions(repair_type_reactions(data, t, event_ids),
+                                                                     t, event_ids),
                         cache.get(name))
         results[name] = piece
         if not piece["ok"]:

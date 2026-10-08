@@ -1,10 +1,13 @@
-# prompt_version: person-types-v2
+# prompt_version: person-types-v4
 # Call 3, part 1: the list of types. T1 = honest. T2+ = standard crime categories his
 # background makes possible, each tied to the job/asset/source that enables it.
 TASK: List every way a person with this client's background could have built his wealth.
 
 The first type is always {baseline_type}, category {honest_category}: every source he
-declared is true and is the whole story.
+declared is true and is the whole story. Its open_from is {start_year} and its open_to is
+{last_forecast_year}, and all three enabled_by fields are null. Its rule_out_documents are
+the documents that would show the declared story is false (e.g. DOC_TAX_RETURNS,
+DOC_BANK_STATEMENTS).
 
 After {baseline_type}, list up to {max_crime_types} financial-crime types, ranked most
 relevant first. For each one:
@@ -14,9 +17,13 @@ relevant first. For each one:
   realistically possible. Go through every job (industry, country, years), every asset
   and every declared source. A different career must give a different list.
 - enabled_by_position_index / enabled_by_asset_index / enabled_by_source_id: name what
-  makes it possible for him. Fill at least one; leave the others null.
+  makes it possible for him. Fill at least one; leave the others null. Use the
+  position_index and asset_index numbers exactly as given in the input: they start at 0,
+  so the first job is position_index 0.
 - open_from / open_to: the years the crime was possible. They must sit inside the years
-  of the job held, after the asset was bought, or within the declared source's years.
+  of the job held (its start_year to end_year in career_history), after the asset was
+  bought, or within the declared source's years. A crime that only a past job makes
+  possible ends when that job ended.
   Use {last_forecast_year} as open_to if it can continue into the future.
 - name: the category's standard name plus the channel, e.g. "Trade-based money
   laundering through the Hong Kong freight brokerage".
