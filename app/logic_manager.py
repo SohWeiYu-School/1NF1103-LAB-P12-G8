@@ -32,29 +32,36 @@ client_data = {
     "cash": 20, #used for liquidity, composition
     "property": 28, #used for composition
     "private_business": 41, #used for composition
+    "biggest_wealth_jump": 15000000, #used for velocity
+    "wealth_jump_years": 1.5, #used for velocity
 }
 
+# Temporary test values for Counterparties and Jurisdictions
+expected_counterparties = [
+    "employer",
+    "CPF Board",
+    "local bank",
+    "HDB or developer"
+]
+
+declared_counterparties = [
+    "friend",
+    "BVI entity"
+]
+
+expected_countries = [
+    "Singapore",
+    "Malaysia",
+    "Indonesia"
+]
+
+declared_countries = [
+    "SG",
+    "Cyprus"
+]
+
+
 ai_data = get_ai_data(client_data) # Get Ai output using function
-
-# REQUIRED_AI_FIELDS = [
-#     "total_wealth",
-#     "liquidity",
-#     "composition",
-#     "velocity",
-#     "counterparties",
-#     "jurisdiction"
-# ]
-
-# To go through each required field. 
-# If any field is missing, return False. 
-# If everything is there, return True.
-
-# def validate_ai_result(ai_data):
-#     for field in REQUIRED_AI_FIELDS:
-#         if field not in ai_data:
-#             return False
-
-#     return True
 
 def calculate_total_wealth(client_data, ai_data):
 
@@ -159,7 +166,86 @@ def calculate_composition(client_data, ai_data):
 calculate_composition(client_data, ai_data)
 
 #=============================================================================#
-#def calculate_velocity(client_data, ai_data):
+def calculate_velocity(client_data, ai_data):
+
+    actual = client_data["biggest_wealth_jump"]
+    years = client_data["wealth_jump_years"]
+    expected = ai_data["expected_velocity"]
+
+    actual_velocity = actual / years
+    result3 = actual_velocity / expected
+
+    return result3
+result3 = calculate_velocity(client_data, ai_data)
+
+print("\n--- Velocity Check ---")
+print("Actual Velocity:  ", round(client_data["biggest_wealth_jump"] / client_data["wealth_jump_years"], 2))
+print("Expected Velocity:", ai_data["expected_velocity"])
+print("Ratio:            ", round(result3, 2), "x")
+
+if result3 <= LIMITS["velocity"]:
+    print("Result:            PASS")
+else:
+    print("Result:            FAIL")
+
+#=============================================================================#
+
+def calculate_counterparties(declared, expected):
+    unknown = []
+
+    for item in declared:
+        if item not in expected:
+            unknown.append(item)
+
+    return unknown
+
+unknown_counterparties = calculate_counterparties(
+    declared_counterparties,
+    expected_counterparties
+)
+
+print("\n--- Counterparties Check ---")
+print("Expected Counterparties:", expected_counterparties)
+print("Declared Counterparties:", declared_counterparties)
+print("Unknown Counterparties:", unknown_counterparties)
+print("Number of Unknowns:", len(unknown_counterparties))
+
+if len(unknown_counterparties) <= LIMITS["counterparties"]:
+    print("Result: PASS")
+else:
+    print("Result: FAIL")
+
+#=============================================================================#
+def clean_country(country):
+    if country == "SG":
+        return "Singapore"
+
+    return country
+
+def calculate_jurisdiction(declared, expected):
+    unknown = []
+
+    for country in declared:
+        country = clean_country(country)
+
+        if country not in expected:
+            unknown.append(country)
+
+    return unknown
+unknown_countries = calculate_jurisdiction(
+    declared_countries,
+    expected_countries
+)
+print("\n--- Jurisdiction Check ---")
+print("Expected Countries:", expected_countries)
+print("Declared Countries:", declared_countries)
+print("Unknown Countries:", unknown_countries)
+print("Number of Unknowns:", len(unknown_countries))
+
+if len(unknown_countries) <= LIMITS["jurisdiction"]:
+    print("Result: PASS")
+else:
+    print("Result: FAIL")
 
 # if __name__ == "__main__":
 
