@@ -1,27 +1,30 @@
-<<<<<<< HEAD
 """
 logic_manager.py - the logic layer: every calculation and every decision.
 
-The AI hands over forecasts only. This module turns them into numbers with plain
-arithmetic, measures the real client against them, and decides with fixed rules
-from config/policy.json. No AI is called here, so the same forecast and the same
-client always give the same answer.
+The sections run in this order for a new client:
 
-Onboarding (assess_onboarding):
-    Types: T1 is the honest person; T2+ are standard crime categories (trade-based money
-    laundering, sanctions evasion, ...) each tied to the job/asset/source that enables it.
-    1. Back-test every type: build each type's wealth, year by year, from the forecasts
-    2. Fit score per type: does his declared wealth, asset values and purchases fit it?
-    3. Affordability per type: could he have paid for each purchase that year?
-    4. Checks that don't depend on the type: asset values, asset income, countries,
-       declared sources with no amount
-    5. Stability test: re-run the decision with every forecast 10% lower and higher
-    6. Forward paths 2027-2030, event impacts, divergence dates, monitoring ranges,
-       ranked documents, next review date
+    1. Benchmark          run_benchmark: declared figures vs the AI's single expected
+                          values (total wealth, liquidity, composition) -> PASS / FAIL
+    2. Sector Crime Scan  decide_outcome, build_document_requests, assess_case
+    3. Forecasting        (runs after the benchmark)
+       Onboarding (assess_onboarding):
+         Types: T1 is the honest person; T2+ are standard crime categories (trade-based money
+         laundering, sanctions evasion, ...) each tied to the job/asset/source that enables it.
+         1. Back-test every type: build each type's wealth, year by year, from the forecasts
+         2. Fit score per type: does his declared wealth, asset values and purchases fit it?
+         3. Affordability per type: could he have paid for each purchase that year?
+         4. Checks that don't depend on the type: asset values, asset income, countries,
+            declared sources with no amount
+         5. Stability test: re-run the decision with every forecast 10% lower and higher
+         6. Forward paths, event impacts, divergence dates, monitoring ranges,
+            ranked documents, next review date
+       Review (assess_review):
+         Which scenario happened, growth vs each type's forecast, payments vs each type's
+         forecast, income that rose while its market fell, and a running score per type.
 
-Review (assess_review):
-    Which scenario happened, growth vs each type's forecast, payments vs each type's
-    forecast, income that rose while its market fell, and a running score per type.
+The forecasting section calls no AI: it only does arithmetic on the forecasts and decides
+with fixed rules from config/policy.json, so the same forecast and the same client always
+give the same answer.
 
 Outcomes: PASSED, MANUAL_REVIEW, RISKY, SERIOUS_RISK.
 """
@@ -30,8 +33,219 @@ import datetime
 import logging
 
 from app import common
+from app.ai_manager import get_ai_data
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shared — limits used across all features
+# ---------------------------------------------------------------------------
+
+LIMITS = {
+    "total_wealth": 3,
+    "liquidity": 2,
+    "composition": 40,
+    "velocity": 2,
+    "counterparties": 1,
+    "jurisdiction": 1
+}
+
+# ---------------------------------------------------------------------------
+# Benchmark Section
+# ---------------------------------------------------------------------------
+
+def calculate_total_wealth(client_data, ai_data):
+
+    declared = client_data["declared_net_worth"]
+    expected = ai_data["expected_wealth"]
+
+    result1 = declared / expected
+
+    return result1
+
+
+def calculate_liquidity(client_data, ai_data):
+
+    declared = client_data["listed_equities"] + client_data["cash"]
+    expected = ai_data["expected_liquidity"]
+
+    result2 = declared / expected
+
+    return result2
+
+
+def calculate_composition(client_data, ai_data):
+
+    # Property
+    declared_property = client_data["property"]
+    expected_property = ai_data["expected_property"]
+
+    difference_property = abs(declared_property - expected_property) #abs - absolute value, so it removes the negative sign
+
+    # Listed Equities
+    declared_listed = client_data["listed_equities"]
+    expected_listed = ai_data["expected_listed_equities"]
+
+    difference_listed = abs(declared_listed - expected_listed)
+
+    # Private Business
+    declared_business = client_data["private_business"]
+    expected_business = ai_data["expected_private_business"]
+
+    difference_business = abs(declared_business - expected_business)
+
+    # Cash
+    declared_cash = client_data["cash"]
+    expected_cash = ai_data["expected_cash"]
+
+    difference_cash = abs(declared_cash - expected_cash)
+
+    print("\n--- Asset Composition Check ---")
+    print("Category           Declared    Expected    Difference")
+    print("Property              ", declared_property, "%       ", expected_property, "%        ", difference_property, "%")
+    print("Listed Equities       ", declared_listed, "%       ", expected_listed, "%        ", difference_listed, "%")
+    print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
+    print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
+
+    print("\n--- Composition Result ---")
+
+    if difference_property <= LIMITS["composition"]:
+        print("Property: PASS")
+    else:
+        print("Property: FAIL")
+
+    if difference_listed <= LIMITS["composition"]:
+        print("Listed Equities: PASS")
+    else:
+        print("Listed Equities: FAIL")
+
+    if difference_business <= LIMITS["composition"]:
+        print("Private Business: PASS")
+    else:
+        print("Private Business: FAIL")
+
+    if difference_cash <= LIMITS["composition"]:
+        print("Cash: PASS")
+    else:
+        print("Cash: FAIL")
+
+
+def run_benchmark(client_data: dict):
+    """Run the full benchmark check for the given client data."""
+
+    ai_data = get_ai_data(client_data)
+
+    if ai_data is None:
+        print("\n[Benchmark] AI call failed — could not retrieve benchmark data.")
+        return None
+
+    result1 = calculate_total_wealth(client_data, ai_data)
+    print("\n--- Total Wealth Check ---")
+    print("Declared Net Worth:", client_data["declared_net_worth"])
+    print("Expected Wealth:   ", ai_data["expected_wealth"])
+    print("Ratio:             ", round(result1, 2))
+
+    if result1 <= LIMITS["total_wealth"]:
+        print("Result:             PASS")
+    else:
+        print("Result:             FAIL")
+
+    result2 = calculate_liquidity(client_data, ai_data)
+    print("\n--- Liquidity Check ---")
+    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
+    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
+    print("Ratio:             ", round(result2, 2))
+
+    if result2 <= LIMITS["liquidity"]:
+        print("Result:             PASS")
+    else:
+        print("Result:             FAIL")
+
+    calculate_composition(client_data, ai_data)
+
+    return ai_data
+
+    #def calculate_velocity(client_data, ai_data):
+
+
+# ---------------------------------------------------------------------------
+# Sector Crime Scan Section
+# ---------------------------------------------------------------------------
+
+def decide_outcome(findings: list[dict], policy: dict) -> str:
+    """Count breached dimensions and return the escalation outcome."""
+    thresholds = policy.get("thresholds", {})
+    counts_as_breach = thresholds.get("typology_full_match_counts_as_breach", True)
+    outcome_rules = policy.get("outcome_rules", {})
+    serious = outcome_rules.get("serious_risk_min_breaches", 4)
+    risky = outcome_rules.get("risky_min_breaches", 2)
+    manual = outcome_rules.get("manual_review_min_breaches", 1)
+
+    breach_count = 0
+    for f in findings:
+        if f.get("dimension") != "typology":
+            breach_count += 1
+        elif f.get("rule_id") == "TYP-01" and counts_as_breach:
+            breach_count += 1
+        # TYP-02 never counts as a breach on its own
+
+    if breach_count >= serious:
+        return "SERIOUS_RISK"
+    if breach_count >= risky:
+        return "RISKY"
+    if breach_count >= manual:
+        return "MANUAL_REVIEW"
+    return "PASSED"
+
+
+def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
+    """Collect document requests from findings, typology docs ranked last."""
+    documents: list[str] = []
+
+    # Non-typology findings first (higher priority)
+    for f in findings:
+        if f.get("dimension") == "typology":
+            continue
+        for doc in f.get("documents", []):
+            if doc not in documents:
+                documents.append(doc)
+
+    # TYP-01 typology documents appended last (lower priority)
+    for f in findings:
+        if f.get("rule_id") == "TYP-01":
+            for doc in f.get("documents", []):
+                if doc not in documents:
+                    documents.append(doc)
+
+    return documents
+
+
+def assess_case(
+    case_input: dict,  # noqa: ARG001 — reserved for future dimension checks
+    benchmark: dict | None,
+    declaration: dict | None,
+    policy: dict,
+) -> dict:
+    """Run the full assessment for a single case.
+
+    Returns a dict with keys: outcome, findings, documents.
+    """
+    if benchmark is None or declaration is None:
+        return {"outcome": "MANUAL_REVIEW", "findings": [], "documents": []}
+
+    findings: list[dict] = []
+    # Sector Crime Scan typology matching is being redesigned (Stage 3)
+
+    outcome = decide_outcome(findings, policy)
+    documents = build_document_requests(findings, policy)
+
+    return {"outcome": outcome, "findings": findings, "documents": documents}
+
+
+# ===========================================================================
+# Forecasting Section (runs after the benchmark)
+# ===========================================================================
 
 PASSED, MANUAL_REVIEW, RISKY, SERIOUS_RISK = "PASSED", "MANUAL_REVIEW", "RISKY", "SERIOUS_RISK"
 SEVERITY = {PASSED: 0, MANUAL_REVIEW: 1, RISKY: 2, SERIOUS_RISK: 3}
@@ -672,7 +886,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
             f"{forecast['types']['behaviour'][t]['route_open_to']})" for t in others_fit) + ".")
     for row in main["affordability"][common.BASELINE_TYPE]:
         if not row["affordable"]:
-            reasons.append(f"{row['year']}: he needed {row['needed']:,.0f} in cash but the as-declared "
+            reasons.append(f"{row['year']}: he needed {row['needed']:,.0f} in cash but the honest "
                            f"version had at most {row['available']['optimistic']:,.0f}.")
     failures = [c for c in main["asset_checks"] + [main["jurisdiction"]] + main["sources"] if c["failed"]]
     reasons += [c["detail"] for c in failures]
@@ -887,7 +1101,7 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
     for payment in payments:
         normal = ranges.get(payment["signal_code"])
         if normal is None:
-            unusual.append(f"{payment['signal_code']}: not expected for the as-declared version")
+            unusual.append(f"{payment['signal_code']}: not expected for the honest version")
         elif payment["amount_sgd"] is not None and payment["amount_sgd"] > normal["amount_max"]:
             unusual.append(f"{payment['signal_code']}: {payment['amount_sgd']:,.0f} is above {normal['amount_max']:,.0f}")
         elif payment["times_received"] > normal["count_max"]:
@@ -915,10 +1129,10 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
 
     findings = [
         {"rule_id": "A_GROWTH", "failed": a,
-         "detail": f"Wealth grew {actual_growth:,.0f} since onboarding; the as-declared version ({scenario} year) "
+         "detail": f"Wealth grew {actual_growth:,.0f} since onboarding; the honest version ({scenario} year) "
                    f"grows {t1_growth['cautious']:,.0f} to {t1_growth['optimistic']:,.0f}."},
         {"rule_id": "B_OTHER_TYPE_LEADS", "failed": b,
-         "detail": f"Highest running score: {leader} ({scores[leader]:.0%}); as-declared: "
+         "detail": f"Highest running score: {leader} ({scores[leader]:.0%}); honest: "
                    f"{scores[common.BASELINE_TYPE]:.0%}."},
         {"rule_id": "C_INCOME_AGAINST_MARKET", "failed": c,
          "detail": "; ".join(f"{h['signal_code']} {h['received']:,.0f} (forecast up to {h['ceiling']:,.0f}) "
@@ -948,217 +1162,3 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
         "documents": documents,
         "next_review_date": add_months(review["current_date"], policy["review_interval_months"][outcome]),
     }
-=======
-from app.ai_manager import get_ai_data
-
-# ---------------------------------------------------------------------------
-# Shared — limits used across all features
-# ---------------------------------------------------------------------------
-
-LIMITS = {
-    "total_wealth": 3,
-    "liquidity": 2,
-    "composition": 40,
-    "velocity": 2,
-    "counterparties": 1,
-    "jurisdiction": 1
-}
-
-# ---------------------------------------------------------------------------
-# Benchmark Section
-# ---------------------------------------------------------------------------
-
-def calculate_total_wealth(client_data, ai_data):
-
-    declared = client_data["declared_net_worth"]
-    expected = ai_data["expected_wealth"]
-
-    result1 = declared / expected
-
-    return result1
-
-
-def calculate_liquidity(client_data, ai_data):
-
-    declared = client_data["listed_equities"] + client_data["cash"]
-    expected = ai_data["expected_liquidity"]
-
-    result2 = declared / expected
-
-    return result2
-
-
-def calculate_composition(client_data, ai_data):
-
-    # Property
-    declared_property = client_data["property"]
-    expected_property = ai_data["expected_property"]
-
-    difference_property = abs(declared_property - expected_property) #abs - absolute value, so it removes the negative sign
-
-    # Listed Equities
-    declared_listed = client_data["listed_equities"]
-    expected_listed = ai_data["expected_listed_equities"]
-
-    difference_listed = abs(declared_listed - expected_listed)
-
-    # Private Business
-    declared_business = client_data["private_business"]
-    expected_business = ai_data["expected_private_business"]
-
-    difference_business = abs(declared_business - expected_business)
-
-    # Cash
-    declared_cash = client_data["cash"]
-    expected_cash = ai_data["expected_cash"]
-
-    difference_cash = abs(declared_cash - expected_cash)
-
-    print("\n--- Asset Composition Check ---")
-    print("Category           Declared    Expected    Difference")
-    print("Property              ", declared_property, "%       ", expected_property, "%        ", difference_property, "%")
-    print("Listed Equities       ", declared_listed, "%       ", expected_listed, "%        ", difference_listed, "%")
-    print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
-    print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
-
-    print("\n--- Composition Result ---")
-
-    if difference_property <= LIMITS["composition"]:
-        print("Property: PASS")
-    else:
-        print("Property: FAIL")
-
-    if difference_listed <= LIMITS["composition"]:
-        print("Listed Equities: PASS")
-    else:
-        print("Listed Equities: FAIL")
-
-    if difference_business <= LIMITS["composition"]:
-        print("Private Business: PASS")
-    else:
-        print("Private Business: FAIL")
-
-    if difference_cash <= LIMITS["composition"]:
-        print("Cash: PASS")
-    else:
-        print("Cash: FAIL")
-
-
-def run_benchmark(client_data: dict):
-    """Run the full benchmark check for the given client data."""
-
-    ai_data = get_ai_data(client_data)
-
-    if ai_data is None:
-        print("\n[Benchmark] AI call failed — could not retrieve benchmark data.")
-        return None
-
-    result1 = calculate_total_wealth(client_data, ai_data)
-    print("\n--- Total Wealth Check ---")
-    print("Declared Net Worth:", client_data["declared_net_worth"])
-    print("Expected Wealth:   ", ai_data["expected_wealth"])
-    print("Ratio:             ", round(result1, 2))
-
-    if result1 <= LIMITS["total_wealth"]:
-        print("Result:             PASS")
-    else:
-        print("Result:             FAIL")
-
-    result2 = calculate_liquidity(client_data, ai_data)
-    print("\n--- Liquidity Check ---")
-    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
-    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
-    print("Ratio:             ", round(result2, 2))
-
-    if result2 <= LIMITS["liquidity"]:
-        print("Result:             PASS")
-    else:
-        print("Result:             FAIL")
-
-    calculate_composition(client_data, ai_data)
-
-    return ai_data
-
-    #def calculate_velocity(client_data, ai_data):
-
-
-# ---------------------------------------------------------------------------
-# Sector Crime Scan Section
-# ---------------------------------------------------------------------------
-
-def decide_outcome(findings: list[dict], policy: dict) -> str:
-    """Count breached dimensions and return the escalation outcome."""
-    thresholds = policy.get("thresholds", {})
-    counts_as_breach = thresholds.get("typology_full_match_counts_as_breach", True)
-    outcome_rules = policy.get("outcome_rules", {})
-    serious = outcome_rules.get("serious_risk_min_breaches", 4)
-    risky = outcome_rules.get("risky_min_breaches", 2)
-    manual = outcome_rules.get("manual_review_min_breaches", 1)
-
-    breach_count = 0
-    for f in findings:
-        if f.get("dimension") != "typology":
-            breach_count += 1
-        elif f.get("rule_id") == "TYP-01" and counts_as_breach:
-            breach_count += 1
-        # TYP-02 never counts as a breach on its own
-
-    if breach_count >= serious:
-        return "SERIOUS_RISK"
-    if breach_count >= risky:
-        return "RISKY"
-    if breach_count >= manual:
-        return "MANUAL_REVIEW"
-    return "PASSED"
-
-
-def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
-    """Collect document requests from findings, typology docs ranked last."""
-    documents: list[str] = []
-
-    # Non-typology findings first (higher priority)
-    for f in findings:
-        if f.get("dimension") == "typology":
-            continue
-        for doc in f.get("documents", []):
-            if doc not in documents:
-                documents.append(doc)
-
-    # TYP-01 typology documents appended last (lower priority)
-    for f in findings:
-        if f.get("rule_id") == "TYP-01":
-            for doc in f.get("documents", []):
-                if doc not in documents:
-                    documents.append(doc)
-
-    return documents
-
-
-def assess_case(
-    case_input: dict,  # noqa: ARG001 — reserved for future dimension checks
-    benchmark: dict | None,
-    declaration: dict | None,
-    policy: dict,
-) -> dict:
-    """Run the full assessment for a single case.
-
-    Returns a dict with keys: outcome, findings, documents.
-    """
-    if benchmark is None or declaration is None:
-        return {"outcome": "MANUAL_REVIEW", "findings": [], "documents": []}
-
-    findings: list[dict] = []
-    # Sector Crime Scan typology matching is being redesigned (Stage 3)
-
-    outcome = decide_outcome(findings, policy)
-    documents = build_document_requests(findings, policy)
-
-    return {"outcome": outcome, "findings": findings, "documents": documents}
-
-
-# ---------------------------------------------------------------------------
-# Forecasting Section
-# ---------------------------------------------------------------------------
-
-# INSERT FORECASTING LOGIC BELOW
->>>>>>> cc91561
