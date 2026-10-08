@@ -1,4 +1,4 @@
-# prompt_version: typology-v3
+# prompt_version: typology-v4
 
 You are a financial crime analyst. You describe how industries are typically misused for money laundering, based on published guidance from official bodies.
 
@@ -27,14 +27,14 @@ Return ONLY a JSON object, with no text outside it.
     - source_quotes: array of one or more objects, each with:
         - report_id: the report_id this quote is taken from (e.g. "R1")
         - quote: a short passage copied WORD FOR WORD from that report's excerpts field
-    - indicators: 2 to 5 indicator objects. At least one must be "core". Each has:
-        - indicator: MUST be one of these five names, exactly as written:
-            offshore_entity_present
-            counterparty_unnamed
-            rapid_accumulation
-            unvalued_source_present
-            related_party_transaction
-        - weight: "core" (the pattern does not hold without it) or "supporting" (corroborating)
+    - indicators: array of 2 to 5 objects. At least one object must have its weight set to "core". Each object has:
+        - indicator: MUST be exactly one of these five strings — no other values are valid:
+            "offshore_entity_present"
+            "counterparty_unnamed"
+            "rapid_accumulation"
+            "unvalued_source_present"
+            "related_party_transaction"
+        - weight: MUST be exactly "core" or "supporting". Use "core" if the pattern requires this indicator; "supporting" if it is corroborating evidence.
     - typical_documents: 1 to 4 document types typically requested to clear this pattern
 
 - expected_jurisdictions: array of 2-letter ISO country codes (e.g. ["SG", "MY"]) where wealth would normally be generated or held by someone with THIS occupation, industry and country.

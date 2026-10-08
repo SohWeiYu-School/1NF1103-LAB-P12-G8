@@ -32,5 +32,6 @@
     "wolfsberg-group.org"
   ],
   "research_max_reports": 8,
-  "research_max_excerpts_per_report": 5
+  "research_max_excerpts_per_report": 5,
+  "source_max_age_years": 10
 }
