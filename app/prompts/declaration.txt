@@ -1,4 +1,4 @@
-# prompt_version: declaration-v1
+# prompt_version: declaration-v2
 # TODO(ai owner): Complete this prompt template.
 # Replace the placeholder below with a carefully engineered prompt that:
 #   - Instructs the model to read the declaration and extract structured rows
@@ -19,7 +19,7 @@ For each source, extract:
 - amount_sgd: amount in Singapore Dollars (null if not stated)
 - start_year: year the source began (null if not stated)
 - end_year: year the source ended, or null if ongoing or not stated
-- jurisdiction: country code or name (null if not stated)
+- jurisdiction: two-letter ISO 3166-1 alpha-2 country code (e.g. "SG" for Singapore, "HK" for Hong Kong). Use uppercase only. Set to null if no country can be determined.
 - counterparty: employer, buyer, or other party name (null if not stated)
 - evidence_sentence: verbatim sentence from the declaration supporting this source
 

@@ -319,6 +319,200 @@ def verify_typology_sources(
     return cleaned, warnings
 
 
+# ---------------------------------------------------------------------------
+# Country normalisation helpers
+# ---------------------------------------------------------------------------
+
+_COUNTRY_TO_ISO = {
+    "singapore": "SG",
+    "malaysia": "MY",
+    "hong kong": "HK",
+    "united arab emirates": "AE",
+    "uae": "AE",
+    "dubai": "AE",
+    "abu dhabi": "AE",
+    "australia": "AU",
+    "united kingdom": "GB",
+    "uk": "GB",
+    "great britain": "GB",
+    "england": "GB",
+    "united states": "US",
+    "usa": "US",
+    "united states of america": "US",
+    "indonesia": "ID",
+    "thailand": "TH",
+    "philippines": "PH",
+    "china": "CN",
+    "japan": "JP",
+    "india": "IN",
+    "south korea": "KR",
+    "korea": "KR",
+    "taiwan": "TW",
+    "vietnam": "VN",
+    "myanmar": "MM",
+    "cambodia": "KH",
+    "switzerland": "CH",
+    "germany": "DE",
+    "france": "FR",
+    "netherlands": "NL",
+    "luxembourg": "LU",
+    "cayman islands": "KY",
+    "british virgin islands": "VG",
+    "bvi": "VG",
+    "bermuda": "BM",
+    "jersey": "JE",
+    "guernsey": "GG",
+    "isle of man": "IM",
+    "panama": "PA",
+    "seychelles": "SC",
+    "mauritius": "MU",
+    "liechtenstein": "LI",
+    "monaco": "MC",
+    "canada": "CA",
+    "new zealand": "NZ",
+    "ireland": "IE",
+    "bahrain": "BH",
+    "qatar": "QA",
+    "saudi arabia": "SA",
+    "oman": "OM",
+    "kuwait": "KW",
+    "nigeria": "NG",
+    "south africa": "ZA",
+    "kenya": "KE",
+    "brazil": "BR",
+    "mexico": "MX",
+    "cyprus": "CY",
+    "malta": "MT",
+}
+
+
+def _to_iso(value, warnings: list) -> str | None:
+    """Convert a country name or code to ISO 3166-1 alpha-2. Pure, no I/O.
+
+    - None/empty → None (no warning)
+    - Already 2 uppercase letters → return as-is
+    - Lookup in _COUNTRY_TO_ISO (case-insensitive) → return code
+    - 2 letters, not uppercase → uppercase (e.g. "sg" → "SG")
+    - Unrecognized → keep as-is + warning
+    """
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    if not stripped:
+        return None
+    if len(stripped) == 2 and stripped.isalpha() and stripped.isupper():
+        return stripped
+    lookup = _COUNTRY_TO_ISO.get(stripped.lower())
+    if lookup:
+        return lookup
+    if len(stripped) == 2 and stripped.isalpha():
+        return stripped.upper()
+    warnings.append(f"Unknown country '{stripped}' — could not convert to ISO-2.")
+    return stripped
+
+
+def _safe_int(value, default=None):
+    """Convert value to int if possible. Returns default on None or failure. Pure."""
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
+def prepare_case_for_matching(record: dict) -> tuple[dict, list[str]]:
+    """Normalize a client record for typology matching. Pure function.
+
+    Returns (normalized_record, warnings).
+
+    1. Coerces age, career_start_year to int.
+    2. Converts country/country_of_residence to ISO-2.
+    3. Builds all_jurisdictions: sorted deduplicated list of ISO-2 codes from
+       country, country_of_residence, career_timeline, asset_timeline, and
+       declarations.wealth_countries.
+    Does NOT mutate the original record or any sub-dicts.
+    """
+    warnings: list[str] = []
+    out = {**record}
+
+    out["age"] = _safe_int(record.get("age"))
+    out["career_start_year"] = _safe_int(record.get("career_start_year"))
+    out["country"] = _to_iso(record.get("country"), warnings)
+    out["country_of_residence"] = _to_iso(record.get("country_of_residence"), warnings)
+
+    all_iso: set[str] = set()
+
+    if out["country"]:
+        all_iso.add(out["country"])
+    if out["country_of_residence"]:
+        all_iso.add(out["country_of_residence"])
+
+    for entry in record.get("career_timeline", []):
+        code = _to_iso(entry.get("country"), warnings)
+        if code:
+            all_iso.add(code)
+
+    for entry in record.get("asset_timeline", []):
+        code = _to_iso(entry.get("country"), warnings)
+        if code:
+            all_iso.add(code)
+
+    decl = record.get("declarations", {})
+    for c in (decl or {}).get("wealth_countries", []):
+        code = _to_iso(c, warnings)
+        if code:
+            all_iso.add(code)
+
+    out["all_jurisdictions"] = sorted(all_iso)
+    return out, warnings
+
+
+def normalize_declaration_jurisdictions(declaration: dict) -> tuple[dict, list[str]]:
+    """Post-process AI declaration output to ensure jurisdiction fields are ISO-2.
+
+    Pure function. Called after schema validation succeeds.
+    Per source:
+    - Valid ISO-2 (2 uppercase letters) → kept.
+    - Full name in _COUNTRY_TO_ISO → converted + warning.
+    - 2 lowercase letters → uppercased + warning.
+    - Unrecognizable string → set to None + warning.
+    - None → kept.
+    Returns (cleaned_declaration, warnings).
+    """
+    warnings: list[str] = []
+    sources = []
+    for src in declaration.get("sources", []):
+        new_src = {**src}
+        j = src.get("jurisdiction")
+        if j is None:
+            sources.append(new_src)
+            continue
+        stripped = str(j).strip()
+        if len(stripped) == 2 and stripped.isalpha() and stripped.isupper():
+            sources.append(new_src)
+            continue
+        lookup = _COUNTRY_TO_ISO.get(stripped.lower())
+        if lookup:
+            warnings.append(f"Declaration jurisdiction '{j}' converted to '{lookup}'.")
+            new_src["jurisdiction"] = lookup
+        elif len(stripped) == 2 and stripped.isalpha():
+            upper = stripped.upper()
+            warnings.append(f"Declaration jurisdiction '{j}' uppercased to '{upper}'.")
+            new_src["jurisdiction"] = upper
+        else:
+            warnings.append(f"Declaration jurisdiction '{j}' unrecognizable — set to null.")
+            new_src["jurisdiction"] = None
+        sources.append(new_src)
+    return {**declaration, "sources": sources}, warnings
+
+
 def decide_outcome(findings: list[dict], policy: dict) -> str:
     """Count breached dimensions and return the escalation outcome."""
     thresholds = policy.get("thresholds", {})

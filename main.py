@@ -81,6 +81,7 @@ def _run_sample_assessment() -> None:
                 )
                 for w in typ_verify_warnings:
                     io_manager.show_error(w)
+                typology_response = {**typology_response, "sector_typologies": results}
 
     io_manager.show_message("Calling AI to parse declaration...")
     declaration, decl_warnings = ai_manager.get_declaration(case_input)
@@ -88,6 +89,9 @@ def _run_sample_assessment() -> None:
         io_manager.show_error(w)
     if declaration is None:
         return
+    declaration, norm_warnings = logic_manager.normalize_declaration_jurisdictions(declaration)
+    for w in norm_warnings:
+        io_manager.show_error(w)
 
     io_manager.show_ai_output(case_input, typology_response, declaration, research=clean_research)
 
@@ -171,6 +175,10 @@ def main() -> None:
             declaration, decl_warnings = ai_manager.get_declaration(case_input)
             for w in decl_warnings:
                 io_manager.show_error(w)
+            if declaration is not None:
+                declaration, norm_warnings = logic_manager.normalize_declaration_jurisdictions(declaration)
+                for w in norm_warnings:
+                    io_manager.show_error(w)
 
             if typology_response is not None and declaration is not None:
                 io_manager.show_ai_output(case_input, typology_response, declaration, research=clean_research)

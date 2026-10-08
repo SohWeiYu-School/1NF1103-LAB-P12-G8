@@ -55,7 +55,8 @@
           },
           "jurisdiction": {
             "type": ["string", "null"],
-            "description": "ISO country code or country name where this source arose, or null."
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2 country code where this source arose, or null."
           },
           "counterparty": {
             "type": ["string", "null"],
