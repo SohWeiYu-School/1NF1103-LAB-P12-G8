@@ -852,6 +852,36 @@ def test_missing_source_quotes_fails_schema():
         )
 
 
+# ---------------------------------------------------------------------------
+# 37. get_declaration() is cached — second call with same text hits cache
+# ---------------------------------------------------------------------------
+
+def test_declaration_cache_hit_makes_no_api_call(tmp_path, monkeypatch):
+    """get_declaration() must return cached result without making an API call."""
+    from app.ai_manager import get_declaration
+    from app.utilities import extract_prompt_version, load_prompt
+
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    decl_text = "I earned my wealth from my career as a software engineer."
+    template = load_prompt("declaration.txt")
+    prompt_version = extract_prompt_version(template)
+
+    # Build the same cache key get_declaration() will derive
+    key = _cache_key("declaration", {"declaration_text": decl_text}, prompt_version, "gpt-4o")
+    cached_response = {"sources": [], "model": "gpt-4o"}
+    (tmp_path / f"{key}.json").write_text(json.dumps(cached_response))
+
+    with patch("app.ai_manager.client") as mock_client_fn:
+        result, warnings = get_declaration({"declaration_text": decl_text})
+
+    mock_client_fn.assert_not_called()
+    assert result is not None
+    assert warnings == []
+
+
 def test_different_research_gives_different_cache_key():
     research_a = {"reports": [{"report_id": "R1", "organisation": "FATF", "title": "A", "year": 2020, "summary": [], "excerpts": []}]}
     research_b = {"reports": [{"report_id": "R1", "organisation": "MAS", "title": "B", "year": 2021, "summary": [], "excerpts": []}]}

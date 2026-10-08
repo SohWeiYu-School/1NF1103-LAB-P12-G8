@@ -80,12 +80,12 @@ def test_duplicate_url_second_removed():
 
 
 # ---------------------------------------------------------------------------
-# Test 4: IDs renumbered after filtering (R1, R2, R3 with R2 removed → R1, R2)
+# Test 4: Original IDs are preserved after filtering (gaps are fine)
 # ---------------------------------------------------------------------------
 
-def test_ids_renumbered_after_filtering():
+def test_original_ids_preserved_after_filtering():
     r1 = _sample_report("R1", "https://fatf-gafi.org/r1.pdf")
-    r2 = _sample_report("R2", "https://untrusted.com/r2.pdf")  # will be removed
+    r2 = _sample_report("R2", "https://untrusted.com/r2.pdf")  # will be removed (untrusted)
     r3 = _sample_report("R3", "https://mas.gov.sg/r3.pdf")
     research = _sample_research(
         [r1, r2, r3],
@@ -100,7 +100,8 @@ def test_ids_renumbered_after_filtering():
     clean, warnings = verify_research(research, policy)
 
     ids = [r["report_id"] for r in clean["reports"]]
-    assert ids == ["R1", "R2"]
+    # R2 removed (untrusted), R1 and R3 survive with their original IDs (gap is intentional)
+    assert ids == ["R1", "R3"]
 
 
 # ---------------------------------------------------------------------------
