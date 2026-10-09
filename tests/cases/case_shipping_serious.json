@@ -9,6 +9,7 @@
     "industry": "Shipping and freight",
     "career_start_year": 2005,
     "pep_status": "none",
+    "reference_year": 2025,
     "declared_net_worth_sgd": 3500000,
     "expected_aum_sgd": 3000000,
     "asset_composition": {
@@ -123,5 +124,5 @@
     },
     "document_map": {}
   },
-  "expected_outcome": "SERIOUS_RISK"
+  "expected_breach_count": 2
 }
