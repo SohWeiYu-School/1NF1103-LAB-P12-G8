@@ -30,4 +30,10 @@ data/cache/
 logs/
 *.corrupt-*
 
+# Old forecasting file storage (everything is in MongoDB now; stops old local files being committed)
+data/raw/
+data/forecasts/
+data/assessments/
+
+# Docs folder (teammates)
 docs

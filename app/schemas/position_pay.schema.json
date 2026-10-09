@@ -1,0 +1,154 @@
+{
+  "type": "object",
+  "properties": {
+    "position_index": {
+      "type": "integer"
+    },
+    "yearly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "base_pay": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "bonus": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "equity_or_profit_share": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "tax_rate_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "living_costs": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "savings_return_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "base_pay",
+          "bonus",
+          "equity_or_profit_share",
+          "tax_rate_pct",
+          "living_costs",
+          "savings_return_pct"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "position_index",
+    "yearly"
+  ],
+  "additionalProperties": false
+}

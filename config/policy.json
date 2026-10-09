@@ -1,5 +1,5 @@
 {
-  "policy_version": "2026.4",
+  "policy_version": "2026.10-v5",
   "thresholds": {
     "wealth_multiple_limit": 3.0,
     "liquidity_multiple_limit": 2.0,
@@ -32,5 +32,138 @@
     "wolfsberg-group.org"
   ],
   "research_max_reports": 8,
-  "research_max_excerpts_per_report": 5
+  "research_max_excerpts_per_report": 5,
+  "loan_to_value_max": 0.8,
+  "stability_shift": 0.1,
+  "tolerance": {
+    "net_worth": 0.1,
+    "typical_band": 0.1,
+    "asset_value": 0.15,
+    "asset_income": 0.25,
+    "review_growth": 0.1,
+    "signal_amount": 0.25
+  },
+  "fit": {
+    "weight_net_worth": 0.5,
+    "weight_affordability": 0.3,
+    "weight_assets": 0.2,
+    "minimum_fit": 0.7,
+    "miss_weight": 0.2
+  },
+  "review_interval_months": {
+    "PASSED": 24,
+    "MANUAL_REVIEW": 12,
+    "RISKY": 6,
+    "SERIOUS_RISK": 3
+  },
+  "routing": {
+    "PASSED": "No further action. Account opens.",
+    "MANUAL_REVIEW": "Queued for the KYC officer.",
+    "RISKY": "Additional documents requested from the client.",
+    "SERIOUS_RISK": "Escalated to the Compliance Officer with a full case file."
+  },
+  "asset_categories": {
+    "property": [
+      "property",
+      "condominium",
+      "condo",
+      "apartment",
+      "house",
+      "flat",
+      "hdb",
+      "land"
+    ],
+    "listed_equities": [
+      "equities",
+      "equity portfolio",
+      "shares",
+      "stock",
+      "fund",
+      "etf"
+    ],
+    "private_business": [
+      "company",
+      "stake",
+      "business",
+      "brokerage",
+      "partnership"
+    ]
+  },
+  "income_signal_by_category": {
+    "property": "SIG_RENTAL_INCOME",
+    "listed_equities": "SIG_DIVIDEND_INCOME",
+    "private_business": "SIG_BUSINESS_DISTRIBUTION"
+  },
+  "self_explained_source_types": [
+    "employment",
+    "bonus_incentive",
+    "savings"
+  ],
+  "country_aliases": {
+    "uae": "united arab emirates",
+    "dubai": "united arab emirates",
+    "abu dhabi": "united arab emirates",
+    "hk": "hong kong",
+    "usa": "united states",
+    "us": "united states",
+    "united states of america": "united states",
+    "bvi": "british virgin islands",
+    "melbourne": "australia"
+  },
+  "breach_documents": {
+    "NET_WORTH": [
+      "DOC_TAX_RETURNS",
+      "DOC_BANK_STATEMENTS"
+    ],
+    "AFFORDABILITY.loan": [
+      "DOC_LOAN_AGREEMENT",
+      "DOC_BANK_STATEMENTS"
+    ],
+    "AFFORDABILITY.cash": [
+      "DOC_BANK_STATEMENTS"
+    ],
+    "AFFORDABILITY.asset_sale": [
+      "DOC_SALE_AGREEMENT"
+    ],
+    "ASSET_VALUE.property": [
+      "DOC_PROPERTY_TITLE"
+    ],
+    "ASSET_VALUE.listed_equities": [
+      "DOC_INVESTMENT_STATEMENTS"
+    ],
+    "ASSET_VALUE.private_business": [
+      "DOC_COMPANY_ACCOUNTS",
+      "DOC_SHAREHOLDER_REGISTER"
+    ],
+    "ASSET_INCOME.property": [
+      "DOC_TAX_RETURNS"
+    ],
+    "ASSET_INCOME.listed_equities": [
+      "DOC_INVESTMENT_STATEMENTS"
+    ],
+    "ASSET_INCOME.private_business": [
+      "DOC_COMPANY_ACCOUNTS"
+    ],
+    "JURISDICTION": [
+      "DOC_BENEFICIAL_OWNERSHIP"
+    ],
+    "UNQUANTIFIED_SOURCE.advisory_fees": [
+      "DOC_CONSULTING_AGREEMENT",
+      "DOC_TAX_RETURNS"
+    ],
+    "UNQUANTIFIED_SOURCE.business_income": [
+      "DOC_COMPANY_ACCOUNTS"
+    ],
+    "UNQUANTIFIED_SOURCE.inheritance_gift": [
+      "DOC_INHERITANCE_PROBATE",
+      "DOC_GIFT_LETTER"
+    ],
+    "UNQUANTIFIED_SOURCE.asset_sale": [
+      "DOC_SALE_AGREEMENT"
+    ],
+    "UNQUANTIFIED_SOURCE.other": [
+      "DOC_BANK_STATEMENTS"
+    ]
+  },
+  "max_documents": 6
 }

@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "properties": {
+    "inflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "signal_code": {
+            "type": "string",
+            "x-vocab": "signal_codes"
+          },
+          "amount": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "fx_rate_to_sgd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "times_received": {
+            "type": "integer"
+          },
+          "counterparty_country": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal_code",
+          "amount",
+          "currency",
+          "fx_rate_to_sgd",
+          "times_received",
+          "counterparty_country",
+          "quote"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "market_moves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "market_id": {
+            "type": "string"
+          },
+          "change_pct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "market_id",
+          "change_pct"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "events_seen": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "inflows",
+    "market_moves",
+    "events_seen"
+  ],
+  "additionalProperties": false
+}

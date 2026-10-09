@@ -1,0 +1,307 @@
+{
+  "type": "object",
+  "properties": {
+    "yearly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "steady": {
+            "type": "object",
+            "properties": {
+              "base_pay": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "bonus": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "equity_or_profit_share": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "base_pay",
+              "bonus",
+              "equity_or_profit_share"
+            ],
+            "additionalProperties": false
+          },
+          "boom": {
+            "type": "object",
+            "properties": {
+              "base_pay": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "bonus": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "equity_or_profit_share": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "base_pay",
+              "bonus",
+              "equity_or_profit_share"
+            ],
+            "additionalProperties": false
+          },
+          "downturn": {
+            "type": "object",
+            "properties": {
+              "base_pay": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "bonus": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              },
+              "equity_or_profit_share": {
+                "type": "object",
+                "properties": {
+                  "low": {
+                    "type": "number"
+                  },
+                  "typical": {
+                    "type": "number"
+                  },
+                  "high": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "low",
+                  "typical",
+                  "high"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "base_pay",
+              "bonus",
+              "equity_or_profit_share"
+            ],
+            "additionalProperties": false
+          },
+          "tax_rate_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "living_costs": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "savings_return_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "steady",
+          "boom",
+          "downturn",
+          "tax_rate_pct",
+          "living_costs",
+          "savings_return_pct"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "career_outlook": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "yearly",
+    "career_outlook"
+  ],
+  "additionalProperties": false
+}

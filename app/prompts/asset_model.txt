@@ -1,0 +1,16 @@
+# prompt_version: asset-model-v1
+# Call 2, step 3: how ONE asset behaves. The rules engine works out its value.
+
+TASK: Describe how this asset (asset_index {asset_index}, bought in {bought_year}) responds
+to its markets. Do NOT give its value in any year. Set asset_index to {asset_index}.
+
+- exposures: the markets (market_id from the list) its value moves with, and sensitivity:
+  the % change in its value in {currency} when that market's indicator moves 1%. Include its
+  currency market if it is held outside {currency}.
+- own_growth_pct: yearly % growth you expect on top of what its markets explain (e.g. a
+  growing private company); near 0 for ordinary property or index funds.
+- income_yield_by_year: ONE entry for EVERY year {bought_year} to {end_year}: the income it
+  would normally produce that year as a % of its value, for the way it is held (0 for a
+  home the owner lives in).
+- future_income_yield_pct: the yield you expect over {forecast_years} in each scenario.
+- valuation_basis: one sentence on how an asset like this is normally valued.
