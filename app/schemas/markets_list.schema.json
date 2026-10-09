@@ -1,0 +1,102 @@
+{
+  "type": "object",
+  "properties": {
+    "relevant_markets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "market_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "indicator": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "market_id",
+          "name",
+          "country",
+          "indicator"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "jurisdictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string"
+          },
+          "listings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "source_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "country",
+          "listings",
+          "summary",
+          "source_name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scenario_chances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "steady": {
+            "type": "number"
+          },
+          "boom": {
+            "type": "number"
+          },
+          "downturn": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "year",
+          "steady",
+          "boom",
+          "downturn"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "data_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "relevant_markets",
+    "jurisdictions",
+    "scenario_chances",
+    "data_gaps"
+  ],
+  "additionalProperties": false
+}

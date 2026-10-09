@@ -1,0 +1,1353 @@
+{
+  "affordability": [
+    {
+      "affordable": true,
+      "asset_index": 0,
+      "available": {
+        "cautious": 6750.02,
+        "optimistic": 375962.74,
+        "typical": 194835.72
+      },
+      "needed": 220000,
+      "payment_method": "loan",
+      "year": 2015
+    },
+    {
+      "affordable": true,
+      "asset_index": 1,
+      "available": {
+        "cautious": 14810.02,
+        "optimistic": 1031587.2,
+        "typical": 495497.59
+      },
+      "needed": 200000,
+      "payment_method": "cash",
+      "year": 2020
+    }
+  ],
+  "assessed_on": "2026-09-24",
+  "asset_checks": [
+    {
+      "asset_index": 0,
+      "category": "property",
+      "ceiling": 2113262,
+      "declared": 1450000,
+      "detail": "Asset 0 (Residential property (condominium)): declared 1,450,000, markets explain about 1,722,593 (up to 2,113,262)",
+      "expected": {
+        "cautious": 1598088.06,
+        "optimistic": 1837618.9,
+        "typical": 1722592.55
+      },
+      "failed": false,
+      "rule_id": "ASSET_VALUE",
+      "valuation_basis": "Valued based on recent comparable sales of similar condominiums in the same area, adjusted for unit size, floor, and condition."
+    },
+    {
+      "asset_index": 1,
+      "category": "listed_equities",
+      "ceiling": 412536,
+      "declared": 260000,
+      "detail": "Asset 1 (Listed equities portfolio (Singapore ETFs)): declared 260,000, markets explain about 346,639 (up to 412,536)",
+      "expected": {
+        "cautious": 334813.03,
+        "optimistic": 358726.63,
+        "typical": 346639.24
+      },
+      "failed": false,
+      "rule_id": "ASSET_VALUE",
+      "valuation_basis": "Valued based on the market price of the underlying Singapore-listed ETFs, reflecting the latest traded prices on the exchange."
+    },
+    {
+      "asset_index": 0,
+      "category": "property",
+      "ceiling": 57426,
+      "declared": 0,
+      "detail": "Asset 0: declared income 0, expected about 34,452 (up to 57,426)",
+      "expected": {
+        "cautious": 25569.41,
+        "optimistic": 45940.47,
+        "typical": 34451.85
+      },
+      "failed": false,
+      "rule_id": "ASSET_INCOME"
+    },
+    {
+      "asset_index": 1,
+      "category": "listed_equities",
+      "ceiling": 16143,
+      "declared": 7000,
+      "detail": "Asset 1: declared income 7,000, expected about 9,706 (up to 16,143)",
+      "expected": {
+        "cautious": 7031.07,
+        "optimistic": 12914.16,
+        "typical": 9705.9
+      },
+      "failed": false,
+      "rule_id": "ASSET_INCOME"
+    }
+  ],
+  "borderline": false,
+  "career_outlook": "He is likely to remain in a senior management or director-level role in banking technology, with potential for further advancement to executive positions or lateral moves to similar roles at other large financial institutions.",
+  "career_savings": [
+    {
+      "after_tax": {
+        "cautious": 31040.0,
+        "optimistic": 51480.0,
+        "typical": 41160.0
+      },
+      "living_costs": {
+        "cautious": 32000,
+        "optimistic": 18000,
+        "typical": 24000
+      },
+      "saved": {
+        "cautious": -960.0,
+        "optimistic": 33480.0,
+        "typical": 17160.0
+      },
+      "savings": {
+        "cautious": -960.0,
+        "optimistic": 33480.0,
+        "typical": 17160.0
+      },
+      "total_pay": {
+        "cautious": 32000,
+        "optimistic": 52000,
+        "typical": 42000
+      },
+      "year": 2008
+    },
+    {
+      "after_tax": {
+        "cautious": 32010.0,
+        "optimistic": 51975.0,
+        "typical": 41650.0
+      },
+      "living_costs": {
+        "cautious": 33000,
+        "optimistic": 18500,
+        "typical": 24500
+      },
+      "saved": {
+        "cautious": -990.0,
+        "optimistic": 33475.0,
+        "typical": 17150.0
+      },
+      "savings": {
+        "cautious": -1950.96,
+        "optimistic": 67222.84,
+        "typical": 34361.48
+      },
+      "total_pay": {
+        "cautious": 33000,
+        "optimistic": 52500,
+        "typical": 42500
+      },
+      "year": 2009
+    },
+    {
+      "after_tax": {
+        "cautious": 33465.0,
+        "optimistic": 54450.0,
+        "typical": 43610.0
+      },
+      "living_costs": {
+        "cautious": 34000,
+        "optimistic": 19000,
+        "typical": 25000
+      },
+      "saved": {
+        "cautious": -535.0,
+        "optimistic": 35450.0,
+        "typical": 18610.0
+      },
+      "savings": {
+        "cautious": -2487.91,
+        "optimistic": 103210.62,
+        "typical": 53074.56
+      },
+      "total_pay": {
+        "cautious": 34500,
+        "optimistic": 55000,
+        "typical": 44500
+      },
+      "year": 2010
+    },
+    {
+      "after_tax": {
+        "cautious": 34920.0,
+        "optimistic": 56430.0,
+        "typical": 45080.0
+      },
+      "living_costs": {
+        "cautious": 35000,
+        "optimistic": 19500,
+        "typical": 25500
+      },
+      "saved": {
+        "cautious": -80.0,
+        "optimistic": 36930.0,
+        "typical": 19580.0
+      },
+      "savings": {
+        "cautious": -2570.4,
+        "optimistic": 140966.31,
+        "typical": 72813.79
+      },
+      "total_pay": {
+        "cautious": 36000,
+        "optimistic": 57000,
+        "typical": 46000
+      },
+      "year": 2011
+    },
+    {
+      "after_tax": {
+        "cautious": 35890.0,
+        "optimistic": 58410.0,
+        "typical": 46550.0
+      },
+      "living_costs": {
+        "cautious": 36000,
+        "optimistic": 20000,
+        "typical": 26000
+      },
+      "saved": {
+        "cautious": -110.0,
+        "optimistic": 38410.0,
+        "typical": 20550.0
+      },
+      "savings": {
+        "cautious": -2682.97,
+        "optimistic": 180504.04,
+        "typical": 93582.23
+      },
+      "total_pay": {
+        "cautious": 37000,
+        "optimistic": 59000,
+        "typical": 47500
+      },
+      "year": 2012
+    },
+    {
+      "after_tax": {
+        "cautious": 36860.0,
+        "optimistic": 60390.0,
+        "typical": 48020.0
+      },
+      "living_costs": {
+        "cautious": 37000,
+        "optimistic": 20500,
+        "typical": 26500
+      },
+      "saved": {
+        "cautious": -140.0,
+        "optimistic": 39890.0,
+        "typical": 21520.0
+      },
+      "savings": {
+        "cautious": -2825.65,
+        "optimistic": 221838.07,
+        "typical": 115382.98
+      },
+      "total_pay": {
+        "cautious": 38000,
+        "optimistic": 61000,
+        "typical": 49000
+      },
+      "year": 2013
+    },
+    {
+      "after_tax": {
+        "cautious": 37830.0,
+        "optimistic": 61380.0,
+        "typical": 49000.0
+      },
+      "living_costs": {
+        "cautious": 38000,
+        "optimistic": 21000,
+        "typical": 27000
+      },
+      "saved": {
+        "cautious": -170.0,
+        "optimistic": 40380.0,
+        "typical": 22000.0
+      },
+      "savings": {
+        "cautious": -2998.48,
+        "optimistic": 263992.78,
+        "typical": 137729.13
+      },
+      "total_pay": {
+        "cautious": 39000,
+        "optimistic": 62000,
+        "typical": 50000
+      },
+      "year": 2014
+    },
+    {
+      "after_tax": {
+        "cautious": 69750.0,
+        "optimistic": 140650.0,
+        "typical": 96900.0
+      },
+      "living_costs": {
+        "cautious": 60000,
+        "optimistic": 30000,
+        "typical": 40000
+      },
+      "saved": {
+        "cautious": 9750.0,
+        "optimistic": 110650.0,
+        "typical": 56900.0
+      },
+      "savings": {
+        "cautious": 6750.02,
+        "optimistic": 375962.74,
+        "typical": 194835.72
+      },
+      "total_pay": {
+        "cautious": 75000,
+        "optimistic": 145000,
+        "typical": 102000
+      },
+      "year": 2015
+    },
+    {
+      "after_tax": {
+        "cautious": 71610.0,
+        "optimistic": 145500.0,
+        "typical": 99750.0
+      },
+      "living_costs": {
+        "cautious": 61000,
+        "optimistic": 31000,
+        "typical": 41000
+      },
+      "saved": {
+        "cautious": 10610.0,
+        "optimistic": 114500.0,
+        "typical": 58750.0
+      },
+      "savings": {
+        "cautious": 17363.4,
+        "optimistic": 492342.55,
+        "typical": 253877.97
+      },
+      "total_pay": {
+        "cautious": 77000,
+        "optimistic": 150000,
+        "typical": 105000
+      },
+      "year": 2016
+    },
+    {
+      "after_tax": {
+        "cautious": 75330.0,
+        "optimistic": 153260.0,
+        "typical": 105450.0
+      },
+      "living_costs": {
+        "cautious": 62000,
+        "optimistic": 32000,
+        "typical": 42000
+      },
+      "saved": {
+        "cautious": 13330.0,
+        "optimistic": 121260.0,
+        "typical": 63450.0
+      },
+      "savings": {
+        "cautious": 30702.08,
+        "optimistic": 617048.95,
+        "typical": 317835.73
+      },
+      "total_pay": {
+        "cautious": 81000,
+        "optimistic": 158000,
+        "typical": 111000
+      },
+      "year": 2017
+    },
+    {
+      "after_tax": {
+        "cautious": 79050.0,
+        "optimistic": 161990.0,
+        "typical": 109250.0
+      },
+      "living_costs": {
+        "cautious": 63000,
+        "optimistic": 33000,
+        "typical": 43000
+      },
+      "saved": {
+        "cautious": 16050.0,
+        "optimistic": 128990.0,
+        "typical": 66250.0
+      },
+      "savings": {
+        "cautious": 46767.43,
+        "optimistic": 749124.2,
+        "typical": 384562.48
+      },
+      "total_pay": {
+        "cautious": 85000,
+        "optimistic": 167000,
+        "typical": 115000
+      },
+      "year": 2018
+    },
+    {
+      "after_tax": {
+        "cautious": 80910.0,
+        "optimistic": 166840.0,
+        "typical": 112100.0
+      },
+      "living_costs": {
+        "cautious": 64000,
+        "optimistic": 34000,
+        "typical": 44000
+      },
+      "saved": {
+        "cautious": 16910.0,
+        "optimistic": 132840.0,
+        "typical": 68100.0
+      },
+      "savings": {
+        "cautious": 63700.81,
+        "optimistic": 886458.94,
+        "typical": 453431.61
+      },
+      "total_pay": {
+        "cautious": 87000,
+        "optimistic": 172000,
+        "typical": 118000
+      },
+      "year": 2019
+    },
+    {
+      "after_tax": {
+        "cautious": 108000.0,
+        "optimistic": 185250.0,
+        "typical": 137640.0
+      },
+      "living_costs": {
+        "cautious": 90000,
+        "optimistic": 48000,
+        "typical": 65000
+      },
+      "saved": {
+        "cautious": 18000.0,
+        "optimistic": 137250.0,
+        "typical": 72640.0
+      },
+      "savings": {
+        "cautious": 81732.66,
+        "optimistic": 1026368.32,
+        "typical": 526751.75
+      },
+      "total_pay": {
+        "cautious": 120000,
+        "optimistic": 195000,
+        "typical": 148000
+      },
+      "year": 2020
+    },
+    {
+      "after_tax": {
+        "cautious": 114300.0,
+        "optimistic": 200450.0,
+        "typical": 144150.0
+      },
+      "living_costs": {
+        "cautious": 93000,
+        "optimistic": 49000,
+        "typical": 67000
+      },
+      "saved": {
+        "cautious": 21300.0,
+        "optimistic": 151450.0,
+        "typical": 77150.0
+      },
+      "savings": {
+        "cautious": 103073.53,
+        "optimistic": 1181923.79,
+        "typical": 604955.26
+      },
+      "total_pay": {
+        "cautious": 127000,
+        "optimistic": 211000,
+        "typical": 155000
+      },
+      "year": 2021
+    },
+    {
+      "after_tax": {
+        "cautious": 118800.0,
+        "optimistic": 210900.0,
+        "typical": 149730.0
+      },
+      "living_costs": {
+        "cautious": 96000,
+        "optimistic": 50000,
+        "typical": 69000
+      },
+      "saved": {
+        "cautious": 22800.0,
+        "optimistic": 160900.0,
+        "typical": 80730.0
+      },
+      "savings": {
+        "cautious": 125925.07,
+        "optimistic": 1346369.56,
+        "typical": 686592.69
+      },
+      "total_pay": {
+        "cautious": 132000,
+        "optimistic": 222000,
+        "typical": 161000
+      },
+      "year": 2022
+    },
+    {
+      "after_tax": {
+        "cautious": 123300.0,
+        "optimistic": 217550.0,
+        "typical": 155310.0
+      },
+      "living_costs": {
+        "cautious": 99000,
+        "optimistic": 51000,
+        "typical": 71000
+      },
+      "saved": {
+        "cautious": 24300.0,
+        "optimistic": 166550.0,
+        "typical": 84310.0
+      },
+      "savings": {
+        "cautious": 150350.99,
+        "optimistic": 1520997.78,
+        "typical": 772962.47
+      },
+      "total_pay": {
+        "cautious": 137000,
+        "optimistic": 229000,
+        "typical": 167000
+      },
+      "year": 2023
+    },
+    {
+      "after_tax": {
+        "cautious": 128700.0,
+        "optimistic": 224200.0,
+        "typical": 160890.0
+      },
+      "living_costs": {
+        "cautious": 102000,
+        "optimistic": 52000,
+        "typical": 73000
+      },
+      "saved": {
+        "cautious": 26700.0,
+        "optimistic": 172200.0,
+        "typical": 87890.0
+      },
+      "savings": {
+        "cautious": 177201.34,
+        "optimistic": 1705365.76,
+        "typical": 863944.32
+      },
+      "total_pay": {
+        "cautious": 143000,
+        "optimistic": 236000,
+        "typical": 173000
+      },
+      "year": 2024
+    },
+    {
+      "after_tax": {
+        "cautious": 134100.0,
+        "optimistic": 235600.0,
+        "typical": 166470.0
+      },
+      "living_costs": {
+        "cautious": 105000,
+        "optimistic": 53000,
+        "typical": 75000
+      },
+      "saved": {
+        "cautious": 29100.0,
+        "optimistic": 182600.0,
+        "typical": 91470.0
+      },
+      "savings": {
+        "cautious": 206478.55,
+        "optimistic": 1901608.69,
+        "typical": 958870.1
+      },
+      "total_pay": {
+        "cautious": 149000,
+        "optimistic": 248000,
+        "typical": 179000
+      },
+      "year": 2025
+    },
+    {
+      "after_tax": {
+        "cautious": 139500.0,
+        "optimistic": 247950.0,
+        "typical": 172050.0
+      },
+      "living_costs": {
+        "cautious": 108000,
+        "optimistic": 54000,
+        "typical": 77000
+      },
+      "saved": {
+        "cautious": 31500.0,
+        "optimistic": 193950.0,
+        "typical": 95050.0
+      },
+      "savings": {
+        "cautious": 238185.02,
+        "optimistic": 2110771.56,
+        "typical": 1057755.58
+      },
+      "total_pay": {
+        "cautious": 155000,
+        "optimistic": 261000,
+        "typical": 185000
+      },
+      "year": 2026
+    }
+  ],
+  "case_ref": "SOW-2026-0207",
+  "country_notes": [
+    {
+      "country": "Singapore",
+      "listings": [],
+      "source_name": "client data",
+      "summary": "Client's country of residence, employment, assets, and all sources of wealth."
+    }
+  ],
+  "data_quality": {
+    "data_gaps": [
+      "2008",
+      "2009",
+      "2010",
+      "2011",
+      "2026",
+      "No details on other industries worked in besides banking technology.",
+      "No information on assets or employment outside Singapore.",
+      "No information on foreign currency holdings.",
+      "No year\u2011on\u2011year real GDP growth data specific to the banking technology industry (IND_BANKTECH) for 2008\u20112026 is publicly available."
+    ],
+    "market_figures": 76,
+    "unverified_share": 0.316
+  },
+  "declared_net_worth": 1900000,
+  "declared_sources": [
+    {
+      "detail": "S1 Salary from technology roles at Lion City Bank since 2008 (2008-?, Singapore): backed",
+      "failed": false,
+      "quote": "the client has worked in technology at Lion City Bank since 2008, first as a software engineer, then as a senior engineer from 2015 and as an engineering manager since 2020. Her wealth comes from her salary",
+      "rule_id": "UNQUANTIFIED_SOURCE",
+      "source_id": "S1",
+      "source_type": "employment"
+    },
+    {
+      "detail": "S2 Annual bonuses from Lion City Bank (2008-?, Singapore): backed",
+      "failed": false,
+      "quote": "Her wealth comes from her salary and annual bonuses.",
+      "rule_id": "UNQUANTIFIED_SOURCE",
+      "source_id": "S2",
+      "source_type": "bonus_incentive"
+    },
+    {
+      "detail": "S3 Cash savings from salary and bonuses (2008-?, Singapore): backed",
+      "failed": false,
+      "quote": "The rest of her wealth is cash savings.",
+      "rule_id": "UNQUANTIFIED_SOURCE",
+      "source_id": "S3",
+      "source_type": "savings"
+    },
+    {
+      "detail": "S4 Invested part of her savings in Singapore ETFs since 2020 (2020-?, Singapore): backed",
+      "failed": false,
+      "quote": "has invested part of her savings in Singapore ETFs since 2020",
+      "rule_id": "UNQUANTIFIED_SOURCE",
+      "source_id": "S4",
+      "source_type": "investment_income"
+    }
+  ],
+  "divergence": [
+    {
+      "distinguishable_from": null,
+      "type_id": "T2"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T3"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T4"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T5"
+    },
+    {
+      "distinguishable_from": null,
+      "type_id": "T6"
+    }
+  ],
+  "documents": [],
+  "event_impacts": [
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -37341,
+      "type_id": "T1",
+      "weighted_impact": -11202,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -37341,
+      "type_id": "T2",
+      "weighted_impact": -11202,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -57341,
+      "type_id": "T3",
+      "weighted_impact": -17202,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -77341,
+      "type_id": "T4",
+      "weighted_impact": -23202,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -237341,
+      "type_id": "T5",
+      "weighted_impact": -71202,
+      "year": 2028
+    },
+    {
+      "chance": 0.3,
+      "event": "AI-driven stock market correction in Singapore",
+      "event_id": "E1",
+      "impact": -37341,
+      "type_id": "T6",
+      "weighted_impact": -11202,
+      "year": 2028
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -13719,
+      "type_id": "T1",
+      "weighted_impact": -2744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -13719,
+      "type_id": "T2",
+      "weighted_impact": -2744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -18719,
+      "type_id": "T3",
+      "weighted_impact": -3744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -33719,
+      "type_id": "T4",
+      "weighted_impact": -6744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -213719,
+      "type_id": "T5",
+      "weighted_impact": -42744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Major cybersecurity breach in Singapore banking technology sector",
+      "event_id": "E2",
+      "impact": -63719,
+      "type_id": "T6",
+      "weighted_impact": -12744,
+      "year": 2029
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -59208,
+      "type_id": "T1",
+      "weighted_impact": -11842,
+      "year": 2027
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -59208,
+      "type_id": "T2",
+      "weighted_impact": -11842,
+      "year": 2027
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -64208,
+      "type_id": "T3",
+      "weighted_impact": -12842,
+      "year": 2027
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -59208,
+      "type_id": "T4",
+      "weighted_impact": -11842,
+      "year": 2027
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -259208,
+      "type_id": "T5",
+      "weighted_impact": -51842,
+      "year": 2027
+    },
+    {
+      "chance": 0.2,
+      "event": "Sharp tightening of property lending rules in Singapore",
+      "event_id": "E3",
+      "impact": -59208,
+      "type_id": "T6",
+      "weighted_impact": -11842,
+      "year": 2027
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 4687,
+      "type_id": "T1",
+      "weighted_impact": 1640,
+      "year": 2030
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 4687,
+      "type_id": "T2",
+      "weighted_impact": 1640,
+      "year": 2030
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 24687,
+      "type_id": "T3",
+      "weighted_impact": 8640,
+      "year": 2030
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 44687,
+      "type_id": "T4",
+      "weighted_impact": 15640,
+      "year": 2030
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 204687,
+      "type_id": "T5",
+      "weighted_impact": 71640,
+      "year": 2030
+    },
+    {
+      "chance": 0.35,
+      "event": "Breakthrough in digital banking technology adoption",
+      "event_id": "E4",
+      "impact": 54687,
+      "type_id": "T6",
+      "weighted_impact": 19140,
+      "year": 2030
+    }
+  ],
+  "forward_paths": {
+    "T1": [
+      {
+        "cautious": 1215376.74,
+        "optimistic": 3564417.47,
+        "typical": 2271779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1316391.65,
+        "optimistic": 3967075.4,
+        "typical": 2491873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1409466.47,
+        "optimistic": 4395045.48,
+        "typical": 2713210.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1495620.94,
+        "optimistic": 4852509.8,
+        "typical": 2936917.74,
+        "year": 2029
+      },
+      {
+        "cautious": 1602561.98,
+        "optimistic": 5384804.71,
+        "typical": 3196066.01,
+        "year": 2030
+      }
+    ],
+    "T2": [
+      {
+        "cautious": 1215376.74,
+        "optimistic": 4334417.47,
+        "typical": 2516779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1316391.65,
+        "optimistic": 4737075.4,
+        "typical": 2736873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1409466.47,
+        "optimistic": 5165045.48,
+        "typical": 2958210.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1495620.94,
+        "optimistic": 5622509.8,
+        "typical": 3181917.74,
+        "year": 2029
+      },
+      {
+        "cautious": 1602561.98,
+        "optimistic": 6154804.71,
+        "typical": 3441066.01,
+        "year": 2030
+      }
+    ],
+    "T3": [
+      {
+        "cautious": 1250376.74,
+        "optimistic": 3914417.47,
+        "typical": 2411779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1356391.65,
+        "optimistic": 4367075.4,
+        "typical": 2651873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1454266.47,
+        "optimistic": 4844045.48,
+        "typical": 2892710.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1545020.94,
+        "optimistic": 5349509.8,
+        "typical": 3135417.74,
+        "year": 2029
+      },
+      {
+        "cautious": 1656761.98,
+        "optimistic": 5930804.71,
+        "typical": 3414066.01,
+        "year": 2030
+      }
+    ],
+    "T4": [
+      {
+        "cautious": 1215376.74,
+        "optimistic": 4484417.47,
+        "typical": 2501779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1316391.65,
+        "optimistic": 5039075.4,
+        "typical": 2761873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1409466.47,
+        "optimistic": 5611045.48,
+        "typical": 3021210.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1495620.94,
+        "optimistic": 6204509.8,
+        "typical": 3280917.74,
+        "year": 2029
+      },
+      {
+        "cautious": 1602561.98,
+        "optimistic": 6880804.71,
+        "typical": 3578066.01,
+        "year": 2030
+      }
+    ],
+    "T5": [
+      {
+        "cautious": 1565376.74,
+        "optimistic": 7064417.47,
+        "typical": 3671779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1720391.65,
+        "optimistic": 8017075.4,
+        "typical": 4111873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1864466.47,
+        "optimistic": 8970045.48,
+        "typical": 4543210.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1998620.94,
+        "optimistic": 9927509.8,
+        "typical": 4966917.74,
+        "year": 2029
+      },
+      {
+        "cautious": 2156561.98,
+        "optimistic": 10984804.71,
+        "typical": 5436066.01,
+        "year": 2030
+      }
+    ],
+    "T6": [
+      {
+        "cautious": 1355376.74,
+        "optimistic": 4404417.47,
+        "typical": 2621779.57,
+        "year": 2026
+      },
+      {
+        "cautious": 1476391.65,
+        "optimistic": 4927075.4,
+        "typical": 2890873.53,
+        "year": 2027
+      },
+      {
+        "cautious": 1588466.47,
+        "optimistic": 5469045.48,
+        "typical": 3158710.1,
+        "year": 2028
+      },
+      {
+        "cautious": 1692620.94,
+        "optimistic": 6034509.8,
+        "typical": 3426417.74,
+        "year": 2029
+      },
+      {
+        "cautious": 1818561.98,
+        "optimistic": 6680804.71,
+        "typical": 3732066.01,
+        "year": 2030
+      }
+    ]
+  },
+  "jurisdiction": {
+    "detail": "Named countries with no job, asset or declared source: none. Linked countries on a risk list: none.",
+    "failed": false,
+    "listed_countries": [],
+    "rule_id": "JURISDICTION",
+    "unexplained_countries": []
+  },
+  "markets_used": [
+    {
+      "country": "Singapore",
+      "indicator": "real GDP",
+      "market_id": "ECO_SG",
+      "name": "Singapore economy"
+    },
+    {
+      "country": "Singapore",
+      "indicator": "real GDP",
+      "market_id": "IND_BANKTECH",
+      "name": "Banking technology industry"
+    },
+    {
+      "country": "Singapore",
+      "indicator": "property price index",
+      "market_id": "PROP_SG",
+      "name": "Singapore residential property market"
+    },
+    {
+      "country": "Singapore",
+      "indicator": "index total return",
+      "market_id": "EQ_SG",
+      "name": "Singapore stock market"
+    }
+  ],
+  "monitoring_ranges": {
+    "SIG_BONUS_ANNUAL": {
+      "amount_max": 100000,
+      "count_max": 1.25
+    },
+    "SIG_DIVIDEND_INCOME": {
+      "amount_max": 18750,
+      "count_max": 5.0
+    },
+    "SIG_SALARY_REGULAR": {
+      "amount_max": 437500,
+      "count_max": 15.0
+    }
+  },
+  "next_review_date": "2028-09-24",
+  "outcome": "PASSED",
+  "policy_version": "2026.10-v5",
+  "prompt_versions": {
+    "call1_markets.list": "markets-list-v1",
+    "call1_markets.series.ECO_SG": "market-series-v1",
+    "call1_markets.series.EQ_SG": "market-series-v1",
+    "call1_markets.series.IND_BANKTECH": "market-series-v1",
+    "call1_markets.series.PROP_SG": "market-series-v1",
+    "call2_earnings.asset.0": "asset-model-v1",
+    "call2_earnings.asset.1": "asset-model-v1",
+    "call2_earnings.future_pay": "future-pay-v1",
+    "call2_earnings.position.0": "position-pay-v1",
+    "call2_earnings.position.1": "position-pay-v1",
+    "call2_earnings.position.2": "position-pay-v1",
+    "call3_types.behaviour.T1": "type-behaviour-v3",
+    "call3_types.behaviour.T2": "type-behaviour-v3",
+    "call3_types.behaviour.T3": "type-behaviour-v3",
+    "call3_types.behaviour.T4": "type-behaviour-v3",
+    "call3_types.behaviour.T5": "type-behaviour-v3",
+    "call3_types.behaviour.T6": "type-behaviour-v3",
+    "call3_types.list": "person-types-v4",
+    "call4_events.list": "events-v1",
+    "call4_events.reactions.T1": "type-reactions-v1",
+    "call4_events.reactions.T2": "type-reactions-v1",
+    "call4_events.reactions.T3": "type-reactions-v1",
+    "call4_events.reactions.T4": "type-reactions-v1",
+    "call4_events.reactions.T5": "type-reactions-v1",
+    "call4_events.reactions.T6": "type-reactions-v1",
+    "step0_declaration": "declaration-v1"
+  },
+  "reasons": [
+    "Declared net worth 1,900,000; the honest version explains 1,215,377 to 3,564,417.",
+    "Crime types that do fit: T2 Fraud or embezzlement against an employer via job 0 (Software Engineer, Singapore) (2008-2014); T3 Tax evasion (undeclared income or offshore accounts) via job 2 (Engineering Manager, Singapore) and asset 1 (Listed equities portfolio (Singapore ETFs)) (2020-2030); T4 Insider dealing via job 2 (Engineering Manager, Singapore) and asset 1 (Listed equities portfolio (Singapore ETFs)) and declared source S4 (2020-2030); T5 Money laundering for others (acting as a channel or nominee) via job 2 (Engineering Manager, Singapore) and asset 0 (Residential property (condominium)) (2020-2030); T6 Bribery and corruption (kickbacks, secret commissions) via job 2 (Engineering Manager, Singapore) (2020-2030)."
+  ],
+  "routing": "No further action. Account opens.",
+  "stability": {
+    "+0%": "PASSED",
+    "+10%": "PASSED",
+    "-10%": "PASSED"
+  },
+  "types": [
+    {
+      "category": "HONEST",
+      "category_name": "Honest - wealth exactly as declared",
+      "enabled_by": "everything he declared",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Honest - wealth exactly as declared",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "All wealth is accumulated from salary, bonuses, and investment returns as declared, with property purchased via mortgage and investments made from savings.",
+      "route_years": "2008-2030",
+      "score": 0.167,
+      "type_id": "T1",
+      "wealth_now": {
+        "cautious": 1215376.74,
+        "optimistic": 3564417.47,
+        "typical": 2271779.57
+      },
+      "why_it_applies": "The client has a continuous career in banking technology at Lion City Bank since 2008, with all sources and assets matching her declared employment and investment activities."
+    },
+    {
+      "category": "EMPLOYER_FRAUD",
+      "category_name": "Fraud or embezzlement against an employer",
+      "enabled_by": "job 0 (Software Engineer, Singapore)",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Fraud or embezzlement against an employer through banking technology roles",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "Funds could be misappropriated from the bank or its clients by exploiting access to internal systems or processes, then transferred to personal accounts or used for asset purchases.",
+      "route_years": "2008-2014",
+      "score": 0.167,
+      "type_id": "T2",
+      "wealth_now": {
+        "cautious": 1215376.74,
+        "optimistic": 4334417.47,
+        "typical": 2516779.57
+      },
+      "why_it_applies": "Her long-term employment in technology roles at a major bank could provide access to sensitive systems and financial processes, enabling potential fraud or embezzlement."
+    },
+    {
+      "category": "TAX_EVASION",
+      "category_name": "Tax evasion (undeclared income or offshore accounts)",
+      "enabled_by": "job 2 (Engineering Manager, Singapore) and asset 1 (Listed equities portfolio (Singapore ETFs))",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Tax evasion through undeclared income or offshore accounts",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "Income from employment or investments could be under-reported or not declared to tax authorities, or funds could be held in undisclosed accounts.",
+      "route_years": "2020-2030",
+      "score": 0.167,
+      "type_id": "T3",
+      "wealth_now": {
+        "cautious": 1250376.74,
+        "optimistic": 3914417.47,
+        "typical": 2411779.57
+      },
+      "why_it_applies": "Her roles in banking technology and investment activities could allow for the possibility of under-reporting income or holding assets in undisclosed accounts."
+    },
+    {
+      "category": "INSIDER_DEALING",
+      "category_name": "Insider dealing",
+      "enabled_by": "job 2 (Engineering Manager, Singapore) and asset 1 (Listed equities portfolio (Singapore ETFs)) and declared source S4",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Insider dealing through access to sensitive information at Lion City Bank",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "Material non-public information obtained through her technology management role could be used to trade Singapore-listed equities or ETFs for personal gain.",
+      "route_years": "2020-2030",
+      "score": 0.167,
+      "type_id": "T4",
+      "wealth_now": {
+        "cautious": 1215376.74,
+        "optimistic": 4484417.47,
+        "typical": 2501779.57
+      },
+      "why_it_applies": "Her senior position in banking technology at a major financial institution could provide access to confidential information relevant to listed securities."
+    },
+    {
+      "category": "THIRD_PARTY_ML",
+      "category_name": "Money laundering for others (acting as a channel or nominee)",
+      "enabled_by": "job 2 (Engineering Manager, Singapore) and asset 0 (Residential property (condominium))",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Money laundering for others using personal accounts and investments",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "Funds from third parties could be received into personal accounts or used to purchase property or equities, disguising the origin of illicit funds.",
+      "route_years": "2020-2030",
+      "score": 0.167,
+      "type_id": "T5",
+      "wealth_now": {
+        "cautious": 1565376.74,
+        "optimistic": 7064417.47,
+        "typical": 3671779.57
+      },
+      "why_it_applies": "Her access to financial products and personal accounts, combined with her professional background, could facilitate acting as a channel for laundering funds for others."
+    },
+    {
+      "category": "BRIBERY_CORRUPTION",
+      "category_name": "Bribery and corruption (kickbacks, secret commissions)",
+      "enabled_by": "job 2 (Engineering Manager, Singapore)",
+      "fit_score": 1.0,
+      "fits": true,
+      "fits_at_typical": true,
+      "name": "Bribery and corruption through receipt of kickbacks or secret commissions in banking technology projects",
+      "net_worth_fits": true,
+      "purchases_affordable": "2 of 2",
+      "route": "Kickbacks or secret commissions could be received from vendors or contractors in exchange for awarding technology contracts or favorable treatment.",
+      "route_years": "2020-2030",
+      "score": 0.167,
+      "type_id": "T6",
+      "wealth_now": {
+        "cautious": 1355376.74,
+        "optimistic": 4404417.47,
+        "typical": 2621779.57
+      },
+      "why_it_applies": "Her managerial role in banking technology could involve oversight of procurement or vendor selection, creating opportunities for bribery or corruption."
+    }
+  ],
+  "watch_dates": [
+    {
+      "date": "2027-01-01",
+      "what": "E3 Sharp tightening of property lending rules in Singapore could happen"
+    },
+    {
+      "date": "2028-01-01",
+      "what": "E1 AI-driven stock market correction in Singapore could happen"
+    },
+    {
+      "date": "2029-01-01",
+      "what": "E2 Major cybersecurity breach in Singapore banking technology sector could happen"
+    },
+    {
+      "date": "2030-01-01",
+      "what": "E4 Breakthrough in digital banking technology adoption could happen"
+    }
+  ]
+}

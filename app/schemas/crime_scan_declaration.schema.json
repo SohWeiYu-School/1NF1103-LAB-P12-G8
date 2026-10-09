@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "declaration.schema.json",
+  "title": "Declaration",
+  "description": "AI-parsed Source of Wealth declaration (Call 2 output).",
+  "type": "object",
+  "required": ["sources"],
+  "additionalProperties": false,
+  "properties": {
+    "sources": {
+      "type": "array",
+      "description": "Structured wealth source rows extracted from the declaration text.",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_type",
+          "description",
+          "amount_sgd",
+          "start_year",
+          "end_year",
+          "jurisdiction",
+          "counterparty",
+          "evidence_sentence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "employment",
+              "business_ownership",
+              "property",
+              "investment",
+              "inheritance",
+              "gift",
+              "other"
+            ],
+            "description": "Category of the wealth source."
+          },
+          "description": {
+            "type": "string",
+            "description": "Brief description of this wealth source."
+          },
+          "amount_sgd": {
+            "type": ["number", "null"],
+            "description": "Estimated or stated amount in SGD, or null if not specified."
+          },
+          "start_year": {
+            "type": ["integer", "null"],
+            "description": "Year this source began, or null if not specified."
+          },
+          "end_year": {
+            "type": ["integer", "null"],
+            "description": "Year this source ended, or null if ongoing or not specified."
+          },
+          "jurisdiction": {
+            "type": ["string", "null"],
+            "description": "ISO country code or country name where this source arose, or null."
+          },
+          "counterparty": {
+            "type": ["string", "null"],
+            "description": "Name of the counterparty (employer, buyer, etc.), or null."
+          },
+          "evidence_sentence": {
+            "type": "string",
+            "description": "Verbatim sentence from the declaration that supports this source."
+          }
+        }
+      }
+    }
+  }
+}

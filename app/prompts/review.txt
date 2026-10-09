@@ -1,0 +1,14 @@
+# prompt_version: review-v1
+# Review: read the officer's notes and recall what the markets did. Do not judge anything.
+
+TASK: Read the officer's notes for the review on {review_date}.
+
+- inflows: split the notes into separate payments, one entry per kind of payment, with a
+  signal code. amount: ONE payment as written (null if no amount is given). currency: as
+  written. fx_rate_to_sgd: what 1 unit of that currency was worth in SGD at the time (1 for
+  SGD). times_received: how many such payments. counterparty_country: the full country
+  name the money came from. quote: the words you took it from.
+- market_moves: for each market in the list that you know, or the notes say, moved since
+  the last review: its % change (null if unknown).
+- events_seen: the event_id of every forecast event the notes or your knowledge show has
+  happened.

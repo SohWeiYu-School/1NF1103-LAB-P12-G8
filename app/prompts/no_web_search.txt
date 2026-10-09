@@ -1,0 +1,6 @@
+# prompt_version: no-web-search-v1
+# Appended to the market prompts when GEMINI_WEB_SEARCH=off.
+
+Web search is not available for this run. Use your own knowledge: set every source_name
+to "Model knowledge (unverified)" and add a data_gaps entry saying the figures need
+checking against an official source.

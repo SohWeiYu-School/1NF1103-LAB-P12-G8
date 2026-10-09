@@ -1,0 +1,10 @@
+# prompt_version: type-reactions-v1
+# Call 4, step 2: how ONE type reacts to each event.
+
+TASK: Forecast how type "{type_id}" ({type_name}) would react to each event.
+
+- type_id: "{type_id}".
+- reactions: exactly ONE entry for EVERY event ({event_ids}): extra_money_change is the
+  change to this type's extra money in the event year if it happens (negative if he loses
+  money; 0 for the as-declared type unless the event changes a declared source), and
+  signals: the account activity that reaction would show.
