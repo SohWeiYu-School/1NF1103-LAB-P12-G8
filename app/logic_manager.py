@@ -435,8 +435,10 @@ def prepare_case_for_matching(record: dict) -> tuple[dict, list[str]]:
     1. Coerces age, career_start_year to int.
     2. Converts country/country_of_residence to ISO-2.
     3. Builds all_jurisdictions: sorted deduplicated list of ISO-2 codes from
-       country, country_of_residence, career_timeline, asset_timeline, and
-       declarations.wealth_countries.
+       country, country_of_residence, wealth_countries, career_timeline,
+       asset_timeline, and declarations.wealth_countries.
+    4. Extracts declared_net_worth_sgd from whichever location has it.
+    5. Extracts reference_year from record or date fields.
     Does NOT mutate the original record or any sub-dicts.
     """
     warnings: list[str] = []
@@ -447,12 +449,39 @@ def prepare_case_for_matching(record: dict) -> tuple[dict, list[str]]:
     out["country"] = _to_iso(record.get("country"), warnings)
     out["country_of_residence"] = _to_iso(record.get("country_of_residence"), warnings)
 
+    # declared_net_worth_sgd — check multiple possible field locations
+    raw_nw = record.get("declared_net_worth_sgd")
+    if raw_nw is None:
+        raw_nw = (record.get("declarations") or {}).get("declared_net_worth")
+    if raw_nw is None:
+        raw_nw = (record.get("client_declarations") or {}).get("declared_net_worth")
+    out["declared_net_worth_sgd"] = _safe_int(raw_nw)
+
+    # reference_year — explicit field, or extracted from date fields
+    ref = record.get("reference_year")
+    if ref is None:
+        date_str = (
+            record.get("date_profile_created")
+            or (record.get("client_profile") or {}).get("date_profile_created")
+            or (record.get("declarations") or {}).get("date_declared")
+            or (record.get("client_declarations") or {}).get("date_declared")
+        )
+        if date_str:
+            ref = _safe_int(str(date_str)[:4])
+    out["reference_year"] = _safe_int(ref)
+
     all_iso: set[str] = set()
 
     if out["country"]:
         all_iso.add(out["country"])
     if out["country_of_residence"]:
         all_iso.add(out["country_of_residence"])
+
+    # Top-level wealth_countries (golden case format)
+    for c in record.get("wealth_countries", []):
+        code = _to_iso(c, warnings)
+        if code:
+            all_iso.add(code)
 
     for entry in record.get("career_timeline", []):
         code = _to_iso(entry.get("country"), warnings)
@@ -513,6 +542,113 @@ def normalize_declaration_jurisdictions(declaration: dict) -> tuple[dict, list[s
     return {**declaration, "sources": sources}, warnings
 
 
+# ---------------------------------------------------------------------------
+# Typology indicator checks (pure, no I/O)
+# ---------------------------------------------------------------------------
+
+_RELATED_PARTY_KEYWORDS = [
+    "associate", "family", "relative", "friend",
+    "brother", "sister", "spouse", "wife", "husband",
+    "son", "daughter", "parent", "mother", "father",
+    "partner", "in-law",
+]
+
+
+def _check_offshore_entity(
+    declaration: dict,
+    expected_jurisdictions: list[str],
+    all_jurisdictions: list[str],
+) -> bool:
+    """True if any declared source or known case jurisdiction is outside expected list."""
+    if not expected_jurisdictions:
+        return False
+    for src in declaration.get("sources", []):
+        j = src.get("jurisdiction")
+        if j and j not in expected_jurisdictions:
+            return True
+    return any(j not in expected_jurisdictions for j in all_jurisdictions)
+
+
+def _check_counterparty_unnamed(declaration: dict, policy: dict) -> bool:
+    """True if the count of null-counterparty sources meets or exceeds the policy limit."""
+    limit = policy.get("thresholds", {}).get("unknown_counterparty_limit", 1)
+    count = sum(1 for s in declaration.get("sources", []) if s.get("counterparty") is None)
+    return count >= limit
+
+
+def _check_rapid_accumulation(clean_case: dict, max_accumulation: float) -> bool:
+    """True if declared_net_worth / career_years exceeds max_accumulation."""
+    nw = clean_case.get("declared_net_worth_sgd")
+    start = clean_case.get("career_start_year")
+    ref = clean_case.get("reference_year")
+    if nw is None or start is None or ref is None:
+        return False
+    years = ref - start
+    if years <= 0:
+        return False
+    return (nw / years) > max_accumulation
+
+
+def _check_unvalued_source(declaration: dict) -> bool:
+    """True if any declaration source has amount_sgd = null."""
+    return any(s.get("amount_sgd") is None for s in declaration.get("sources", []))
+
+
+def _check_related_party(declaration: dict) -> bool:
+    """True if any counterparty contains a related-party keyword."""
+    for src in declaration.get("sources", []):
+        cp = src.get("counterparty")
+        if cp and any(kw in cp.lower() for kw in _RELATED_PARTY_KEYWORDS):
+            return True
+    return False
+
+
+def match_typologies(
+    typologies: list[dict],
+    declaration: dict,
+    clean_case: dict,
+    expected_jurisdictions: list[str],
+    max_accumulation: float,
+    policy: dict,
+) -> list[dict]:
+    """Match each typology's indicators against client data. Pure function.
+
+    A typology breaches when ALL its core indicators fire.
+    Returns a list of match result dicts, one per typology.
+    """
+    indicator_results = {
+        "offshore_entity_present": _check_offshore_entity(
+            declaration, expected_jurisdictions,
+            clean_case.get("all_jurisdictions", []),
+        ),
+        "counterparty_unnamed": _check_counterparty_unnamed(declaration, policy),
+        "rapid_accumulation": _check_rapid_accumulation(clean_case, max_accumulation),
+        "unvalued_source_present": _check_unvalued_source(declaration),
+        "related_party_transaction": _check_related_party(declaration),
+    }
+
+    matches: list[dict] = []
+    for typ in typologies:
+        indicators = typ.get("indicators", [])
+        core = [i["indicator"] for i in indicators if i.get("weight") == "core"]
+        supporting = [i["indicator"] for i in indicators if i.get("weight") == "supporting"]
+        core_fired = [i for i in core if indicator_results.get(i, False)]
+        supporting_fired = [i for i in supporting if indicator_results.get(i, False)]
+        breached = len(core_fired) == len(core) and len(core) > 0
+
+        matches.append({
+            "typology_id": typ.get("typology_id", ""),
+            "name": typ.get("name", ""),
+            "breached": breached,
+            "core_indicators": core,
+            "core_fired": core_fired,
+            "supporting_indicators": supporting,
+            "supporting_fired": supporting_fired,
+            "typical_documents": typ.get("typical_documents", []),
+        })
+    return matches
+
+
 def decide_outcome(findings: list[dict], policy: dict) -> str:
     """Count breached dimensions and return the escalation outcome."""
     thresholds = policy.get("thresholds", {})
@@ -562,25 +698,39 @@ def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
 
 
 def assess_case(
-    case_input: dict,  # noqa: ARG001 — reserved for future dimension checks
-    benchmark: dict | None,
+    case_input: dict,
+    typology_response: dict | None,
     declaration: dict | None,
     policy: dict,
 ) -> dict:
-    """Run the full assessment for a single case.
+    """Run the full Sector Crime Scan assessment for a single case.
 
-    Returns a dict with keys: outcome, findings, documents.
+    Returns a dict with keys: outcome, findings, documents, match_results.
     """
-    if benchmark is None or declaration is None:
-        return {"outcome": "MANUAL_REVIEW", "findings": [], "documents": []}
+    if typology_response is None or declaration is None:
+        max_slots = policy.get("typology_max_patterns", 5)
+        return {"breach_count": 0, "pass_count": max_slots, "max_slots": max_slots, "match_results": []}
 
-    findings: list[dict] = []
-    # Sector Crime Scan typology matching is being redesigned (Stage 3)
+    clean_case, _ = prepare_case_for_matching(case_input)
+    typologies = typology_response.get("sector_typologies", [])
+    expected_jur = typology_response.get("expected_jurisdictions", [])
+    max_accum = typology_response.get("max_accumulation_per_year_sgd", 0)
 
-    outcome = decide_outcome(findings, policy)
-    documents = build_document_requests(findings, policy)
+    match_results = match_typologies(
+        typologies, declaration, clean_case,
+        expected_jur, max_accum, policy,
+    )
 
-    return {"outcome": outcome, "findings": findings, "documents": documents}
+    max_slots = policy.get("typology_max_patterns", 5)
+    breach_count = sum(1 for mr in match_results if mr["breached"])
+    pass_count = max_slots - breach_count
+
+    return {
+        "breach_count": breach_count,
+        "pass_count": pass_count,
+        "max_slots": max_slots,
+        "match_results": match_results,
+    }
 
 
 # ---------------------------------------------------------------------------
