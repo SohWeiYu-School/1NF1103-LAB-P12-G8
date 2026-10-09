@@ -1,0 +1,231 @@
+{
+  "type": "object",
+  "properties": {
+    "type_id": {
+      "type": "string"
+    },
+    "route_open_from": {
+      "type": "integer"
+    },
+    "route_open_to": {
+      "type": "integer"
+    },
+    "extra_money_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "amount"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extra_money_forecast": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "steady": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "boom": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "downturn": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "steady",
+          "boom",
+          "downturn"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "signal_code": {
+            "type": "string",
+            "x-vocab": "signal_codes"
+          },
+          "first_year": {
+            "type": "integer"
+          },
+          "last_year": {
+            "type": "integer"
+          },
+          "count_per_year": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "amount_per_year": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "signal_code",
+          "first_year",
+          "last_year",
+          "count_per_year",
+          "amount_per_year"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "linked_market_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "market_fall_response": {
+      "type": "object",
+      "properties": {
+        "low": {
+          "type": "number"
+        },
+        "typical": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "low",
+        "typical",
+        "high"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "type_id",
+    "route_open_from",
+    "route_open_to",
+    "extra_money_history",
+    "extra_money_forecast",
+    "signals",
+    "linked_market_ids",
+    "market_fall_response"
+  ],
+  "additionalProperties": false
+}

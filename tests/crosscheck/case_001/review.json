@@ -1,0 +1,5 @@
+{
+  "about": "What the officer notes in data/sample/case_001.json ACTUALLY say, listed by a person reading them. The AI's inflows must contain every item. 'from_text' must be copied word for word from the notes - the test checks it really is there.",
+  "how_to_fill": "One item per kind of payment. signal_code from config/vocabulary.json. amount = one payment as written in the notes (leave the key out, or null if the notes give none); times_received = how many such payments; currency as written. Leave out any key you don't want checked.",
+  "must_find": []
+}

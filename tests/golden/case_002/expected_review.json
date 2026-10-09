@@ -1,0 +1,132 @@
+{
+  "case_ref": "SOW-2026-0207",
+  "documents": [],
+  "findings": [
+    {
+      "detail": "Wealth grew 180,000 since onboarding; the honest version (steady year) grows 108,449 to 380,839.",
+      "failed": false,
+      "rule_id": "A_GROWTH"
+    },
+    {
+      "detail": "Highest running score: T1 (38%); honest: 38%.",
+      "failed": false,
+      "rule_id": "B_OTHER_TYPE_LEADS"
+    },
+    {
+      "detail": "none",
+      "failed": false,
+      "rule_id": "C_INCOME_AGAINST_MARKET"
+    },
+    {
+      "detail": "none",
+      "failed": false,
+      "rule_id": "D_UNUSUAL_PAYMENTS"
+    }
+  ],
+  "next_review_date": "2029-09-24",
+  "outcome": "PASSED",
+  "payments": [
+    {
+      "amount_sgd": 198000,
+      "counterparty_country": "Singapore",
+      "currency": "SGD",
+      "quote": "monthly salary credits from Lion City Bank of about SGD 16,500",
+      "signal_code": "SIG_SALARY_REGULAR",
+      "times_received": 12
+    },
+    {
+      "amount_sgd": 42000,
+      "counterparty_country": "Singapore",
+      "currency": "SGD",
+      "quote": "Annual bonus of SGD 42,000 paid in March",
+      "signal_code": "SIG_BONUS_ANNUAL",
+      "times_received": 1
+    },
+    {
+      "amount_sgd": 9200,
+      "counterparty_country": "Singapore",
+      "currency": "SGD",
+      "quote": "Quarterly ETF dividends of about SGD 2,300",
+      "signal_code": "SIG_DIVIDEND_INCOME",
+      "times_received": 4
+    }
+  ],
+  "policy_version": "2026.10-v5",
+  "review_date": "2027-09-24",
+  "routing": "No further action. Account opens.",
+  "scenario": "steady",
+  "type_scores": [
+    {
+      "parts": {
+        "events": 1.0,
+        "market": 1.0,
+        "payments": 1.0,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 1.0,
+      "score": 0.375,
+      "type_id": "T1"
+    },
+    {
+      "parts": {
+        "events": 0.333,
+        "market": 1.0,
+        "payments": 0.2,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 0.0667,
+      "score": 0.025,
+      "type_id": "T2"
+    },
+    {
+      "parts": {
+        "events": 0.2,
+        "market": 1.0,
+        "payments": 1.0,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 0.2,
+      "score": 0.075,
+      "type_id": "T3"
+    },
+    {
+      "parts": {
+        "events": 1.0,
+        "market": 1.0,
+        "payments": 1.0,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 1.0,
+      "score": 0.375,
+      "type_id": "T4"
+    },
+    {
+      "parts": {
+        "events": 0.2,
+        "market": 1.0,
+        "payments": 0.667,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 0.1333,
+      "score": 0.05,
+      "type_id": "T5"
+    },
+    {
+      "parts": {
+        "events": 0.4,
+        "market": 1.0,
+        "payments": 0.667,
+        "wealth": 1.0
+      },
+      "previous": 0.167,
+      "review_fit": 0.2667,
+      "score": 0.1,
+      "type_id": "T6"
+    }
+  ]
+}

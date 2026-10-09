@@ -1,0 +1,5 @@
+{
+  "about": "What the client's written declaration (sow_declaration in data/sample/case_001.json) ACTUALLY says, listed by a person reading it. The AI's claimed_sources must contain every item. 'from_text' must be copied word for word from the declaration - the test checks it really is there.",
+  "how_to_fill": "One item per source of money the text mentions. source_type is one of the codes in config/vocabulary.json (source_types). Set amount to the number if the text gives one, or null if it doesn't.",
+  "must_find": []
+}

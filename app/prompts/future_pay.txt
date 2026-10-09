@@ -1,0 +1,9 @@
+# prompt_version: future-pay-v1
+# Call 2, step 2: his pay forecast.
+
+TASK: Forecast his pay for {forecast_years} in his current job.
+
+- yearly: exactly ONE entry for EVERY year {forecast_years}. For each of steady, boom and
+  downturn give base_pay, bonus and equity_or_profit_share separately, using the market
+  outlooks given. Also tax_rate_pct, living_costs and savings_return_pct.
+- career_outlook: where his career is likely to go next, in one or two sentences.

@@ -1,0 +1,18 @@
+# prompt_version: markets-list-v1
+# Call 1, step 1: choose the markets and forecast the chance of each economic scenario.
+
+TASK: Choose every market that shaped, or will shape, this client's wealth from {start_year}
+to {last_forecast_year}.
+
+- relevant_markets: the economy of every country he worked in or holds assets in; EVERY
+  industry in his career history (not only the current one); the property market for each
+  property; the stock market for his shares; and the currency of every asset held outside
+  {currency}. market_id: short and unique, letters, digits and underscores only
+  (e.g. ECO_SG, IND_FREIGHT, PROP_AU, FX_AUD). indicator: the ONE indicator whose yearly %
+  change best tracks the market (real GDP, a freight rate index, a property price index,
+  an index total return, the currency's value in {currency}).
+- jurisdictions: every country linked to him (jobs, assets, countries he named). listings:
+  the lists the country is CURRENTLY on (e.g. "FATF grey list", "UN sanctions"); [] if none.
+- scenario_chances: for EVERY year {forecast_years}, your forecast of the chance (in %) of
+  a steady year, a boom and a downturn for the world economy. The three should add up to 100.
+- data_gaps: anything you could not establish.
