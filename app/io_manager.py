@@ -297,6 +297,23 @@ def get_client_declarations() -> dict:
         "Date declared (YYYY-MM-DD): "
     ).strip()
 
+    biggest_wealth_jump = input(
+        "Biggest wealth increase (SGD): "
+    ).strip()
+
+    wealth_jump_years = input(
+        "Number of years for this wealth increase: "
+    ).strip()
+
+    counterparties = input(
+        "People or organisations the client deals with (separate with commas): "
+    ).strip()
+
+    countries = input(
+        "Countries connected to the client's financial activities "
+        "(separate with commas): "
+    ).strip()
+
     return {
         "declared_net_worth": declared_net_worth,
         "expected_assets_under_management": expected_aum,
@@ -304,7 +321,19 @@ def get_client_declarations() -> dict:
         "owns_investments": owns_investments,
         "pep_status": pep_status,
         "countries_where_wealth_was_generated": wealth_countries,
-        "date_declared": date_declared
+        "date_declared": date_declared,
+        "biggest_wealth_jump": biggest_wealth_jump,
+        "wealth_jump_years": wealth_jump_years,
+        "declared_counterparties": [
+            item.strip()
+            for item in counterparties.split(",")
+            if item.strip()
+        ],
+        "declared_countries": [
+            item.strip()
+            for item in countries.split(",")
+            if item.strip()
+        ]
     }
 
 
@@ -685,6 +714,7 @@ def edit_client_profile(record):
     if value:
         profile["date_profile_created"] = value
 
+
     print("\nClient profile updated.")
 
 
@@ -952,6 +982,38 @@ def edit_client_declarations(record):
     ).strip()
     if value:
         declarations["date_declared"] = value
+
+    value = input(
+        f"Biggest wealth increase (SGD) "
+        f"[{declarations.get('biggest_wealth_jump', '')}]: "
+    ).strip()
+    if value:
+        declarations["biggest_wealth_jump"] = value
+
+    value = input(
+        f"Years for this wealth increase "
+        f"[{declarations.get('wealth_jump_years', '')}]: "
+    ).strip()
+    if value:
+        declarations["wealth_jump_years"] = value
+
+    value = input(
+        "People or organisations the client deals with "
+        f"[{', '.join(declarations.get('declared_counterparties', []))}]: "
+    ).strip()
+    if value:
+        declarations["declared_counterparties"] = [
+            item.strip() for item in value.split(",") if item.strip()
+        ]
+
+    value = input(
+        "Countries connected to financial activities "
+        f"[{', '.join(declarations.get('declared_countries', []))}]: "
+    ).strip()
+    if value:
+        declarations["declared_countries"] = [
+            item.strip() for item in value.split(",") if item.strip()
+        ]
 
     print("\nClient declarations updated.")
 

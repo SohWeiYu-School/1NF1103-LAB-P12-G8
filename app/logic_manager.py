@@ -51,9 +51,6 @@ LIMITS = {
     "jurisdiction": 1
 }
 
-# ---------------------------------------------------------------------------
-# Benchmark Section
-# ---------------------------------------------------------------------------
 
 def calculate_total_wealth(client_data, ai_data):
 
@@ -130,45 +127,171 @@ def calculate_composition(client_data, ai_data):
     else:
         print("Cash: FAIL")
 
+#=============================================================================#
+def calculate_velocity(client_data, ai_data):
+
+    actual = client_data["biggest_wealth_jump"]
+    years = client_data["wealth_jump_years"]
+    expected = ai_data["expected_velocity"]
+
+    actual_velocity = actual / years
+    result3 = actual_velocity / expected
+
+    return result3
+
+#=============================================================================#
+def calculate_counterparties(declared, expected):
+    unknown = []
+
+    for item in declared:
+        if item not in expected:
+            unknown.append(item)
+
+    return unknown
+
+#=============================================================================#
+def clean_country(country):
+    if country == "SG":
+        return "Singapore"
+    elif country == "MY":
+        return "Malaysia"
+    elif country == "ID":
+        return "Indonesia"
+    elif country == "HK":
+        return "Hong Kong"
+    elif country == "AE":
+        return "United Arab Emirates"
+
+    return country
+
+def calculate_jurisdiction(declared, expected):
+    unknown = []
+
+    for country in declared:
+        country = clean_country(country)
+
+        if country not in expected:
+            unknown.append(country)
+
+    return unknown
+
 
 def run_benchmark(client_data: dict):
-    """Run the full benchmark check for the given client data."""
+    """Run all six benchmark checks for a client."""
 
+    # Ask AI for the expected benchmark values
     ai_data = get_ai_data(client_data)
 
     if ai_data is None:
-        print("\n[Benchmark] AI call failed — could not retrieve benchmark data.")
+        print("\n[Benchmark] AI call failed.")
         return None
 
+    # 1. TOTAL WEALTH CHECK
     result1 = calculate_total_wealth(client_data, ai_data)
+
     print("\n--- Total Wealth Check ---")
     print("Declared Net Worth:", client_data["declared_net_worth"])
-    print("Expected Wealth:   ", ai_data["expected_wealth"])
-    print("Ratio:             ", round(result1, 2))
+    print("Expected Wealth:", ai_data["expected_wealth"])
+    print("Ratio:", round(result1, 2))
 
     if result1 <= LIMITS["total_wealth"]:
-        print("Result:             PASS")
+        print("Result: PASS")
     else:
-        print("Result:             FAIL")
+        print("Result: FAIL")
 
+    # 2. LIQUIDITY CHECK
     result2 = calculate_liquidity(client_data, ai_data)
+
     print("\n--- Liquidity Check ---")
-    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
+    print(
+        "Declared Liquidity:",
+        client_data["listed_equities"] + client_data["cash"], "%"
+    )
     print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
-    print("Ratio:             ", round(result2, 2))
+    print("Ratio:", round(result2, 2))
 
     if result2 <= LIMITS["liquidity"]:
-        print("Result:             PASS")
+        print("Result: PASS")
     else:
-        print("Result:             FAIL")
+        print("Result: FAIL")
 
+    # 3. ASSET COMPOSITION CHECK
+    
     calculate_composition(client_data, ai_data)
 
-    return ai_data
+    # 4. VELOCITY CHECK
+    print("\n--- Velocity Check ---")
 
-    #def calculate_velocity(client_data, ai_data):
+    jump = client_data.get("biggest_wealth_jump")
+    years = client_data.get("wealth_jump_years")
+    expected_velocity = ai_data.get("expected_velocity")
 
+    if (
+        jump is not None
+        and years is not None
+        and years > 0
+        and expected_velocity is not None
+        and expected_velocity > 0
+    ):
+        actual_velocity = jump / years
+        result3 = actual_velocity / expected_velocity
 
+        print("Actual Velocity:", round(actual_velocity, 2))
+        print("Expected Velocity:", expected_velocity)
+        print("Ratio:", round(result3, 2))
+
+        if result3 <= LIMITS["velocity"]:
+            print("Result: PASS")
+        else:
+            print("Result: FAIL")
+    else:
+        print("Result: SKIPPED - Missing or invalid wealth timeline data")
+
+    # 5. COUNTERPARTIES CHECK
+    print("\n--- Counterparties Check ---")
+
+    declared_counterparties = client_data.get(
+        "declared_counterparties", []
+    )
+    expected_counterparties = ai_data.get(
+        "expected_counterparties", []
+    )
+
+    unknown_counterparties = calculate_counterparties(
+        declared_counterparties,
+        expected_counterparties
+    )
+
+    print("Declared Counterparties:", declared_counterparties)
+    print("Expected Counterparties:", expected_counterparties)
+    print("Unknown Counterparties:", unknown_counterparties)
+
+    if len(unknown_counterparties) <= LIMITS["counterparties"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    # 6. JURISDICTION CHECK
+    print("\n--- Jurisdiction Check ---")
+
+    declared_countries = client_data.get("declared_countries", [])
+    expected_countries = ai_data.get("expected_jurisdiction", [])
+
+    unknown_countries = calculate_jurisdiction(
+        declared_countries,
+        expected_countries
+    )
+
+    print("Declared Countries:", declared_countries)
+    print("Expected Countries:", expected_countries)
+    print("Unknown Countries:", unknown_countries)
+
+    if len(unknown_countries) <= LIMITS["jurisdiction"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    
 # ---------------------------------------------------------------------------
 # Sector Crime Scan Section
 # ---------------------------------------------------------------------------
