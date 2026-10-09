@@ -46,6 +46,26 @@ def show_research_output(research_response: dict) -> None:
         print(f"  {rid}  {org} — {title} ({year})")
     print()
 
+def show_crime_scan_result(result: dict) -> None:
+    """Print per-typology PASS/FAIL for the crime scan (all 5 slots)."""
+    match_results = result.get("match_results", [])
+    breach_count = result.get("breach_count", 0)
+    pass_count = result.get("pass_count", 0)
+    max_slots = result.get("max_slots", 5)
+
+    print("\n--- Crime Scan: Typology Matching ---")
+    for i in range(max_slots):
+        if i < len(match_results):
+            mr = match_results[i]
+            name = mr.get("name", mr.get("typology_id", "?"))
+            status = "FAIL" if mr.get("breached") else "PASS"
+            print(f"  Slot {i + 1}: [{status}] {name}")
+        else:
+            print(f"  Slot {i + 1}: [PASS] (no typology)")
+    print(f"\n  Result: {pass_count} PASS / {breach_count} FAIL")
+    print()
+
+
 def show_ai_output(
     case_input: dict,
     typology_response: dict,
