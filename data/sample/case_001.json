@@ -1,35 +1,130 @@
 {
-  "case_ref": "SOW-2026-001",
-  "age": 45,
-  "nationality": "Singaporean",
-  "country_of_residence": "Singapore",
-  "occupation": "Software Engineer",
-  "industry": "Technology",
-  "career_start_year": 2005,
-  "pep_status": "none",
-  "declared_net_worth_sgd": 2000000,
-  "expected_aum_sgd": 1500000,
-  "asset_composition": {
-    "property_pct": 40,
-    "cpf_pct": 25,
-    "equities_pct": 20,
-    "offshore_pct": 5,
-    "cash_pct": 10
+  "client_ref": "SOW-2026-0142",
+  "current_date": "2026-09-24",
+  "name": "Daniel Tan Wei Ming",
+  "nationality": "Malaysian",
+  "career": {
+    "occupation": "Chief Operating Officer",
+    "seniority": "C-suite",
+    "industry": "Maritime shipping and freight forwarding",
+    "employer_name": "Straits Harbour Logistics Pte Ltd",
+    "employer_size": "1,000-5,000 employees",
+    "country_of_residence": "Singapore",
+    "age": 51,
+    "career_start_year": 1998
   },
-  "wealth_countries": ["SG"],
-  "declaration_text": "My wealth primarily derives from twenty years of employment as a software engineer at technology companies in Singapore. I have accumulated savings through salary and bonuses, invested in local equities and CPF, and purchased a HDB flat in 2010 which has appreciated in value.",
-  "evidence": [
+  "career_history": [
     {
-      "doc_type": "payslip",
-      "year": 2024,
-      "amount_sgd": 180000,
-      "supports_source": "employment"
+      "start_year": 1998,
+      "end_year": 2003,
+      "occupation": "Operations Planner",
+      "seniority": "Junior",
+      "industry": "Container shipping",
+      "employer_name": "Pacific Crest Container Lines Pte Ltd",
+      "employer_size": "5,000+ employees",
+      "country": "Singapore"
     },
     {
-      "doc_type": "cpf_statement",
-      "year": 2024,
-      "amount_sgd": 350000,
-      "supports_source": "employment"
+      "start_year": 2004,
+      "end_year": 2008,
+      "occupation": "Chartering and Logistics Manager",
+      "seniority": "Mid-level",
+      "industry": "Commodity trading (oil and petrochemicals)",
+      "employer_name": "Meridian Energy Trading Pte Ltd",
+      "employer_size": "200-500 employees",
+      "country": "Singapore"
+    },
+    {
+      "start_year": 2009,
+      "end_year": 2013,
+      "occupation": "Regional Operations Manager",
+      "seniority": "Senior manager",
+      "industry": "Port terminal operations",
+      "employer_name": "Victoria Harbour Terminals Ltd",
+      "employer_size": "1,000-5,000 employees",
+      "country": "Hong Kong"
+    },
+    {
+      "start_year": 2014,
+      "end_year": 2016,
+      "occupation": "Director of Operations",
+      "seniority": "Director",
+      "industry": "Maritime shipping and freight forwarding",
+      "employer_name": "Straits Harbour Logistics Pte Ltd",
+      "employer_size": "1,000-5,000 employees",
+      "country": "Singapore"
+    },
+    {
+      "start_year": 2017,
+      "end_year": null,
+      "occupation": "Chief Operating Officer",
+      "seniority": "C-suite",
+      "industry": "Maritime shipping and freight forwarding",
+      "employer_name": "Straits Harbour Logistics Pte Ltd",
+      "employer_size": "1,000-5,000 employees",
+      "country": "Singapore"
+    }
+  ],
+  "investments": [
+    {
+      "asset_type": "Residential property (condominium)",
+      "country": "Singapore",
+      "year_acquired": 2009,
+      "price_paid": 1650000,
+      "current_declared_value": 3100000,
+      "payment_method": "loan",
+      "income_produced": 0
+    },
+    {
+      "asset_type": "Residential property (apartment, rented out)",
+      "country": "Australia",
+      "year_acquired": 2016,
+      "price_paid": 1200000,
+      "current_declared_value": 1550000,
+      "payment_method": "asset_sale",
+      "income_produced": 54000
+    },
+    {
+      "asset_type": "Listed equities portfolio",
+      "country": "United States",
+      "year_acquired": 2019,
+      "price_paid": 900000,
+      "current_declared_value": 1750000,
+      "payment_method": "cash",
+      "income_produced": 28000
+    },
+    {
+      "asset_type": "Private company stake (20% of a freight brokerage)",
+      "country": "Hong Kong",
+      "year_acquired": 2021,
+      "price_paid": 2500000,
+      "current_declared_value": 6800000,
+      "payment_method": "cash",
+      "income_produced": 410000
+    }
+  ],
+  "claims": {
+    "declared_net_worth": 16500000,
+    "expected_aum": 5000000,
+    "asset_composition": {
+      "property": 0.28,
+      "listed_equities": 0.11,
+      "private_business": 0.41,
+      "cash": 0.2
+    },
+    "wealth_countries": [
+      "Singapore",
+      "Hong Kong",
+      "United Arab Emirates"
+    ],
+    "pep_status": "None"
+  },
+  "sow_declaration": "Mr Tan started as an operations planner at a Singapore container line in 1998, moved into chartering at an oil and petrochemicals trader from 2004 to 2008, then ran regional operations for a Hong Kong port terminal operator from 2009 to 2013. He joined Straits Harbour Logistics as Director of Operations in 2014 and became COO in 2017. His wealth comes mainly from salary, annual bonuses and a long-term incentive plan paid out in 2020 and 2023. In 2016 he sold a smaller Singapore flat bought early in his career and used the proceeds to buy a rental apartment in Melbourne. In 2021 he invested in a Hong Kong freight brokerage run by a former colleague, which has grown strongly since and pays him annual dividends; he also did some advisory work for a Dubai trading firm around the same time. The remaining cash comes from savings and the 2023 incentive payout.",
+  "reviews": [
+    {
+      "current_date": "2027-09-24",
+      "current_wealth": 19800000,
+      "officer_notes": "Since the last review: monthly salary credits from Straits Harbour Logistics continued as normal, about SGD 68k per month. Annual bonus of SGD 420k paid in March. Rent from the Melbourne apartment arriving quarterly. The Hong Kong brokerage paid a dividend of HKD 5.2m in June, higher than last year even though freight rates fell sharply in Q2. Three transfers of USD 250,000 each came in from a Dubai-registered company, described by the client as consulting fees. One further transfer from a BVI company with no amount noted on the statement summary; client says it relates to the brokerage."
     }
   ]
 }

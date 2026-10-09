@@ -1,0 +1,15 @@
+{
+  "about": "REAL yearly figures from official sources. The AI's market history must be within allowed_difference of each one. Every row needs a source link. Rows with real_change_pct = null are ignored until you fill them in.",
+  "how_to_fill": "real_change_pct is the % change over that year. For growth rates (e.g. GDP) copy the published figure. For an index or price, work it out from the official levels: (this year / last year - 1) x 100. market_match is a pattern matched against the AI's market description, so 'singapore.*(gdp|econom)' finds the AI's Singapore economy market whatever id it gave it.",
+  "pass_mark": 0.9,
+  "rows": [
+    {"market": "Singapore real GDP growth", "market_match": "singapore.*(gdp|econom)|econom.*singapore",
+     "year": 2010, "real_change_pct": null, "allowed_difference": 1.0, "source": ""},
+    {"market": "Singapore real GDP growth", "market_match": "singapore.*(gdp|econom)|econom.*singapore",
+     "year": 2020, "real_change_pct": null, "allowed_difference": 1.0, "source": ""},
+    {"market": "Singapore private property price index (URA)", "market_match": "singapore.*propert|propert.*singapore|ura",
+     "year": 2021, "real_change_pct": null, "allowed_difference": 1.5, "source": ""},
+    {"market": "S&P 500 total return", "market_match": "s&p|us.*(share|equit|stock)|united states.*(share|equit|stock)",
+     "year": 2022, "real_change_pct": null, "allowed_difference": 2.0, "source": ""}
+  ]
+}

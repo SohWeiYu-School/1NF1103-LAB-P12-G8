@@ -1,0 +1,12 @@
+# prompt_version: events-v1
+# Call 4, step 1: specific future events and their market shocks.
+
+TASK: Name {min_events} to {max_events} SPECIFIC events that could happen in {forecast_years}
+and would reach this client.
+
+- At least one must hit the whole economy (e.g. an AI-driven stock market bubble bursting,
+  a banking crisis) and at least one must hit his industry (e.g. a freight rate collapse).
+- event_id "E1", "E2", ...; name; year (one of {forecast_years}); probability_pct: your
+  forecast of the chance it happens by then.
+- shocks: for each market it hits (market_id from the list), the extra % change in that
+  market's indicator in the event year if it happens.

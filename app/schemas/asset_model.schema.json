@@ -1,0 +1,183 @@
+{
+  "type": "object",
+  "properties": {
+    "asset_index": {
+      "type": "integer"
+    },
+    "exposures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "market_id": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "market_id",
+          "sensitivity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "own_growth_pct": {
+      "type": "object",
+      "properties": {
+        "low": {
+          "type": "number"
+        },
+        "typical": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "low",
+        "typical",
+        "high"
+      ],
+      "additionalProperties": false
+    },
+    "income_yield_by_year": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "yield_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "yield_pct"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "future_income_yield_pct": {
+      "type": "object",
+      "properties": {
+        "steady": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "typical": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "low",
+            "typical",
+            "high"
+          ],
+          "additionalProperties": false
+        },
+        "boom": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "typical": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "low",
+            "typical",
+            "high"
+          ],
+          "additionalProperties": false
+        },
+        "downturn": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "typical": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "low",
+            "typical",
+            "high"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "steady",
+        "boom",
+        "downturn"
+      ],
+      "additionalProperties": false
+    },
+    "valuation_basis": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "asset_index",
+    "exposures",
+    "own_growth_pct",
+    "income_yield_by_year",
+    "future_income_yield_pct",
+    "valuation_basis"
+  ],
+  "additionalProperties": false
+}

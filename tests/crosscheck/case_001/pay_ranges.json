@@ -1,0 +1,9 @@
+{
+  "about": "REAL pay ranges from published salary data (MOM wage tables, recruitment salary guides). The AI's typical total pay (base + bonus + equity) for that job and year must fall inside. Every row needs a source link. Rows with min/max = null are ignored until filled in.",
+  "how_to_fill": "position_index matches career_history in data/sample/case_001.json (0 = Operations Planner 1998-2003 ... 4 = COO 2017-now). Use annual pay in SGD.",
+  "pass_mark": 1.0,
+  "rows": [
+    {"job": "Chief Operating Officer, shipping, Singapore", "position_index": 4, "year": 2026,
+     "min_total_pay": null, "max_total_pay": null, "source": ""}
+  ]
+}

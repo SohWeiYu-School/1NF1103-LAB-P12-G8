@@ -1,0 +1,125 @@
+{
+  "type": "object",
+  "properties": {
+    "market_id": {
+      "type": "string"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "change_pct": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "year",
+          "change_pct",
+          "source_name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "outlook": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer"
+          },
+          "steady": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "boom": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "downturn": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "year",
+          "steady",
+          "boom",
+          "downturn"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "data_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "market_id",
+    "history",
+    "outlook",
+    "data_gaps"
+  ],
+  "additionalProperties": false
+}

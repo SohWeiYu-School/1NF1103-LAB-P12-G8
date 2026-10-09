@@ -1,0 +1,90 @@
+{
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "year": {
+            "type": "integer"
+          },
+          "probability_pct": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "typical": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "low",
+              "typical",
+              "high"
+            ],
+            "additionalProperties": false
+          },
+          "shocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "market_id": {
+                  "type": "string"
+                },
+                "change_pct": {
+                  "type": "object",
+                  "properties": {
+                    "low": {
+                      "type": "number"
+                    },
+                    "typical": {
+                      "type": "number"
+                    },
+                    "high": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "low",
+                    "typical",
+                    "high"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "market_id",
+                "change_pct"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "event_id",
+          "name",
+          "year",
+          "probability_pct",
+          "shocks"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "events"
+  ],
+  "additionalProperties": false
+}
