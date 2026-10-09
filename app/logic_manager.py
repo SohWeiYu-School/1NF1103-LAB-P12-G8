@@ -51,58 +51,6 @@ LIMITS = {
     "jurisdiction": 1
 }
 
-# Sample client information
-client_data = {
-    "client_id": "CID1001",
-    "age": 28,
-    "nationality": "Singaporean",
-    "country_of_residence": "Singapore",
-    "occupation": "Software Engineer",
-    "career_start_year": 2020,
-    "employment_years": 6,
-    "industry": "Information Technology",
-    "properties": "1 condominium",
-    "investment": "Stocks and ETFs",
-    "declared_net_worth": 200000,
-    "expected_aum": None,
-    "asset_composition": None,
-    "source_of_wealth": "Salary savings and long-term investments",
-    "pep_status": "None",
-    "wealth_generation_country": "Singapore",
-    "listed_equities": 11, #used for liquidity, composition
-    "cash": 20, #used for liquidity, composition
-    "property": 28, #used for composition
-    "private_business": 41, #used for composition
-    "biggest_wealth_jump": 15000000, #used for velocity
-    "wealth_jump_years": 1.5, #used for velocity
-}
-
-# Temporary test values for Counterparties and Jurisdictions
-# expected_counterparties = [
-#     "employer",
-#     "CPF Board",
-#     "local bank",
-#     "HDB or developer"
-# ]
-
-declared_counterparties = [
-    "friend",
-    "BVI entity"
-]
-
-# expected_countries = [
-#     "Singapore",
-#     "Malaysia",
-#     "Indonesia"
-# ]
-
-declared_countries = [
-    "SG",
-    "Cyprus"
-]
-
-
-ai_data = get_ai_data(client_data) # Get Ai output using function
 
 def calculate_total_wealth(client_data, ai_data):
 
@@ -179,40 +127,6 @@ def calculate_composition(client_data, ai_data):
     else:
         print("Cash: FAIL")
 
-
-def run_benchmark(client_data: dict):
-    """Run the full benchmark check for the given client data."""
-
-    ai_data = get_ai_data(client_data)
-
-    if ai_data is None:
-        print("\n[Benchmark] AI call failed — could not retrieve benchmark data.")
-        return None
-
-    result1 = calculate_total_wealth(client_data, ai_data)
-    print("\n--- Total Wealth Check ---")
-    print("Declared Net Worth:", client_data["declared_net_worth"])
-    print("Expected Wealth:   ", ai_data["expected_wealth"])
-    print("Ratio:             ", round(result1, 2))
-
-    if result1 <= LIMITS["total_wealth"]:
-        print("Result:             PASS")
-    else:
-        print("Result:             FAIL")
-
-    result2 = calculate_liquidity(client_data, ai_data)
-    print("\n--- Liquidity Check ---")
-    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
-    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
-    print("Ratio:             ", round(result2, 2))
-
-    if result2 <= LIMITS["liquidity"]:
-        print("Result:             PASS")
-    else:
-        print("Result:             FAIL")
-
-    calculate_composition(client_data, ai_data)
-
 #=============================================================================#
 def calculate_velocity(client_data, ai_data):
 
@@ -224,20 +138,8 @@ def calculate_velocity(client_data, ai_data):
     result3 = actual_velocity / expected
 
     return result3
-result3 = calculate_velocity(client_data, ai_data)
-
-print("\n--- Velocity Check ---")
-print("Actual Velocity:  ", round(client_data["biggest_wealth_jump"] / client_data["wealth_jump_years"], 2))
-print("Expected Velocity:", ai_data["expected_velocity"])
-print("Ratio:            ", round(result3, 2), "x")
-
-if result3 <= LIMITS["velocity"]:
-    print("Result:            PASS")
-else:
-    print("Result:            FAIL")
 
 #=============================================================================#
-
 def calculate_counterparties(declared, expected):
     unknown = []
 
@@ -246,23 +148,6 @@ def calculate_counterparties(declared, expected):
             unknown.append(item)
 
     return unknown
-
-expected_counterparties = ai_data["expected_counterparties"]
-unknown_counterparties = calculate_counterparties(
-    declared_counterparties,
-    expected_counterparties
-)
-
-print("\n--- Counterparties Check ---")
-print("Expected Counterparties:", expected_counterparties)
-print("Declared Counterparties:", declared_counterparties)
-print("Unknown Counterparties:", unknown_counterparties)
-print("Number of Unknowns:", len(unknown_counterparties))
-
-if len(unknown_counterparties) <= LIMITS["counterparties"]:
-    print("Result: PASS")
-else:
-    print("Result: FAIL")
 
 #=============================================================================#
 def clean_country(country):
@@ -290,23 +175,123 @@ def calculate_jurisdiction(declared, expected):
 
     return unknown
 
-expected_countries = ai_data["expected_jurisdiction"]
-unknown_countries = calculate_jurisdiction(
-    declared_countries,
-    expected_countries
-)
-print("\n--- Jurisdiction Check ---")
-print("Expected Countries:", expected_countries)
-print("Declared Countries:", declared_countries)
-print("Unknown Countries:", unknown_countries)
-print("Number of Unknowns:", len(unknown_countries))
 
-if len(unknown_countries) <= LIMITS["jurisdiction"]:
-    print("Result: PASS")
-else:
-    print("Result: FAIL")
+def run_benchmark(client_data: dict):
+    """Run all six benchmark checks for a client."""
 
+    # Ask AI for the expected benchmark values
+    ai_data = get_ai_data(client_data)
 
+    if ai_data is None:
+        print("\n[Benchmark] AI call failed.")
+        return None
+
+    # 1. TOTAL WEALTH CHECK
+    result1 = calculate_total_wealth(client_data, ai_data)
+
+    print("\n--- Total Wealth Check ---")
+    print("Declared Net Worth:", client_data["declared_net_worth"])
+    print("Expected Wealth:", ai_data["expected_wealth"])
+    print("Ratio:", round(result1, 2))
+
+    if result1 <= LIMITS["total_wealth"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    # 2. LIQUIDITY CHECK
+    result2 = calculate_liquidity(client_data, ai_data)
+
+    print("\n--- Liquidity Check ---")
+    print(
+        "Declared Liquidity:",
+        client_data["listed_equities"] + client_data["cash"], "%"
+    )
+    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
+    print("Ratio:", round(result2, 2))
+
+    if result2 <= LIMITS["liquidity"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    # 3. ASSET COMPOSITION CHECK
+    
+    calculate_composition(client_data, ai_data)
+
+    # 4. VELOCITY CHECK
+    print("\n--- Velocity Check ---")
+
+    jump = client_data.get("biggest_wealth_jump")
+    years = client_data.get("wealth_jump_years")
+    expected_velocity = ai_data.get("expected_velocity")
+
+    if (
+        jump is not None
+        and years is not None
+        and years > 0
+        and expected_velocity is not None
+        and expected_velocity > 0
+    ):
+        actual_velocity = jump / years
+        result3 = actual_velocity / expected_velocity
+
+        print("Actual Velocity:", round(actual_velocity, 2))
+        print("Expected Velocity:", expected_velocity)
+        print("Ratio:", round(result3, 2))
+
+        if result3 <= LIMITS["velocity"]:
+            print("Result: PASS")
+        else:
+            print("Result: FAIL")
+    else:
+        print("Result: SKIPPED - Missing or invalid wealth timeline data")
+
+    # 5. COUNTERPARTIES CHECK
+    print("\n--- Counterparties Check ---")
+
+    declared_counterparties = client_data.get(
+        "declared_counterparties", []
+    )
+    expected_counterparties = ai_data.get(
+        "expected_counterparties", []
+    )
+
+    unknown_counterparties = calculate_counterparties(
+        declared_counterparties,
+        expected_counterparties
+    )
+
+    print("Declared Counterparties:", declared_counterparties)
+    print("Expected Counterparties:", expected_counterparties)
+    print("Unknown Counterparties:", unknown_counterparties)
+
+    if len(unknown_counterparties) <= LIMITS["counterparties"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    # 6. JURISDICTION CHECK
+    print("\n--- Jurisdiction Check ---")
+
+    declared_countries = client_data.get("declared_countries", [])
+    expected_countries = ai_data.get("expected_jurisdiction", [])
+
+    unknown_countries = calculate_jurisdiction(
+        declared_countries,
+        expected_countries
+    )
+
+    print("Declared Countries:", declared_countries)
+    print("Expected Countries:", expected_countries)
+    print("Unknown Countries:", unknown_countries)
+
+    if len(unknown_countries) <= LIMITS["jurisdiction"]:
+        print("Result: PASS")
+    else:
+        print("Result: FAIL")
+
+    
 # ---------------------------------------------------------------------------
 # Sector Crime Scan Section
 # ---------------------------------------------------------------------------

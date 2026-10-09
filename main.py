@@ -139,11 +139,16 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     benchmark_input = {
         **case_input,
         "declared_net_worth": _whole_number(decl.get("declared_net_worth")),
-        "listed_equities":    _whole_number(comp.get("listed_equities")),
-        "cash":               _whole_number(comp.get("cash")),
-        "property":           _whole_number(comp.get("property")),
-        "private_business":   _whole_number(comp.get("private_business")),
+        "listed_equities": _whole_number(comp.get("listed_equities")),
+        "cash": _whole_number(comp.get("cash")),
+        "property": _whole_number(comp.get("property")),
+        "private_business": _whole_number(comp.get("private_business")),
+        "biggest_wealth_jump": _whole_number(decl.get("biggest_wealth_jump")),
+        "wealth_jump_years": float(decl.get("wealth_jump_years") or 0),
+        "declared_counterparties": decl.get("declared_counterparties", []),
+        "declared_countries": decl.get("declared_countries", []),
     }
+
     unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
                   if benchmark_input[k] is None]
     if unreadable:
