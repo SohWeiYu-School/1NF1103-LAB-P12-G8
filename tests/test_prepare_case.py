@@ -182,3 +182,34 @@ def test_lowercase_iso_uppercased():
     out, warnings = normalize_declaration_jurisdictions(decl)
     assert out["sources"][0]["jurisdiction"] == "SG"
     assert any("uppercased" in w for w in warnings)
+
+
+# ---------------------------------------------------------------------------
+# prepare_case_for_matching — declared_net_worth, reference_year, wealth_countries
+# ---------------------------------------------------------------------------
+
+def test_declared_net_worth_from_top_level_field():
+    record = _sample_record(declared_net_worth_sgd=16500000)
+    out, _ = prepare_case_for_matching(record)
+    assert out["declared_net_worth_sgd"] == 16500000
+
+
+def test_declared_net_worth_from_declarations_sub_dict():
+    record = _sample_record()
+    record["declarations"] = {"declared_net_worth": 5000000, "wealth_countries": []}
+    out, _ = prepare_case_for_matching(record)
+    assert out["declared_net_worth_sgd"] == 5000000
+
+
+def test_reference_year_extracted_from_record():
+    record = _sample_record(reference_year=2025)
+    out, _ = prepare_case_for_matching(record)
+    assert out["reference_year"] == 2025
+
+
+def test_top_level_wealth_countries_added_to_all_jurisdictions():
+    record = _sample_record(country="SG", country_of_residence="SG",
+                            wealth_countries=["SG", "AE", "HK"])
+    out, _ = prepare_case_for_matching(record)
+    assert "AE" in out["all_jurisdictions"]
+    assert "HK" in out["all_jurisdictions"]
