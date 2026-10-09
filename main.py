@@ -95,6 +95,10 @@ def _run_sample_assessment() -> None:
 
     io_manager.show_ai_output(case_input, typology_response, declaration, research=clean_research)
 
+    if typology_response is not None:
+        crime_result = logic_manager.assess_case(raw, typology_response, declaration, policy)
+        io_manager.show_crime_scan_result(crime_result)
+
 
 def _configure_logging() -> None:
     """Route all logging (including httpx) to logs/app.log. Nothing goes to the console."""
@@ -182,6 +186,10 @@ def main() -> None:
 
             if typology_response is not None and declaration is not None:
                 io_manager.show_ai_output(case_input, typology_response, declaration, research=clean_research)
+                crime_result = logic_manager.assess_case(
+                    client_record, typology_response, declaration, policy,
+                )
+                io_manager.show_crime_scan_result(crime_result)
 
             # --- Benchmark ---
             comp = client_record["asset_composition"]
