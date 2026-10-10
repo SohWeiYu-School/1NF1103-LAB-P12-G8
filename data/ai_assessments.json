@@ -1,0 +1,2987 @@
+[
+    {
+        "client_ref": "CL-C7CC9ACA",
+        "kind": "onboarding",
+        "assessed_at": "2026-10-09T15:25:32.747683+00:00",
+        "assessment": {
+            "case_ref": "CL-C7CC9ACA",
+            "assessed_on": "2026-10-09",
+            "policy_version": "2026.10-v5",
+            "prompt_versions": {
+                "step0_declaration": "declaration-v1",
+                "call1_markets.list": "markets-list-v1",
+                "call1_markets.series.ECO_SG": "market-series-v1",
+                "call1_markets.series.IND_IT": "market-series-v1",
+                "call1_markets.series.PROP_SG": "market-series-v1",
+                "call2_earnings.position.0": "position-pay-v1",
+                "call2_earnings.position.1": "position-pay-v1",
+                "call2_earnings.future_pay": "future-pay-v1",
+                "call2_earnings.asset.0": "asset-model-v1",
+                "call3_types.list": "person-types-v4",
+                "call3_types.behaviour.T1": "type-behaviour-v3",
+                "call3_types.behaviour.T2": "type-behaviour-v3",
+                "call3_types.behaviour.T3": "type-behaviour-v3",
+                "call3_types.behaviour.T4": "type-behaviour-v3",
+                "call3_types.behaviour.T5": "type-behaviour-v3",
+                "call4_events.list": "events-v1",
+                "call4_events.reactions.T1": "type-reactions-v1",
+                "call4_events.reactions.T2": "type-reactions-v1",
+                "call4_events.reactions.T3": "type-reactions-v1",
+                "call4_events.reactions.T4": "type-reactions-v1",
+                "call4_events.reactions.T5": "type-reactions-v1"
+            },
+            "outcome": "RISKY",
+            "routing": "Additional documents requested from the client.",
+            "reasons": [
+                "Declared net worth 500,000; the honest version explains 10,841 to 792,939.",
+                "Crime types that do fit: T2 Tax evasion (undeclared income or offshore accounts) via job 0 (IT, Singapore) (2017-2019); T3 Fraud or embezzlement against an employer via job 1 (IT, Singapore) (2021-2030); T4 Money laundering for others (acting as a channel or nominee) via asset 0 (Property - Testing) (2019-2030); T5 Bribery and corruption (kickbacks, secret commissions) via job 1 (IT, Singapore) (2021-2030).",
+                "Named countries with no job, asset or declared source: ['australia']. Linked countries on a risk list: none.",
+                "S2 Should get 500000 in 20 years from investment (?-?, Singapore): no amount and no job or asset behind it"
+            ],
+            "borderline": false,
+            "stability": {
+                "-10%": "RISKY",
+                "+0%": "RISKY",
+                "+10%": "RISKY"
+            },
+            "declared_net_worth": 500000.0,
+            "types": [
+                {
+                    "type_id": "T1",
+                    "fits": true,
+                    "fit_score": 1.0,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 10840.84,
+                        "typical": 328387.73,
+                        "optimistic": 792938.65
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": false,
+                    "category": "HONEST",
+                    "category_name": "Honest - wealth exactly as declared",
+                    "name": "Honest - wealth exactly as declared",
+                    "route": "All wealth is accumulated from declared employment income and investment returns in Singapore.",
+                    "enabled_by": "everything he declared",
+                    "why_it_applies": "The client has a consistent IT career in Singapore and declared sources match his employment and investment activities.",
+                    "route_years": "2017-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T2",
+                    "fits": true,
+                    "fit_score": 1.0,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 28840.84,
+                        "typical": 364387.73,
+                        "optimistic": 864938.65
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": false,
+                    "category": "TAX_EVASION",
+                    "category_name": "Tax evasion (undeclared income or offshore accounts)",
+                    "name": "Tax evasion through undeclared income from IT employment in Singapore",
+                    "route": "Income from IT roles or investment returns is not fully declared to tax authorities, resulting in accumulation of untaxed wealth.",
+                    "enabled_by": "job 0 (IT, Singapore)",
+                    "why_it_applies": "The client has held IT positions in Singapore since 2017, providing opportunity to underreport income or investment gains.",
+                    "route_years": "2017-2019",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T3",
+                    "fits": true,
+                    "fit_score": 1.0,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 10840.84,
+                        "typical": 588387.73,
+                        "optimistic": 1602938.65
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "EMPLOYER_FRAUD",
+                    "category_name": "Fraud or embezzlement against an employer",
+                    "name": "Fraud or embezzlement against employer through IT role at Accenture",
+                    "route": "Funds are misappropriated from the employer via unauthorized transactions, false invoicing, or manipulation of IT systems.",
+                    "enabled_by": "job 1 (IT, Singapore)",
+                    "why_it_applies": "The client has held senior IT roles at large firms, which could provide access to sensitive systems and financial processes.",
+                    "route_years": "2021-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T4",
+                    "fits": true,
+                    "fit_score": 1.0,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 10840.84,
+                        "typical": 388387.73,
+                        "optimistic": 1332938.65
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": false,
+                    "category": "THIRD_PARTY_ML",
+                    "category_name": "Money laundering for others (acting as a channel or nominee)",
+                    "name": "Money laundering for others using Singapore property asset",
+                    "route": "Funds from third parties are passed through the purchase or sale of property, disguising the origin of the money.",
+                    "enabled_by": "asset 0 (Property - Testing)",
+                    "why_it_applies": "The client acquired a property in Singapore in 2019, which could be used as a channel for third-party funds.",
+                    "route_years": "2019-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T5",
+                    "fits": true,
+                    "fit_score": 1.0,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 130840.84,
+                        "typical": 628387.73,
+                        "optimistic": 1512938.65
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "BRIBERY_CORRUPTION",
+                    "category_name": "Bribery and corruption (kickbacks, secret commissions)",
+                    "name": "Bribery and corruption through IT consulting roles in Singapore",
+                    "route": "The client receives secret commissions or kickbacks from vendors or clients in exchange for favorable treatment or contracts.",
+                    "enabled_by": "job 1 (IT, Singapore)",
+                    "why_it_applies": "Senior IT roles at large consulting firms can involve procurement or vendor management, creating opportunities for kickbacks.",
+                    "route_years": "2021-2030",
+                    "score": 0.2
+                }
+            ],
+            "affordability": [
+                {
+                    "asset_index": 0,
+                    "year": 2019,
+                    "payment_method": "cash",
+                    "needed": 60000,
+                    "available": {
+                        "cautious": 4974.06,
+                        "typical": 53931.54,
+                        "optimistic": 99845.86
+                    },
+                    "affordable": true
+                }
+            ],
+            "asset_checks": [
+                {
+                    "rule_id": "ASSET_VALUE",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": false,
+                    "declared": 60000.0,
+                    "expected": {
+                        "cautious": 81280.11,
+                        "typical": 88443.04,
+                        "optimistic": 96733.75
+                    },
+                    "ceiling": 111244,
+                    "valuation_basis": "Valued based on recent comparable sales and prevailing market prices for similar properties in the same location.",
+                    "detail": "Asset 0 (Property - Testing): declared 60,000, markets explain about 88,443 (up to 111,244)"
+                },
+                {
+                    "rule_id": "ASSET_INCOME",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": false,
+                    "declared": 0.0,
+                    "expected": {
+                        "cautious": 1625.6,
+                        "typical": 2211.08,
+                        "optimistic": 2902.01
+                    },
+                    "ceiling": 3628,
+                    "detail": "Asset 0: declared income 0, expected about 2,211 (up to 3,628)"
+                }
+            ],
+            "jurisdiction": {
+                "rule_id": "JURISDICTION",
+                "failed": true,
+                "unexplained_countries": [
+                    "australia"
+                ],
+                "listed_countries": [],
+                "detail": "Named countries with no job, asset or declared source: ['australia']. Linked countries on a risk list: none."
+            },
+            "declared_sources": [
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S1",
+                    "source_type": "employment",
+                    "failed": false,
+                    "detail": "S1 Received 5000 per month for professional hard work (?-?, Singapore): backed",
+                    "quote": "I received 5000 per month"
+                },
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S2",
+                    "source_type": "investment_income",
+                    "failed": true,
+                    "detail": "S2 Should get 500000 in 20 years from investment (?-?, Singapore): no amount and no job or asset behind it",
+                    "quote": "I should get 500000 in 20 years for my professional hard work and investment"
+                }
+            ],
+            "country_notes": [
+                {
+                    "country": "Singapore",
+                    "listings": [],
+                    "summary": "Country of residence, employment, assets, and named by client.",
+                    "source_name": "client"
+                },
+                {
+                    "country": "Australia",
+                    "listings": [],
+                    "summary": "Named by client.",
+                    "source_name": "client"
+                }
+            ],
+            "markets_used": [
+                {
+                    "market_id": "ECO_SG",
+                    "name": "Singapore Economy",
+                    "country": "Singapore",
+                    "indicator": "real GDP"
+                },
+                {
+                    "market_id": "IND_IT",
+                    "name": "Information Technology Industry",
+                    "country": "Singapore",
+                    "indicator": "industry revenue growth"
+                },
+                {
+                    "market_id": "PROP_SG",
+                    "name": "Singapore Property Market",
+                    "country": "Singapore",
+                    "indicator": "property price index"
+                }
+            ],
+            "career_savings": [
+                {
+                    "year": 2017,
+                    "total_pay": {
+                        "cautious": 32000,
+                        "typical": 39500,
+                        "optimistic": 49500
+                    },
+                    "after_tax": {
+                        "cautious": 31040.0,
+                        "typical": 38710.0,
+                        "optimistic": 49005.0
+                    },
+                    "living_costs": {
+                        "cautious": 30000,
+                        "typical": 22000,
+                        "optimistic": 18000
+                    },
+                    "saved": {
+                        "cautious": 1040.0,
+                        "typical": 16710.0,
+                        "optimistic": 31005.0
+                    },
+                    "savings": {
+                        "cautious": 1040.0,
+                        "typical": 16710.0,
+                        "optimistic": 31005.0
+                    }
+                },
+                {
+                    "year": 2018,
+                    "total_pay": {
+                        "cautious": 34000,
+                        "typical": 41800,
+                        "optimistic": 52200
+                    },
+                    "after_tax": {
+                        "cautious": 32980.0,
+                        "typical": 40964.0,
+                        "optimistic": 51678.0
+                    },
+                    "living_costs": {
+                        "cautious": 31000,
+                        "typical": 23000,
+                        "optimistic": 18500
+                    },
+                    "saved": {
+                        "cautious": 1980.0,
+                        "typical": 17964.0,
+                        "optimistic": 33178.0
+                    },
+                    "savings": {
+                        "cautious": 3021.04,
+                        "typical": 34707.42,
+                        "optimistic": 64307.02
+                    }
+                },
+                {
+                    "year": 2019,
+                    "total_pay": {
+                        "cautious": 35000,
+                        "typical": 44000,
+                        "optimistic": 54700
+                    },
+                    "after_tax": {
+                        "cautious": 33950.0,
+                        "typical": 43120.0,
+                        "optimistic": 54153.0
+                    },
+                    "living_costs": {
+                        "cautious": 32000,
+                        "typical": 24000,
+                        "optimistic": 19000
+                    },
+                    "saved": {
+                        "cautious": 1950.0,
+                        "typical": 19120.0,
+                        "optimistic": 35153.0
+                    },
+                    "savings": {
+                        "cautious": 4974.06,
+                        "typical": 53931.54,
+                        "optimistic": 99845.86
+                    }
+                },
+                {
+                    "year": 2020,
+                    "total_pay": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "after_tax": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "living_costs": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "saved": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "savings": {
+                        "cautious": 4974.06,
+                        "typical": 53931.54,
+                        "optimistic": 99845.86
+                    }
+                },
+                {
+                    "year": 2021,
+                    "total_pay": {
+                        "cautious": 69000,
+                        "typical": 88000,
+                        "optimistic": 130000
+                    },
+                    "after_tax": {
+                        "cautious": 64170.0,
+                        "typical": 83600.0,
+                        "optimistic": 126100.0
+                    },
+                    "living_costs": {
+                        "cautious": 70000,
+                        "typical": 50000,
+                        "optimistic": 35000
+                    },
+                    "saved": {
+                        "cautious": -5830.0,
+                        "typical": 33600.0,
+                        "optimistic": 91100.0
+                    },
+                    "savings": {
+                        "cautious": -853.45,
+                        "typical": 87612.44,
+                        "optimistic": 191245.4
+                    }
+                },
+                {
+                    "year": 2022,
+                    "total_pay": {
+                        "cautious": 75000,
+                        "typical": 94000,
+                        "optimistic": 137000
+                    },
+                    "after_tax": {
+                        "cautious": 69750.0,
+                        "typical": 89300.0,
+                        "optimistic": 132890.0
+                    },
+                    "living_costs": {
+                        "cautious": 73000,
+                        "typical": 52000,
+                        "optimistic": 37000
+                    },
+                    "saved": {
+                        "cautious": -3250.0,
+                        "typical": 37300.0,
+                        "optimistic": 95890.0
+                    },
+                    "savings": {
+                        "cautious": -4104.31,
+                        "typical": 125087.66,
+                        "optimistic": 287900.38
+                    }
+                },
+                {
+                    "year": 2023,
+                    "total_pay": {
+                        "cautious": 77000,
+                        "typical": 97000,
+                        "optimistic": 144000
+                    },
+                    "after_tax": {
+                        "cautious": 71610.0,
+                        "typical": 92150.0,
+                        "optimistic": 139680.0
+                    },
+                    "living_costs": {
+                        "cautious": 76000,
+                        "typical": 54000,
+                        "optimistic": 38000
+                    },
+                    "saved": {
+                        "cautious": -4390.0,
+                        "typical": 38150.0,
+                        "optimistic": 101680.0
+                    },
+                    "savings": {
+                        "cautious": -8498.41,
+                        "typical": 163487.84,
+                        "optimistic": 390731.98
+                    }
+                },
+                {
+                    "year": 2024,
+                    "total_pay": {
+                        "cautious": 79000,
+                        "typical": 99500,
+                        "optimistic": 151000
+                    },
+                    "after_tax": {
+                        "cautious": 73470.0,
+                        "typical": 94525.0,
+                        "optimistic": 146470.0
+                    },
+                    "living_costs": {
+                        "cautious": 78000,
+                        "typical": 56000,
+                        "optimistic": 39000
+                    },
+                    "saved": {
+                        "cautious": -4530.0,
+                        "typical": 38525.0,
+                        "optimistic": 107470.0
+                    },
+                    "savings": {
+                        "cautious": -13036.91,
+                        "typical": 202339.82,
+                        "optimistic": 499764.91
+                    }
+                },
+                {
+                    "year": 2025,
+                    "total_pay": {
+                        "cautious": 81000,
+                        "typical": 103000,
+                        "optimistic": 158000
+                    },
+                    "after_tax": {
+                        "cautious": 75330.0,
+                        "typical": 97850.0,
+                        "optimistic": 153260.0
+                    },
+                    "living_costs": {
+                        "cautious": 80000,
+                        "typical": 58000,
+                        "optimistic": 40000
+                    },
+                    "saved": {
+                        "cautious": -4670.0,
+                        "typical": 39850.0,
+                        "optimistic": 113260.0
+                    },
+                    "savings": {
+                        "cautious": -17719.95,
+                        "typical": 242594.5,
+                        "optimistic": 615023.97
+                    }
+                },
+                {
+                    "year": 2026,
+                    "total_pay": {
+                        "cautious": 83000,
+                        "typical": 106500,
+                        "optimistic": 165000
+                    },
+                    "after_tax": {
+                        "cautious": 77190.0,
+                        "typical": 101175.0,
+                        "optimistic": 160050.0
+                    },
+                    "living_costs": {
+                        "cautious": 82000,
+                        "typical": 60000,
+                        "optimistic": 41000
+                    },
+                    "saved": {
+                        "cautious": -4810.0,
+                        "typical": 41175.0,
+                        "optimistic": 119050.0
+                    },
+                    "savings": {
+                        "cautious": -22547.66,
+                        "typical": 284254.68,
+                        "optimistic": 736534.07
+                    }
+                }
+            ],
+            "career_outlook": "He is likely to remain in a senior IT role, with potential for promotion to lead or managerial positions, or lateral moves to other large technology firms or consulting roles.",
+            "forward_paths": {
+                "T1": [
+                    {
+                        "year": 2026,
+                        "cautious": 10840.84,
+                        "typical": 328387.73,
+                        "optimistic": 792938.65
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 65168.55,
+                        "typical": 403627.67,
+                        "optimistic": 906774.15
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 121495.97,
+                        "typical": 482515.62,
+                        "optimistic": 1027841.82
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 180347.91,
+                        "typical": 565291.73,
+                        "optimistic": 1156719.46
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 244080.1,
+                        "typical": 655182.96,
+                        "optimistic": 1297091.78
+                    }
+                ],
+                "T2": [
+                    {
+                        "year": 2026,
+                        "cautious": 28840.84,
+                        "typical": 364387.73,
+                        "optimistic": 864938.65
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 83168.55,
+                        "typical": 439627.67,
+                        "optimistic": 978774.15
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 139495.97,
+                        "typical": 518515.62,
+                        "optimistic": 1099841.82
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 198347.91,
+                        "typical": 601291.73,
+                        "optimistic": 1228719.46
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 262080.1,
+                        "typical": 691182.96,
+                        "optimistic": 1369091.78
+                    }
+                ],
+                "T3": [
+                    {
+                        "year": 2026,
+                        "cautious": 10840.84,
+                        "typical": 588387.73,
+                        "optimistic": 1602938.65
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 65168.55,
+                        "typical": 723627.67,
+                        "optimistic": 1894774.15
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 121495.97,
+                        "typical": 859515.62,
+                        "optimistic": 2185841.82
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 180347.91,
+                        "typical": 996291.73,
+                        "optimistic": 2476719.46
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 244080.1,
+                        "typical": 1143182.96,
+                        "optimistic": 2787091.78
+                    }
+                ],
+                "T4": [
+                    {
+                        "year": 2026,
+                        "cautious": 10840.84,
+                        "typical": 388387.73,
+                        "optimistic": 1332938.65
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 65168.55,
+                        "typical": 475627.67,
+                        "optimistic": 1512774.15
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 121495.97,
+                        "typical": 566515.62,
+                        "optimistic": 1696841.82
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 180347.91,
+                        "typical": 661291.73,
+                        "optimistic": 1885719.46
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 244080.1,
+                        "typical": 763182.96,
+                        "optimistic": 2089091.78
+                    }
+                ],
+                "T5": [
+                    {
+                        "year": 2026,
+                        "cautious": 130840.84,
+                        "typical": 628387.73,
+                        "optimistic": 1512938.65
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 205168.55,
+                        "typical": 754627.67,
+                        "optimistic": 1746774.15
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 280495.97,
+                        "typical": 882015.62,
+                        "optimistic": 1981841.82
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 357347.91,
+                        "typical": 1010791.73,
+                        "optimistic": 2218719.46
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 440080.1,
+                        "typical": 1149182.96,
+                        "optimistic": 2473091.78
+                    }
+                ]
+            },
+            "event_impacts": [
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven stock market correction impacts Singapore economy",
+                    "year": 2028,
+                    "type_id": "T1",
+                    "impact": -2406,
+                    "chance": 0.3,
+                    "weighted_impact": -722
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven stock market correction impacts Singapore economy",
+                    "year": 2028,
+                    "type_id": "T2",
+                    "impact": -4406,
+                    "chance": 0.3,
+                    "weighted_impact": -1322
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven stock market correction impacts Singapore economy",
+                    "year": 2028,
+                    "type_id": "T3",
+                    "impact": -2406,
+                    "chance": 0.3,
+                    "weighted_impact": -722
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven stock market correction impacts Singapore economy",
+                    "year": 2028,
+                    "type_id": "T4",
+                    "impact": -62406,
+                    "chance": 0.3,
+                    "weighted_impact": -18722
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven stock market correction impacts Singapore economy",
+                    "year": 2028,
+                    "type_id": "T5",
+                    "impact": -12406,
+                    "chance": 0.3,
+                    "weighted_impact": -3722
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach disrupts IT industry operations",
+                    "year": 2029,
+                    "type_id": "T1",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach disrupts IT industry operations",
+                    "year": 2029,
+                    "type_id": "T2",
+                    "impact": -3000,
+                    "chance": 0.2,
+                    "weighted_impact": -600
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach disrupts IT industry operations",
+                    "year": 2029,
+                    "type_id": "T3",
+                    "impact": -60000,
+                    "chance": 0.2,
+                    "weighted_impact": -12000
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach disrupts IT industry operations",
+                    "year": 2029,
+                    "type_id": "T4",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach disrupts IT industry operations",
+                    "year": 2029,
+                    "type_id": "T5",
+                    "impact": -20000,
+                    "chance": 0.2,
+                    "weighted_impact": -4000
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T1",
+                    "impact": -3204,
+                    "chance": 0.2,
+                    "weighted_impact": -641
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T2",
+                    "impact": -6204,
+                    "chance": 0.2,
+                    "weighted_impact": -1241
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T3",
+                    "impact": -3204,
+                    "chance": 0.2,
+                    "weighted_impact": -641
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T4",
+                    "impact": -63204,
+                    "chance": 0.2,
+                    "weighted_impact": -12641
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T5",
+                    "impact": -3204,
+                    "chance": 0.2,
+                    "weighted_impact": -641
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Global IT outsourcing boom benefits Singapore IT sector",
+                    "year": 2030,
+                    "type_id": "T1",
+                    "impact": 200,
+                    "chance": 0.35,
+                    "weighted_impact": 70
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Global IT outsourcing boom benefits Singapore IT sector",
+                    "year": 2030,
+                    "type_id": "T2",
+                    "impact": 6200,
+                    "chance": 0.35,
+                    "weighted_impact": 2170
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Global IT outsourcing boom benefits Singapore IT sector",
+                    "year": 2030,
+                    "type_id": "T3",
+                    "impact": 30200,
+                    "chance": 0.35,
+                    "weighted_impact": 10570
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Global IT outsourcing boom benefits Singapore IT sector",
+                    "year": 2030,
+                    "type_id": "T4",
+                    "impact": 200,
+                    "chance": 0.35,
+                    "weighted_impact": 70
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Global IT outsourcing boom benefits Singapore IT sector",
+                    "year": 2030,
+                    "type_id": "T5",
+                    "impact": 50200,
+                    "chance": 0.35,
+                    "weighted_impact": 17570
+                }
+            ],
+            "divergence": [
+                {
+                    "type_id": "T2",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T3",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T4",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T5",
+                    "distinguishable_from": null
+                }
+            ],
+            "monitoring_ranges": {
+                "SIG_SALARY_REGULAR": {
+                    "count_max": 15.0,
+                    "amount_max": 75000
+                },
+                "SIG_BONUS_ANNUAL": {
+                    "count_max": 1.25,
+                    "amount_max": 25000
+                },
+                "SIG_DIVIDEND_INCOME": {
+                    "count_max": 5.0,
+                    "amount_max": 12500
+                },
+                "SIG_RENTAL_INCOME": {
+                    "count_max": 2.5,
+                    "amount_max": 37500
+                }
+            },
+            "documents": [
+                {
+                    "document_code": "DOC_BENEFICIAL_OWNERSHIP",
+                    "document": "Beneficial ownership declaration",
+                    "reason": "Named countries with no job, asset or declared source: ['australia']. Linked countries on a risk list: none."
+                },
+                {
+                    "document_code": "DOC_BANK_STATEMENTS",
+                    "document": "Historic bank statements",
+                    "reason": "rules out T1, T2, T3, T4, T5"
+                },
+                {
+                    "document_code": "DOC_TAX_RETURNS",
+                    "document": "Personal tax returns / assessments",
+                    "reason": "rules out T1, T2, T5"
+                },
+                {
+                    "document_code": "DOC_EMPLOYER_CONFIRMATION",
+                    "document": "Employer letter confirming role, pay and permitted outside work",
+                    "reason": "rules out T3"
+                },
+                {
+                    "document_code": "DOC_PROPERTY_TITLE",
+                    "document": "Property title deed",
+                    "reason": "rules out T4"
+                },
+                {
+                    "document_code": "DOC_SALE_AGREEMENT",
+                    "document": "Sale and purchase agreement",
+                    "reason": "rules out T4"
+                }
+            ],
+            "watch_dates": [
+                {
+                    "date": "2027-01-01",
+                    "what": "E3 Sharp tightening of Singapore property regulations could happen"
+                },
+                {
+                    "date": "2028-01-01",
+                    "what": "E1 AI-driven stock market correction impacts Singapore economy could happen"
+                },
+                {
+                    "date": "2029-01-01",
+                    "what": "E2 Major cybersecurity breach disrupts IT industry operations could happen"
+                },
+                {
+                    "date": "2030-01-01",
+                    "what": "E4 Global IT outsourcing boom benefits Singapore IT sector could happen"
+                }
+            ],
+            "next_review_date": "2027-04-09",
+            "data_quality": {
+                "market_figures": 30,
+                "unverified_share": 0.2,
+                "data_gaps": [
+                    "2017: no growth rate data available",
+                    "2018: no data available",
+                    "2023: no specific IT industry revenue growth data found",
+                    "2024: no specific IT industry revenue growth data found",
+                    "2025: no specific IT industry revenue growth data found",
+                    "2026: no specific IT industry revenue growth data found",
+                    "No breakdown of income or investment returns by year.",
+                    "No details on other asset holdings (e.g., stocks, foreign currency).",
+                    "No details on specific investments or asset types for investment income.",
+                    "No information on assets or employment in Australia."
+                ]
+            }
+        }
+    },
+    {
+        "client_ref": "CL-4AB0C3DF",
+        "kind": "onboarding",
+        "assessed_at": "2026-10-09T15:57:15.299533+00:00",
+        "assessment": {
+            "case_ref": "CL-4AB0C3DF",
+            "assessed_on": "2026-10-09",
+            "policy_version": "2026.10-v5",
+            "prompt_versions": {
+                "step0_declaration": "declaration-v1",
+                "call1_markets.list": "markets-list-v1",
+                "call1_markets.series.ECO_SG": "market-series-v1",
+                "call1_markets.series.ECO_AU": "market-series-v1",
+                "call1_markets.series.ECO_UK": "market-series-v1",
+                "call1_markets.series.IND_IT": "market-series-v1",
+                "call1_markets.series.PROP_SG": "market-series-v1",
+                "call2_earnings.position.0": "position-pay-v1",
+                "call2_earnings.position.1": "position-pay-v1",
+                "call2_earnings.future_pay": "future-pay-v1",
+                "call2_earnings.asset.0": "asset-model-v1",
+                "call3_types.list": "person-types-v4",
+                "call3_types.behaviour.T1": "type-behaviour-v3",
+                "call3_types.behaviour.T2": "type-behaviour-v3",
+                "call3_types.behaviour.T3": "type-behaviour-v3",
+                "call3_types.behaviour.T4": "type-behaviour-v3",
+                "call3_types.behaviour.T5": "type-behaviour-v3",
+                "call4_events.list": "events-v1",
+                "call4_events.reactions.T1": "type-reactions-v1",
+                "call4_events.reactions.T2": "type-reactions-v1",
+                "call4_events.reactions.T3": "type-reactions-v1",
+                "call4_events.reactions.T4": "type-reactions-v1",
+                "call4_events.reactions.T5": "type-reactions-v1"
+            },
+            "outcome": "MANUAL_REVIEW",
+            "routing": "Queued for the KYC officer.",
+            "reasons": [
+                "Declared net worth 600,000; the honest version explains 128,413 to 1,076,575.",
+                "Crime types that do fit: T2 Tax evasion (undeclared income or offshore accounts) via job 0 (IT, Singapore) (2019-2020); T3 Fraud or embezzlement against an employer via job 0 (IT, Singapore) (2019-2020); T4 Money laundering for others (acting as a channel or nominee) via asset 0 (Property - Testing only) (2021-2030); T5 Market or commodity price manipulation via job 0 (IT, Singapore) (2019-2020).",
+                "Asset 0: declared income 2,000, expected about 16 (up to 25)",
+                "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none.",
+                "Borderline: the outcome changes when the forecasts move 10% ({'-10%': 'RISKY', '+0%': 'MANUAL_REVIEW', '+10%': 'MANUAL_REVIEW'})."
+            ],
+            "borderline": true,
+            "stability": {
+                "-10%": "RISKY",
+                "+0%": "MANUAL_REVIEW",
+                "+10%": "MANUAL_REVIEW"
+            },
+            "declared_net_worth": 600000.0,
+            "types": [
+                {
+                    "type_id": "T1",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 128413.15,
+                        "typical": 554691.23,
+                        "optimistic": 1076574.85
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "HONEST",
+                    "category_name": "Honest - wealth exactly as declared",
+                    "name": "Honest wealth from declared IT employment and investment income",
+                    "route": "Funds are accumulated from salary and investment income as declared, moving through personal bank accounts and into property or other investments.",
+                    "enabled_by": "everything he declared",
+                    "why_it_applies": "The client has declared employment income and investment returns consistent with his senior IT roles in Australia and Singapore.",
+                    "route_years": "2019-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T2",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 152413.15,
+                        "typical": 614691.23,
+                        "optimistic": 1196574.85
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "TAX_EVASION",
+                    "category_name": "Tax evasion (undeclared income or offshore accounts)",
+                    "name": "Tax evasion through undeclared income from IT roles in Singapore and Australia",
+                    "route": "Undeclared income from IT employment or investments is not reported to tax authorities and is moved through personal or offshore accounts.",
+                    "enabled_by": "job 0 (IT, Singapore)",
+                    "why_it_applies": "The client held senior IT positions in Singapore and Australia, where undeclared bonuses, cash payments, or offshore investment income could be hidden from tax authorities.",
+                    "route_years": "2019-2020",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T3",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 168413.15,
+                        "typical": 714691.23,
+                        "optimistic": 1576574.85
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "EMPLOYER_FRAUD",
+                    "category_name": "Fraud or embezzlement against an employer",
+                    "name": "Fraud or embezzlement against employer through IT systems in Singapore or Australia",
+                    "route": "Funds are misappropriated from employer accounts or systems and transferred to personal or third-party accounts.",
+                    "enabled_by": "job 0 (IT, Singapore)",
+                    "why_it_applies": "As a senior IT professional at large organisations, the client could have access to sensitive systems enabling misappropriation of funds.",
+                    "route_years": "2019-2020",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T4",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 428413.15,
+                        "typical": 1754691.23,
+                        "optimistic": 5876574.85
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "THIRD_PARTY_ML",
+                    "category_name": "Money laundering for others (acting as a channel or nominee)",
+                    "name": "Money laundering for others using personal or property accounts in Singapore",
+                    "route": "Funds from third parties are received into personal or property-related accounts and then layered or integrated through property purchases or investments.",
+                    "enabled_by": "asset 0 (Property - Testing only)",
+                    "why_it_applies": "The client owns property in Singapore and has international connections, which could be used to channel funds for others.",
+                    "route_years": "2021-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T5",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 168413.15,
+                        "typical": 714691.23,
+                        "optimistic": 1576574.85
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "MARKET_MANIPULATION",
+                    "category_name": "Market or commodity price manipulation",
+                    "name": "Market manipulation through IT-enabled trading or investment platforms",
+                    "route": "Profits from manipulating prices or trading activity are routed through investment accounts or personal bank accounts.",
+                    "enabled_by": "job 0 (IT, Singapore)",
+                    "why_it_applies": "The client worked at Binance, a major crypto exchange, where IT professionals may have access to trading systems that could be exploited for market manipulation.",
+                    "route_years": "2019-2020",
+                    "score": 0.2
+                }
+            ],
+            "affordability": [
+                {
+                    "asset_index": 0,
+                    "year": 2021,
+                    "payment_method": "cash",
+                    "needed": 500,
+                    "available": {
+                        "cautious": 40511.25,
+                        "typical": 222415.05,
+                        "optimistic": 438880.0
+                    },
+                    "affordable": true
+                }
+            ],
+            "asset_checks": [
+                {
+                    "rule_id": "ASSET_VALUE",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": false,
+                    "declared": 300.0,
+                    "expected": {
+                        "cautious": 594.52,
+                        "typical": 627.53,
+                        "optimistic": 661.92
+                    },
+                    "ceiling": 761,
+                    "valuation_basis": "Valued based on recent comparable sales of similar properties in the same location, adjusted for property-specific factors.",
+                    "detail": "Asset 0 (Property - Testing only): declared 300, markets explain about 628 (up to 761)"
+                },
+                {
+                    "rule_id": "ASSET_INCOME",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": true,
+                    "declared": 2000.0,
+                    "expected": {
+                        "cautious": 11.89,
+                        "typical": 15.69,
+                        "optimistic": 19.86
+                    },
+                    "ceiling": 25,
+                    "detail": "Asset 0: declared income 2,000, expected about 16 (up to 25)"
+                }
+            ],
+            "jurisdiction": {
+                "rule_id": "JURISDICTION",
+                "failed": true,
+                "unexplained_countries": [
+                    "united kingdom"
+                ],
+                "listed_countries": [],
+                "detail": "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none."
+            },
+            "declared_sources": [
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S1",
+                    "source_type": "employment",
+                    "failed": false,
+                    "detail": "S1 Monthly salary of 6000 (?-?, Australia): backed",
+                    "quote": "I received 6000 per month"
+                },
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S2",
+                    "source_type": "investment_income",
+                    "failed": false,
+                    "detail": "S2 Expected to get 10000 in 20 years for professional hard work and investment (?-?, Australia): backed",
+                    "quote": "I should get 10000 in 20 years for my professional hard work and investment"
+                }
+            ],
+            "country_notes": [
+                {
+                    "country": "Singapore",
+                    "listings": [],
+                    "summary": "Client worked in Singapore and owns property there.",
+                    "source_name": "client data"
+                },
+                {
+                    "country": "Australia",
+                    "listings": [],
+                    "summary": "Client currently resides and works in Australia.",
+                    "source_name": "client data"
+                },
+                {
+                    "country": "United Kingdom",
+                    "listings": [],
+                    "summary": "Country named by client.",
+                    "source_name": "client data"
+                }
+            ],
+            "markets_used": [
+                {
+                    "market_id": "ECO_SG",
+                    "name": "Singapore Economy",
+                    "country": "Singapore",
+                    "indicator": "real GDP"
+                },
+                {
+                    "market_id": "ECO_AU",
+                    "name": "Australia Economy",
+                    "country": "Australia",
+                    "indicator": "real GDP"
+                },
+                {
+                    "market_id": "ECO_UK",
+                    "name": "United Kingdom Economy",
+                    "country": "United Kingdom",
+                    "indicator": "real GDP"
+                },
+                {
+                    "market_id": "IND_IT",
+                    "name": "Information Technology Industry",
+                    "country": "Global",
+                    "indicator": "industry total return"
+                },
+                {
+                    "market_id": "PROP_SG",
+                    "name": "Singapore Property Market",
+                    "country": "Singapore",
+                    "indicator": "property price index"
+                }
+            ],
+            "career_savings": [
+                {
+                    "year": 2019,
+                    "total_pay": {
+                        "cautious": 125000,
+                        "typical": 190000,
+                        "optimistic": 280000
+                    },
+                    "after_tax": {
+                        "cautious": 112500.0,
+                        "typical": 176700.0,
+                        "optimistic": 266000.0
+                    },
+                    "living_costs": {
+                        "cautious": 90000,
+                        "typical": 60000,
+                        "optimistic": 40000
+                    },
+                    "saved": {
+                        "cautious": 22500.0,
+                        "typical": 116700.0,
+                        "optimistic": 226000.0
+                    },
+                    "savings": {
+                        "cautious": 22500.0,
+                        "typical": 116700.0,
+                        "optimistic": 226000.0
+                    }
+                },
+                {
+                    "year": 2020,
+                    "total_pay": {
+                        "cautious": 120000,
+                        "typical": 178000,
+                        "optimistic": 265000
+                    },
+                    "after_tax": {
+                        "cautious": 108000.0,
+                        "typical": 165540.0,
+                        "optimistic": 251750.0
+                    },
+                    "living_costs": {
+                        "cautious": 90000,
+                        "typical": 60000,
+                        "optimistic": 40000
+                    },
+                    "saved": {
+                        "cautious": 18000.0,
+                        "typical": 105540.0,
+                        "optimistic": 211750.0
+                    },
+                    "savings": {
+                        "cautious": 40511.25,
+                        "typical": 222415.05,
+                        "optimistic": 438880.0
+                    }
+                },
+                {
+                    "year": 2021,
+                    "total_pay": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "after_tax": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "living_costs": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "saved": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "savings": {
+                        "cautious": 40511.25,
+                        "typical": 222415.05,
+                        "optimistic": 438880.0
+                    }
+                },
+                {
+                    "year": 2022,
+                    "total_pay": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "after_tax": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "living_costs": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "saved": {
+                        "cautious": 0,
+                        "typical": 0,
+                        "optimistic": 0
+                    },
+                    "savings": {
+                        "cautious": 40511.25,
+                        "typical": 222415.05,
+                        "optimistic": 438880.0
+                    }
+                },
+                {
+                    "year": 2023,
+                    "total_pay": {
+                        "cautious": 155000,
+                        "typical": 190000,
+                        "optimistic": 240000
+                    },
+                    "after_tax": {
+                        "cautious": 103850.0,
+                        "typical": 134900.0,
+                        "optimistic": 180000.0
+                    },
+                    "living_costs": {
+                        "cautious": 85000,
+                        "typical": 65000,
+                        "optimistic": 50000
+                    },
+                    "saved": {
+                        "cautious": 18850.0,
+                        "typical": 69900.0,
+                        "optimistic": 130000.0
+                    },
+                    "savings": {
+                        "cautious": 60374.03,
+                        "typical": 298987.5,
+                        "optimistic": 586435.2
+                    }
+                },
+                {
+                    "year": 2024,
+                    "total_pay": {
+                        "cautious": 160000,
+                        "typical": 196000,
+                        "optimistic": 246000
+                    },
+                    "after_tax": {
+                        "cautious": 107200.0,
+                        "typical": 139160.0,
+                        "optimistic": 184500.0
+                    },
+                    "living_costs": {
+                        "cautious": 88000,
+                        "typical": 67000,
+                        "optimistic": 52000
+                    },
+                    "saved": {
+                        "cautious": 19200.0,
+                        "typical": 72160.0,
+                        "optimistic": 132500.0
+                    },
+                    "savings": {
+                        "cautious": 81083.38,
+                        "typical": 380117.13,
+                        "optimistic": 742392.61
+                    }
+                },
+                {
+                    "year": 2025,
+                    "total_pay": {
+                        "cautious": 166000,
+                        "typical": 203000,
+                        "optimistic": 254000
+                    },
+                    "after_tax": {
+                        "cautious": 111220.0,
+                        "typical": 144130.0,
+                        "optimistic": 190500.0
+                    },
+                    "living_costs": {
+                        "cautious": 90000,
+                        "typical": 69000,
+                        "optimistic": 54000
+                    },
+                    "saved": {
+                        "cautious": 21220.0,
+                        "typical": 75130.0,
+                        "optimistic": 136500.0
+                    },
+                    "savings": {
+                        "cautious": 103925.05,
+                        "typical": 464750.05,
+                        "optimistic": 904876.35
+                    }
+                },
+                {
+                    "year": 2026,
+                    "total_pay": {
+                        "cautious": 172000,
+                        "typical": 210000,
+                        "optimistic": 261000
+                    },
+                    "after_tax": {
+                        "cautious": 115240.0,
+                        "typical": 149100.0,
+                        "optimistic": 195750.0
+                    },
+                    "living_costs": {
+                        "cautious": 93000,
+                        "typical": 71000,
+                        "optimistic": 56000
+                    },
+                    "saved": {
+                        "cautious": 22240.0,
+                        "typical": 78100.0,
+                        "optimistic": 139750.0
+                    },
+                    "savings": {
+                        "cautious": 128243.55,
+                        "typical": 554468.81,
+                        "optimistic": 1076297.02
+                    }
+                }
+            ],
+            "career_outlook": "He is likely to remain in a senior IT role, with potential for promotion to lead or managerial positions, or lateral moves to similar roles in large technology-driven organisations.",
+            "forward_paths": {
+                "T1": [
+                    {
+                        "year": 2026,
+                        "cautious": 128413.15,
+                        "typical": 554691.23,
+                        "optimistic": 1076574.85
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 191044.75,
+                        "typical": 675391.63,
+                        "optimistic": 1289304.88
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 254174.99,
+                        "typical": 801883.22,
+                        "optimistic": 1519048.15
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 317564.05,
+                        "typical": 934244.05,
+                        "optimistic": 1766563.03
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 384337.37,
+                        "typical": 1075769.6,
+                        "optimistic": 2037189.59
+                    }
+                ],
+                "T2": [
+                    {
+                        "year": 2026,
+                        "cautious": 152413.15,
+                        "typical": 614691.23,
+                        "optimistic": 1196574.85
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 215044.75,
+                        "typical": 735391.63,
+                        "optimistic": 1409304.88
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 278174.99,
+                        "typical": 861883.22,
+                        "optimistic": 1639048.15
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 341564.05,
+                        "typical": 994244.05,
+                        "optimistic": 1886563.03
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 408337.37,
+                        "typical": 1135769.6,
+                        "optimistic": 2157189.59
+                    }
+                ],
+                "T3": [
+                    {
+                        "year": 2026,
+                        "cautious": 168413.15,
+                        "typical": 714691.23,
+                        "optimistic": 1576574.85
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 231044.75,
+                        "typical": 835391.63,
+                        "optimistic": 1789304.88
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 294174.99,
+                        "typical": 961883.22,
+                        "optimistic": 2019048.15
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 357564.05,
+                        "typical": 1094244.05,
+                        "optimistic": 2266563.03
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 424337.37,
+                        "typical": 1235769.6,
+                        "optimistic": 2537189.59
+                    }
+                ],
+                "T4": [
+                    {
+                        "year": 2026,
+                        "cautious": 428413.15,
+                        "typical": 1754691.23,
+                        "optimistic": 5876574.85
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 545044.75,
+                        "typical": 2095391.63,
+                        "optimistic": 6889304.88
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 659174.99,
+                        "typical": 2431883.22,
+                        "optimistic": 7879048.15
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 770564.05,
+                        "typical": 2764244.05,
+                        "optimistic": 8846563.03
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 888337.37,
+                        "typical": 3115769.6,
+                        "optimistic": 9877189.59
+                    }
+                ],
+                "T5": [
+                    {
+                        "year": 2026,
+                        "cautious": 168413.15,
+                        "typical": 714691.23,
+                        "optimistic": 1576574.85
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 231044.75,
+                        "typical": 835391.63,
+                        "optimistic": 1789304.88
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 294174.99,
+                        "typical": 961883.22,
+                        "optimistic": 2019048.15
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 357564.05,
+                        "typical": 1094244.05,
+                        "optimistic": 2266563.03
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 424337.37,
+                        "typical": 1235769.6,
+                        "optimistic": 2537189.59
+                    }
+                ]
+            },
+            "event_impacts": [
+                {
+                    "event_id": "E1",
+                    "event": "Global AI-driven stock market correction",
+                    "year": 2028,
+                    "type_id": "T1",
+                    "impact": -5000,
+                    "chance": 0.3,
+                    "weighted_impact": -1500
+                },
+                {
+                    "event_id": "E1",
+                    "event": "Global AI-driven stock market correction",
+                    "year": 2028,
+                    "type_id": "T2",
+                    "impact": -30000,
+                    "chance": 0.3,
+                    "weighted_impact": -9000
+                },
+                {
+                    "event_id": "E1",
+                    "event": "Global AI-driven stock market correction",
+                    "year": 2028,
+                    "type_id": "T3",
+                    "impact": 0,
+                    "chance": 0.3,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E1",
+                    "event": "Global AI-driven stock market correction",
+                    "year": 2028,
+                    "type_id": "T4",
+                    "impact": -80000,
+                    "chance": 0.3,
+                    "weighted_impact": -24000
+                },
+                {
+                    "event_id": "E1",
+                    "event": "Global AI-driven stock market correction",
+                    "year": 2028,
+                    "type_id": "T5",
+                    "impact": -80000,
+                    "chance": 0.3,
+                    "weighted_impact": -24000
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in global IT sector",
+                    "year": 2029,
+                    "type_id": "T1",
+                    "impact": -4000,
+                    "chance": 0.2,
+                    "weighted_impact": -800
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in global IT sector",
+                    "year": 2029,
+                    "type_id": "T2",
+                    "impact": -20000,
+                    "chance": 0.2,
+                    "weighted_impact": -4000
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in global IT sector",
+                    "year": 2029,
+                    "type_id": "T3",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in global IT sector",
+                    "year": 2029,
+                    "type_id": "T4",
+                    "impact": -60000,
+                    "chance": 0.2,
+                    "weighted_impact": -12000
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in global IT sector",
+                    "year": 2029,
+                    "type_id": "T5",
+                    "impact": -80000,
+                    "chance": 0.2,
+                    "weighted_impact": -16000
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T1",
+                    "impact": -36,
+                    "chance": 0.2,
+                    "weighted_impact": -7
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T2",
+                    "impact": -10036,
+                    "chance": 0.2,
+                    "weighted_impact": -2007
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T3",
+                    "impact": -36,
+                    "chance": 0.2,
+                    "weighted_impact": -7
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T4",
+                    "impact": -200036,
+                    "chance": 0.2,
+                    "weighted_impact": -40007
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T5",
+                    "impact": -36,
+                    "chance": 0.2,
+                    "weighted_impact": -7
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Australian economic slowdown due to commodity price collapse",
+                    "year": 2029,
+                    "type_id": "T1",
+                    "impact": -1500,
+                    "chance": 0.15,
+                    "weighted_impact": -225
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Australian economic slowdown due to commodity price collapse",
+                    "year": 2029,
+                    "type_id": "T2",
+                    "impact": -12000,
+                    "chance": 0.15,
+                    "weighted_impact": -1800
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Australian economic slowdown due to commodity price collapse",
+                    "year": 2029,
+                    "type_id": "T3",
+                    "impact": 0,
+                    "chance": 0.15,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Australian economic slowdown due to commodity price collapse",
+                    "year": 2029,
+                    "type_id": "T4",
+                    "impact": -30000,
+                    "chance": 0.15,
+                    "weighted_impact": -4500
+                },
+                {
+                    "event_id": "E4",
+                    "event": "Australian economic slowdown due to commodity price collapse",
+                    "year": 2029,
+                    "type_id": "T5",
+                    "impact": 0,
+                    "chance": 0.15,
+                    "weighted_impact": 0
+                }
+            ],
+            "divergence": [
+                {
+                    "type_id": "T2",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T3",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T4",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T5",
+                    "distinguishable_from": null
+                }
+            ],
+            "monitoring_ranges": {
+                "SIG_SALARY_REGULAR": {
+                    "count_max": 15.0,
+                    "amount_max": 90000
+                },
+                "SIG_BONUS_ANNUAL": {
+                    "count_max": 1.25,
+                    "amount_max": 30000
+                },
+                "SIG_DIVIDEND_INCOME": {
+                    "count_max": 2.5,
+                    "amount_max": 12500
+                },
+                "SIG_ASSET_SALE_PROCEEDS": {
+                    "count_max": 1.25,
+                    "amount_max": 625
+                }
+            },
+            "documents": [
+                {
+                    "document_code": "DOC_TAX_RETURNS",
+                    "document": "Personal tax returns / assessments",
+                    "reason": "Asset 0: declared income 2,000, expected about 16 (up to 25)"
+                },
+                {
+                    "document_code": "DOC_BENEFICIAL_OWNERSHIP",
+                    "document": "Beneficial ownership declaration",
+                    "reason": "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none."
+                },
+                {
+                    "document_code": "DOC_BANK_STATEMENTS",
+                    "document": "Historic bank statements",
+                    "reason": "rules out T1, T2, T4, T5"
+                },
+                {
+                    "document_code": "DOC_COMPANY_ACCOUNTS",
+                    "document": "Audited company accounts",
+                    "reason": "rules out T3"
+                },
+                {
+                    "document_code": "DOC_EMPLOYER_CONFIRMATION",
+                    "document": "Employer letter confirming role, pay and permitted outside work",
+                    "reason": "rules out T3"
+                },
+                {
+                    "document_code": "DOC_PROPERTY_TITLE",
+                    "document": "Property title deed",
+                    "reason": "rules out T4"
+                }
+            ],
+            "watch_dates": [
+                {
+                    "date": "2027-01-01",
+                    "what": "E3 Sharp tightening of Singapore property regulations could happen"
+                },
+                {
+                    "date": "2028-01-01",
+                    "what": "E1 Global AI-driven stock market correction could happen"
+                },
+                {
+                    "date": "2029-01-01",
+                    "what": "E2 Major cybersecurity breach in global IT sector could happen"
+                },
+                {
+                    "date": "2029-01-01",
+                    "what": "E4 Australian economic slowdown due to commodity price collapse could happen"
+                }
+            ],
+            "next_review_date": "2027-10-09",
+            "data_quality": {
+                "market_figures": 40,
+                "unverified_share": 0.025,
+                "data_gaps": [
+                    "2026 full-year change_pct not yet available",
+                    "No breakdown of investment income sources.",
+                    "No details on specific investments or asset types beyond Singapore property.",
+                    "No employment or asset data for United Kingdom.",
+                    "No information on currency exposure or holdings outside SGD."
+                ]
+            }
+        }
+    },
+    {
+        "client_ref": "CL-2009F814",
+        "kind": "onboarding",
+        "assessed_at": "2026-10-09T16:25:54.826346+00:00",
+        "assessment": {
+            "case_ref": "CL-2009F814",
+            "assessed_on": "2026-10-10",
+            "policy_version": "2026.10-v5",
+            "prompt_versions": {
+                "step0_declaration": "declaration-v1",
+                "call1_markets.list": "markets-list-v1",
+                "call1_markets.series.ECO_SG": "market-series-v1",
+                "call1_markets.series.IND_IT_SG": "market-series-v1",
+                "call1_markets.series.PROP_SG": "market-series-v1",
+                "call1_markets.series.ECO_UK": "market-series-v1",
+                "call2_earnings.position.0": "position-pay-v1",
+                "call2_earnings.position.1": "position-pay-v1",
+                "call2_earnings.future_pay": "future-pay-v1",
+                "call2_earnings.asset.0": "asset-model-v1",
+                "call3_types.list": "person-types-v4",
+                "call3_types.behaviour.T1": "type-behaviour-v3",
+                "call3_types.behaviour.T2": "type-behaviour-v3",
+                "call3_types.behaviour.T3": "type-behaviour-v3",
+                "call3_types.behaviour.T4": "type-behaviour-v3",
+                "call3_types.behaviour.T5": "type-behaviour-v3",
+                "call4_events.list": "events-v1",
+                "call4_events.reactions.T1": "type-reactions-v1",
+                "call4_events.reactions.T2": "type-reactions-v1",
+                "call4_events.reactions.T3": "type-reactions-v1",
+                "call4_events.reactions.T4": "type-reactions-v1",
+                "call4_events.reactions.T5": "type-reactions-v1"
+            },
+            "outcome": "MANUAL_REVIEW",
+            "routing": "Queued for the KYC officer.",
+            "reasons": [
+                "Declared net worth 500,000; the honest version explains 180,277 to 1,877,990.",
+                "Crime types that do fit: T2 Tax evasion (undeclared income or offshore accounts) via job 0 (IT, Singapore) (2015-2019); T3 Fraud or embezzlement against an employer via job 1 (IT, Singapore) (2020-2030); T4 Money laundering for others (acting as a channel or nominee) via asset 0 (Property - Testing) (2020-2030); T5 Market or commodity price manipulation via job 1 (IT, Singapore) (2020-2030).",
+                "Asset 0: declared income 9,000, expected about 1,675 (up to 2,755)",
+                "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none."
+            ],
+            "borderline": false,
+            "stability": {
+                "-10%": "MANUAL_REVIEW",
+                "+0%": "MANUAL_REVIEW",
+                "+10%": "MANUAL_REVIEW"
+            },
+            "declared_net_worth": 500000.0,
+            "types": [
+                {
+                    "type_id": "T1",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 180277.28,
+                        "typical": 929006.74,
+                        "optimistic": 1877990.44
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "HONEST",
+                    "category_name": "Honest - wealth exactly as declared",
+                    "name": "Honest - wealth exactly as declared",
+                    "route": "All wealth is derived from declared employment income and investment returns, as described in the client's statements.",
+                    "enabled_by": "everything he declared",
+                    "why_it_applies": "The client has declared employment at Binance in Singapore and investment income, with supporting details provided.",
+                    "route_years": "2015-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T2",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 210277.28,
+                        "typical": 1019006.74,
+                        "optimistic": 2057990.44
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "TAX_EVASION",
+                    "category_name": "Tax evasion (undeclared income or offshore accounts)",
+                    "name": "Tax evasion through undeclared income from IT employment at Binance",
+                    "route": "Undeclared or under-reported employment or investment income is not disclosed to tax authorities, resulting in lower tax paid.",
+                    "enabled_by": "job 0 (IT, Singapore)",
+                    "why_it_applies": "The client has held IT roles at Binance in Singapore since 2015, providing an opportunity to under-report income or investment gains.",
+                    "route_years": "2015-2019",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T3",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 530277.28,
+                        "typical": 2329006.74,
+                        "optimistic": 7477990.44
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "EMPLOYER_FRAUD",
+                    "category_name": "Fraud or embezzlement against an employer",
+                    "name": "Fraud or embezzlement against employer through IT role at Binance",
+                    "route": "Funds are misappropriated from the employer via unauthorized transfers, manipulation of internal systems, or theft of digital assets.",
+                    "enabled_by": "job 1 (IT, Singapore)",
+                    "why_it_applies": "The client has worked in IT roles at Binance, a large cryptocurrency company, which could provide access to sensitive systems and assets.",
+                    "route_years": "2020-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T4",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 230277.28,
+                        "typical": 989006.74,
+                        "optimistic": 2357990.44
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "THIRD_PARTY_ML",
+                    "category_name": "Money laundering for others (acting as a channel or nominee)",
+                    "name": "Money laundering for others using Singapore property asset",
+                    "route": "Funds from third parties are used to purchase property in Singapore, disguising the origin of the money.",
+                    "enabled_by": "asset 0 (Property - Testing)",
+                    "why_it_applies": "The client acquired a property in Singapore in 2020 using cash, which could be used as a channel for laundering funds for others.",
+                    "route_years": "2020-2030",
+                    "score": 0.2
+                },
+                {
+                    "type_id": "T5",
+                    "fits": true,
+                    "fit_score": 0.9,
+                    "net_worth_fits": true,
+                    "wealth_now": {
+                        "cautious": 530277.28,
+                        "typical": 2329006.74,
+                        "optimistic": 7477990.44
+                    },
+                    "purchases_affordable": "1 of 1",
+                    "fits_at_typical": true,
+                    "category": "MARKET_MANIPULATION",
+                    "category_name": "Market or commodity price manipulation",
+                    "name": "Market manipulation through IT access at Binance",
+                    "route": "Insider access or technical capabilities are used to manipulate cryptocurrency or digital asset prices for personal gain.",
+                    "enabled_by": "job 1 (IT, Singapore)",
+                    "why_it_applies": "The client has held IT roles at Binance, a major cryptocurrency exchange, which could provide technical means to manipulate markets.",
+                    "route_years": "2020-2030",
+                    "score": 0.2
+                }
+            ],
+            "affordability": [
+                {
+                    "asset_index": 0,
+                    "year": 2020,
+                    "payment_method": "cash",
+                    "needed": 60000,
+                    "available": {
+                        "cautious": 17637.66,
+                        "typical": 185038.21,
+                        "optimistic": 386524.69
+                    },
+                    "affordable": true
+                }
+            ],
+            "asset_checks": [
+                {
+                    "rule_id": "ASSET_VALUE",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": false,
+                    "declared": 7000.0,
+                    "expected": {
+                        "cautious": 70412.24,
+                        "typical": 76143.13,
+                        "optimistic": 81615.89
+                    },
+                    "ceiling": 93858,
+                    "valuation_basis": "Valued based on recent comparable sales of similar properties in the same location, adjusted for property condition and market trends.",
+                    "detail": "Asset 0 (Property - Testing): declared 7,000, markets explain about 76,143 (up to 93,858)"
+                },
+                {
+                    "rule_id": "ASSET_INCOME",
+                    "asset_index": 0,
+                    "category": "property",
+                    "failed": true,
+                    "declared": 9000.0,
+                    "expected": {
+                        "cautious": 1197.01,
+                        "typical": 1675.15,
+                        "optimistic": 2203.63
+                    },
+                    "ceiling": 2755,
+                    "detail": "Asset 0: declared income 9,000, expected about 1,675 (up to 2,755)"
+                }
+            ],
+            "jurisdiction": {
+                "rule_id": "JURISDICTION",
+                "failed": true,
+                "unexplained_countries": [
+                    "united kingdom"
+                ],
+                "listed_countries": [],
+                "detail": "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none."
+            },
+            "declared_sources": [
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S1",
+                    "source_type": "employment",
+                    "failed": false,
+                    "detail": "S1 Received 5000 per month for professional hard work (?-?, Singapore): backed",
+                    "quote": "I received 5000 per month"
+                },
+                {
+                    "rule_id": "UNQUANTIFIED_SOURCE",
+                    "source_id": "S2",
+                    "source_type": "investment_income",
+                    "failed": false,
+                    "detail": "S2 Should get 500000 in 20 years from investment (?-?, Singapore): backed",
+                    "quote": "I should get 500000 in 20 years for my professional hard work and investment"
+                }
+            ],
+            "country_notes": [
+                {
+                    "country": "Singapore",
+                    "listings": [],
+                    "summary": "Singapore is not listed on FATF high‑risk or increased monitoring lists.",
+                    "source_name": "FATF / FinObservatory"
+                },
+                {
+                    "country": "United Kingdom",
+                    "listings": [],
+                    "summary": "United Kingdom is not listed on FATF high‑risk or increased monitoring lists.",
+                    "source_name": "FATF / FinObservatory"
+                }
+            ],
+            "markets_used": [
+                {
+                    "market_id": "ECO_SG",
+                    "name": "Singapore economy",
+                    "country": "Singapore",
+                    "indicator": "real GDP growth"
+                },
+                {
+                    "market_id": "IND_IT_SG",
+                    "name": "Information & Communications sector (IT industry) in Singapore",
+                    "country": "Singapore",
+                    "indicator": "sectoral real value added growth"
+                },
+                {
+                    "market_id": "PROP_SG",
+                    "name": "Singapore residential property market",
+                    "country": "Singapore",
+                    "indicator": "real house price index"
+                },
+                {
+                    "market_id": "ECO_UK",
+                    "name": "United Kingdom economy",
+                    "country": "United Kingdom",
+                    "indicator": "real GDP growth"
+                }
+            ],
+            "career_savings": [
+                {
+                    "year": 2015,
+                    "total_pay": {
+                        "cautious": 36000,
+                        "typical": 44100,
+                        "optimistic": 60300
+                    },
+                    "after_tax": {
+                        "cautious": 34920.0,
+                        "typical": 43218.0,
+                        "optimistic": 59697.0
+                    },
+                    "living_costs": {
+                        "cautious": 36000,
+                        "typical": 24000,
+                        "optimistic": 18000
+                    },
+                    "saved": {
+                        "cautious": -1080.0,
+                        "typical": 19218.0,
+                        "optimistic": 41697.0
+                    },
+                    "savings": {
+                        "cautious": -1080.0,
+                        "typical": 19218.0,
+                        "optimistic": 41697.0
+                    }
+                },
+                {
+                    "year": 2016,
+                    "total_pay": {
+                        "cautious": 37200,
+                        "typical": 45400,
+                        "optimistic": 61800
+                    },
+                    "after_tax": {
+                        "cautious": 36084.0,
+                        "typical": 44492.0,
+                        "optimistic": 61182.0
+                    },
+                    "living_costs": {
+                        "cautious": 36600,
+                        "typical": 24600,
+                        "optimistic": 18600
+                    },
+                    "saved": {
+                        "cautious": -516.0,
+                        "typical": 19892.0,
+                        "optimistic": 42582.0
+                    },
+                    "savings": {
+                        "cautious": -1596.54,
+                        "typical": 39138.83,
+                        "optimistic": 84424.94
+                    }
+                },
+                {
+                    "year": 2017,
+                    "total_pay": {
+                        "cautious": 38400,
+                        "typical": 46700,
+                        "optimistic": 63300
+                    },
+                    "after_tax": {
+                        "cautious": 37248.0,
+                        "typical": 45766.0,
+                        "optimistic": 62667.0
+                    },
+                    "living_costs": {
+                        "cautious": 37200,
+                        "typical": 25200,
+                        "optimistic": 19200
+                    },
+                    "saved": {
+                        "cautious": 48.0,
+                        "typical": 20566.0,
+                        "optimistic": 43467.0
+                    },
+                    "savings": {
+                        "cautious": -1549.34,
+                        "typical": 59763.54,
+                        "optimistic": 128187.43
+                    }
+                },
+                {
+                    "year": 2018,
+                    "total_pay": {
+                        "cautious": 39600,
+                        "typical": 48000,
+                        "optimistic": 64800
+                    },
+                    "after_tax": {
+                        "cautious": 38412.0,
+                        "typical": 47040.0,
+                        "optimistic": 64152.0
+                    },
+                    "living_costs": {
+                        "cautious": 37800,
+                        "typical": 25800,
+                        "optimistic": 19800
+                    },
+                    "saved": {
+                        "cautious": 612.0,
+                        "typical": 21240.0,
+                        "optimistic": 44352.0
+                    },
+                    "savings": {
+                        "cautious": -938.11,
+                        "typical": 81093.18,
+                        "optimistic": 172988.08
+                    }
+                },
+                {
+                    "year": 2019,
+                    "total_pay": {
+                        "cautious": 40800,
+                        "typical": 49300,
+                        "optimistic": 66300
+                    },
+                    "after_tax": {
+                        "cautious": 39576.0,
+                        "typical": 48314.0,
+                        "optimistic": 65637.0
+                    },
+                    "living_costs": {
+                        "cautious": 38400,
+                        "typical": 26400,
+                        "optimistic": 20400
+                    },
+                    "saved": {
+                        "cautious": 1176.0,
+                        "typical": 21914.0,
+                        "optimistic": 45237.0
+                    },
+                    "savings": {
+                        "cautious": 237.42,
+                        "typical": 103128.82,
+                        "optimistic": 218830.54
+                    }
+                },
+                {
+                    "year": 2020,
+                    "total_pay": {
+                        "cautious": 95000,
+                        "typical": 140000,
+                        "optimistic": 210000
+                    },
+                    "after_tax": {
+                        "cautious": 87400.0,
+                        "typical": 131600.0,
+                        "optimistic": 201600.0
+                    },
+                    "living_costs": {
+                        "cautious": 70000,
+                        "typical": 50000,
+                        "optimistic": 35000
+                    },
+                    "saved": {
+                        "cautious": 17400.0,
+                        "typical": 81600.0,
+                        "optimistic": 166600.0
+                    },
+                    "savings": {
+                        "cautious": 17637.66,
+                        "typical": 185038.21,
+                        "optimistic": 386524.69
+                    }
+                },
+                {
+                    "year": 2021,
+                    "total_pay": {
+                        "cautious": 102000,
+                        "typical": 158000,
+                        "optimistic": 240000
+                    },
+                    "after_tax": {
+                        "cautious": 92820.0,
+                        "typical": 146940.0,
+                        "optimistic": 230400.0
+                    },
+                    "living_costs": {
+                        "cautious": 73000,
+                        "typical": 52000,
+                        "optimistic": 36000
+                    },
+                    "saved": {
+                        "cautious": 19820.0,
+                        "typical": 94940.0,
+                        "optimistic": 194400.0
+                    },
+                    "savings": {
+                        "cautious": 37475.29,
+                        "typical": 280533.32,
+                        "optimistic": 582857.32
+                    }
+                },
+                {
+                    "year": 2022,
+                    "total_pay": {
+                        "cautious": 108000,
+                        "typical": 172000,
+                        "optimistic": 260000
+                    },
+                    "after_tax": {
+                        "cautious": 97200.0,
+                        "typical": 159960.0,
+                        "optimistic": 249600.0
+                    },
+                    "living_costs": {
+                        "cautious": 76000,
+                        "typical": 54000,
+                        "optimistic": 37000
+                    },
+                    "saved": {
+                        "cautious": 21200.0,
+                        "typical": 105960.0,
+                        "optimistic": 212600.0
+                    },
+                    "savings": {
+                        "cautious": 58750.24,
+                        "typical": 387895.99,
+                        "optimistic": 800120.18
+                    }
+                },
+                {
+                    "year": 2023,
+                    "total_pay": {
+                        "cautious": 114000,
+                        "typical": 179000,
+                        "optimistic": 269000
+                    },
+                    "after_tax": {
+                        "cautious": 102600.0,
+                        "typical": 166470.0,
+                        "optimistic": 258240.0
+                    },
+                    "living_costs": {
+                        "cautious": 79000,
+                        "typical": 56000,
+                        "optimistic": 38000
+                    },
+                    "saved": {
+                        "cautious": 23600.0,
+                        "typical": 110470.0,
+                        "optimistic": 220240.0
+                    },
+                    "savings": {
+                        "cautious": 82937.75,
+                        "typical": 504184.43,
+                        "optimistic": 1036362.58
+                    }
+                },
+                {
+                    "year": 2024,
+                    "total_pay": {
+                        "cautious": 119000,
+                        "typical": 186000,
+                        "optimistic": 278000
+                    },
+                    "after_tax": {
+                        "cautious": 107100.0,
+                        "typical": 172980.0,
+                        "optimistic": 266880.0
+                    },
+                    "living_costs": {
+                        "cautious": 82000,
+                        "typical": 58000,
+                        "optimistic": 39000
+                    },
+                    "saved": {
+                        "cautious": 25100.0,
+                        "typical": 114980.0,
+                        "optimistic": 227880.0
+                    },
+                    "savings": {
+                        "cautious": 109281.81,
+                        "typical": 629248.12,
+                        "optimistic": 1290151.64
+                    }
+                },
+                {
+                    "year": 2025,
+                    "total_pay": {
+                        "cautious": 121000,
+                        "typical": 193000,
+                        "optimistic": 287000
+                    },
+                    "after_tax": {
+                        "cautious": 108900.0,
+                        "typical": 179490.0,
+                        "optimistic": 275520.0
+                    },
+                    "living_costs": {
+                        "cautious": 85000,
+                        "typical": 60000,
+                        "optimistic": 40000
+                    },
+                    "saved": {
+                        "cautious": 23900.0,
+                        "typical": 119490.0,
+                        "optimistic": 235520.0
+                    },
+                    "savings": {
+                        "cautious": 134821.04,
+                        "typical": 761323.08,
+                        "optimistic": 1557925.43
+                    }
+                },
+                {
+                    "year": 2026,
+                    "total_pay": {
+                        "cautious": 124000,
+                        "typical": 200000,
+                        "optimistic": 297000
+                    },
+                    "after_tax": {
+                        "cautious": 111600.0,
+                        "typical": 186000.0,
+                        "optimistic": 285120.0
+                    },
+                    "living_costs": {
+                        "cautious": 88000,
+                        "typical": 62000,
+                        "optimistic": 41000
+                    },
+                    "saved": {
+                        "cautious": 23600.0,
+                        "typical": 124000.0,
+                        "optimistic": 244120.0
+                    },
+                    "savings": {
+                        "cautious": 160443.36,
+                        "typical": 900549.54,
+                        "optimistic": 1840993.57
+                    }
+                }
+            ],
+            "career_outlook": "He is likely to remain in a senior IT role, with potential for lateral moves into management or specialist positions, or gradual transition toward advisory or contract work as he approaches retirement age.",
+            "forward_paths": {
+                "T1": [
+                    {
+                        "year": 2026,
+                        "cautious": 180277.28,
+                        "typical": 929006.74,
+                        "optimistic": 1877990.44
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 266893.11,
+                        "typical": 1062193.56,
+                        "optimistic": 2096663.94
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 359139.11,
+                        "typical": 1203437.59,
+                        "optimistic": 2329166.13
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 457099.77,
+                        "typical": 1352943.78,
+                        "optimistic": 2576071.35
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 560860.83,
+                        "typical": 1510922.4,
+                        "optimistic": 2837979.03
+                    }
+                ],
+                "T2": [
+                    {
+                        "year": 2026,
+                        "cautious": 210277.28,
+                        "typical": 1019006.74,
+                        "optimistic": 2057990.44
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 296893.11,
+                        "typical": 1152193.56,
+                        "optimistic": 2276663.94
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 389139.11,
+                        "typical": 1293437.59,
+                        "optimistic": 2509166.13
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 487099.77,
+                        "typical": 1442943.78,
+                        "optimistic": 2756071.35
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 590860.83,
+                        "typical": 1600922.4,
+                        "optimistic": 3017979.03
+                    }
+                ],
+                "T3": [
+                    {
+                        "year": 2026,
+                        "cautious": 530277.28,
+                        "typical": 2329006.74,
+                        "optimistic": 7477990.44
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 666893.11,
+                        "typical": 2674693.56,
+                        "optimistic": 8496663.94
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 809139.11,
+                        "typical": 3028437.59,
+                        "optimistic": 9529166.13
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 957099.77,
+                        "typical": 3390443.78,
+                        "optimistic": 10576071.36
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 1110860.83,
+                        "typical": 3760922.4,
+                        "optimistic": 11637979.03
+                    }
+                ],
+                "T4": [
+                    {
+                        "year": 2026,
+                        "cautious": 230277.28,
+                        "typical": 989006.74,
+                        "optimistic": 2357990.44
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 316893.11,
+                        "typical": 1137193.56,
+                        "optimistic": 2644163.94
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 409139.11,
+                        "typical": 1293437.59,
+                        "optimistic": 2944166.13
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 507099.77,
+                        "typical": 1457943.78,
+                        "optimistic": 3258571.35
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 610860.83,
+                        "typical": 1630922.4,
+                        "optimistic": 3587979.03
+                    }
+                ],
+                "T5": [
+                    {
+                        "year": 2026,
+                        "cautious": 530277.28,
+                        "typical": 2329006.74,
+                        "optimistic": 7477990.44
+                    },
+                    {
+                        "year": 2027,
+                        "cautious": 671893.11,
+                        "typical": 2682193.56,
+                        "optimistic": 8576663.94
+                    },
+                    {
+                        "year": 2028,
+                        "cautious": 819139.11,
+                        "typical": 3043437.59,
+                        "optimistic": 9689166.13
+                    },
+                    {
+                        "year": 2029,
+                        "cautious": 972099.77,
+                        "typical": 3412943.78,
+                        "optimistic": 10816071.36
+                    },
+                    {
+                        "year": 2030,
+                        "cautious": 1130860.83,
+                        "typical": 3790922.4,
+                        "optimistic": 11957979.03
+                    }
+                ]
+            },
+            "event_impacts": [
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven global stock market correction",
+                    "year": 2028,
+                    "type_id": "T1",
+                    "impact": -1453,
+                    "chance": 0.3,
+                    "weighted_impact": -436
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven global stock market correction",
+                    "year": 2028,
+                    "type_id": "T2",
+                    "impact": -1453,
+                    "chance": 0.3,
+                    "weighted_impact": -436
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven global stock market correction",
+                    "year": 2028,
+                    "type_id": "T3",
+                    "impact": -1453,
+                    "chance": 0.3,
+                    "weighted_impact": -436
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven global stock market correction",
+                    "year": 2028,
+                    "type_id": "T4",
+                    "impact": -1453,
+                    "chance": 0.3,
+                    "weighted_impact": -436
+                },
+                {
+                    "event_id": "E1",
+                    "event": "AI-driven global stock market correction",
+                    "year": 2028,
+                    "type_id": "T5",
+                    "impact": -1453,
+                    "chance": 0.3,
+                    "weighted_impact": -436
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in Singapore IT sector",
+                    "year": 2029,
+                    "type_id": "T1",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in Singapore IT sector",
+                    "year": 2029,
+                    "type_id": "T2",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in Singapore IT sector",
+                    "year": 2029,
+                    "type_id": "T3",
+                    "impact": -800000,
+                    "chance": 0.2,
+                    "weighted_impact": -160000
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in Singapore IT sector",
+                    "year": 2029,
+                    "type_id": "T4",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E2",
+                    "event": "Major cybersecurity breach in Singapore IT sector",
+                    "year": 2029,
+                    "type_id": "T5",
+                    "impact": 0,
+                    "chance": 0.2,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T1",
+                    "impact": -1741,
+                    "chance": 0.25,
+                    "weighted_impact": -435
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T2",
+                    "impact": -1741,
+                    "chance": 0.25,
+                    "weighted_impact": -435
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T3",
+                    "impact": -1741,
+                    "chance": 0.25,
+                    "weighted_impact": -435
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T4",
+                    "impact": -61741,
+                    "chance": 0.25,
+                    "weighted_impact": -15435
+                },
+                {
+                    "event_id": "E3",
+                    "event": "Sharp tightening of Singapore property regulations",
+                    "year": 2027,
+                    "type_id": "T5",
+                    "impact": -1741,
+                    "chance": 0.25,
+                    "weighted_impact": -435
+                },
+                {
+                    "event_id": "E4",
+                    "event": "UK economic stagnation due to persistent inflation",
+                    "year": 2029,
+                    "type_id": "T1",
+                    "impact": 0,
+                    "chance": 0.35,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E4",
+                    "event": "UK economic stagnation due to persistent inflation",
+                    "year": 2029,
+                    "type_id": "T2",
+                    "impact": 0,
+                    "chance": 0.35,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E4",
+                    "event": "UK economic stagnation due to persistent inflation",
+                    "year": 2029,
+                    "type_id": "T3",
+                    "impact": 0,
+                    "chance": 0.35,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E4",
+                    "event": "UK economic stagnation due to persistent inflation",
+                    "year": 2029,
+                    "type_id": "T4",
+                    "impact": 0,
+                    "chance": 0.35,
+                    "weighted_impact": 0
+                },
+                {
+                    "event_id": "E4",
+                    "event": "UK economic stagnation due to persistent inflation",
+                    "year": 2029,
+                    "type_id": "T5",
+                    "impact": 0,
+                    "chance": 0.35,
+                    "weighted_impact": 0
+                }
+            ],
+            "divergence": [
+                {
+                    "type_id": "T2",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T3",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T4",
+                    "distinguishable_from": null
+                },
+                {
+                    "type_id": "T5",
+                    "distinguishable_from": null
+                }
+            ],
+            "monitoring_ranges": {
+                "SIG_SALARY_REGULAR": {
+                    "count_max": 15.0,
+                    "amount_max": 75000
+                },
+                "SIG_BONUS_ANNUAL": {
+                    "count_max": 1.25,
+                    "amount_max": 25000
+                },
+                "SIG_DIVIDEND_INCOME": {
+                    "count_max": 2.5,
+                    "amount_max": 50000
+                }
+            },
+            "documents": [
+                {
+                    "document_code": "DOC_TAX_RETURNS",
+                    "document": "Personal tax returns / assessments",
+                    "reason": "Asset 0: declared income 9,000, expected about 1,675 (up to 2,755)"
+                },
+                {
+                    "document_code": "DOC_BENEFICIAL_OWNERSHIP",
+                    "document": "Beneficial ownership declaration",
+                    "reason": "Named countries with no job, asset or declared source: ['united kingdom']. Linked countries on a risk list: none."
+                },
+                {
+                    "document_code": "DOC_BANK_STATEMENTS",
+                    "document": "Historic bank statements",
+                    "reason": "rules out T1, T2, T4"
+                },
+                {
+                    "document_code": "DOC_COMPANY_ACCOUNTS",
+                    "document": "Audited company accounts",
+                    "reason": "rules out T3"
+                },
+                {
+                    "document_code": "DOC_EMPLOYER_CONFIRMATION",
+                    "document": "Employer letter confirming role, pay and permitted outside work",
+                    "reason": "rules out T3"
+                },
+                {
+                    "document_code": "DOC_PROPERTY_TITLE",
+                    "document": "Property title deed",
+                    "reason": "rules out T4"
+                }
+            ],
+            "watch_dates": [
+                {
+                    "date": "2027-01-01",
+                    "what": "E3 Sharp tightening of Singapore property regulations could happen"
+                },
+                {
+                    "date": "2028-01-01",
+                    "what": "E1 AI-driven global stock market correction could happen"
+                },
+                {
+                    "date": "2029-01-01",
+                    "what": "E2 Major cybersecurity breach in Singapore IT sector could happen"
+                },
+                {
+                    "date": "2029-01-01",
+                    "what": "E4 UK economic stagnation due to persistent inflation could happen"
+                }
+            ],
+            "next_review_date": "2027-10-10",
+            "data_quality": {
+                "market_figures": 48,
+                "unverified_share": 0.0,
+                "data_gaps": [
+                    "No forecast data for Singapore real GDP growth beyond 2026",
+                    "No sectoral real value added growth data for IT industry beyond 2023",
+                    "No specific real GDP growth data for United Kingdom economy"
+                ]
+            }
+        }
+    }
+]

@@ -139,11 +139,16 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     benchmark_input = {
         **case_input,
         "declared_net_worth": _whole_number(decl.get("declared_net_worth")),
-        "listed_equities":    _whole_number(comp.get("listed_equities")),
-        "cash":               _whole_number(comp.get("cash")),
-        "property":           _whole_number(comp.get("property")),
-        "private_business":   _whole_number(comp.get("private_business")),
+        "listed_equities": _whole_number(comp.get("listed_equities")),
+        "cash": _whole_number(comp.get("cash")),
+        "property": _whole_number(comp.get("property")),
+        "private_business": _whole_number(comp.get("private_business")),
+        "biggest_wealth_jump": _whole_number(decl.get("biggest_wealth_jump")),
+        "wealth_jump_years": float(decl.get("wealth_jump_years") or 0),
+        "declared_counterparties": decl.get("declared_counterparties", []),
+        "declared_countries": decl.get("declared_countries", []),
     }
+
     unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
                   if benchmark_input[k] is None]
     if unreadable:
@@ -349,6 +354,18 @@ def run_menu(client: ai_manager.AIClient) -> None:
             list_assessments()
 
         elif choice == "6":
+            # NEW: Option to manually trigger cloud sync on demand
+            io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
+            stats = data_manager.sync_json_to_mongodb()
+            io_manager.show_message(
+                f"Sync complete! Cases synced: {stats['cases_synced']}, "
+                f"Assessments synced: {stats['assessments_synced']}"
+            )
+            if stats["errors"]:
+                for err in stats["errors"]:
+                    io_manager.show_error(err)
+
+        elif choice == "7":  # Shifted exit choice from 6 to 7
             io_manager.show_message("\nGoodbye.")
             break
 
