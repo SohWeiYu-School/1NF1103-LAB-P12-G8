@@ -42,7 +42,7 @@ LINE = "-" * 72
 
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-6)."""
+    """Display the unified main menu and return the user's choice (1-7)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
@@ -51,12 +51,13 @@ def show_app_menu() -> str:
     print("3. Assess an Existing Client (crime scan, benchmark and forecasting)")
     print("4. Run a Periodic Review")
     print("5. List Saved Assessments")
-    print("6. Quit")
+    print("6. Manual Sync to Cloud Database")
+    print("7. Quit")
     while True:
-        choice = input("\nEnter your choice (1-6): ").strip()
-        if choice in ("1", "2", "3", "4", "5", "6"):
+        choice = input("\nEnter your choice (1-7): ").strip()
+        if choice in ("1", "2", "3", "4", "5", "6", "7"):
             return choice
-        print("Invalid choice. Please enter 1 to 6.")
+        print("Invalid choice. Please enter 1 to 7.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
