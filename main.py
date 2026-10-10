@@ -349,6 +349,18 @@ def run_menu(client: ai_manager.AIClient) -> None:
             list_assessments()
 
         elif choice == "6":
+            # NEW: Option to manually trigger cloud sync on demand
+            io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
+            stats = data_manager.sync_json_to_mongodb()
+            io_manager.show_message(
+                f"Sync complete! Cases synced: {stats['cases_synced']}, "
+                f"Assessments synced: {stats['assessments_synced']}"
+            )
+            if stats["errors"]:
+                for err in stats["errors"]:
+                    io_manager.show_error(err)
+
+        elif choice == "7":  # Shifted exit choice from 6 to 7
             io_manager.show_message("\nGoodbye.")
             break
 
