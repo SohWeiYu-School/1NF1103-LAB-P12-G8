@@ -195,10 +195,10 @@ def _call_ai(
     mdl = model()
 
     key = cache_key(kind, payload, prompt_version, mdl)
-    cached = cache_read(key)
+    cached = cache_read(key, kind)
     if cached is not None:
         logger.debug("Cache hit for key %.12s", key)
-        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         return cached, warnings
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
@@ -265,8 +265,8 @@ def _call_ai(
 
         # ── Success ───────────────────────────────────────────────────────
         data["model"] = mdl
-        cache_write(key, data)
-        data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cache_write(key, data, kind)
+        data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         warnings.extend(attempt_warnings)
         return data, warnings
 
@@ -430,10 +430,10 @@ def _call_ai_research(
     mdl = research_model()
 
     key = cache_key(kind, payload, prompt_version, mdl)
-    cached = cache_read(key)
+    cached = cache_read(key, kind)
     if cached is not None:
         logger.debug("Cache hit for research key %.12s", key)
-        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         return cached, warnings
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
@@ -537,8 +537,8 @@ def _call_ai_research(
             data["api_sources"] = api_sources
             data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
             data["model"] = mdl
-            cache_write(key, data)
-            data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+            cache_write(key, data, kind)
+            data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
             warnings.extend(attempt_warnings)
             return data, warnings
         except Exception as exc:
