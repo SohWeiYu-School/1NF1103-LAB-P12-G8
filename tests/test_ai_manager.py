@@ -128,7 +128,9 @@ def test_cache_hit_makes_no_api_call(tmp_path, monkeypatch):
 
     key = _cache_key("test", {"x": 1}, "test-v1", "gpt-4o")
     cached = {**_VALID_BODY, "model": "gpt-4o"}
-    (tmp_path / f"{key}.json").write_text(json.dumps(cached))
+    subdir = tmp_path / "test"
+    subdir.mkdir(parents=True, exist_ok=True)
+    (subdir / f"{key}.json").write_text(json.dumps(cached))
 
     with patch("app.ai_manager.client") as mock_client_fn:
         result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
@@ -872,7 +874,9 @@ def test_declaration_cache_hit_makes_no_api_call(tmp_path, monkeypatch):
     # Build the same cache key get_declaration() will derive
     key = _cache_key("declaration", {"declaration_text": decl_text}, prompt_version, "gpt-4o")
     cached_response = {"sources": [], "model": "gpt-4o"}
-    (tmp_path / f"{key}.json").write_text(json.dumps(cached_response))
+    subdir = tmp_path / "declaration"
+    subdir.mkdir(parents=True, exist_ok=True)
+    (subdir / f"{key}.json").write_text(json.dumps(cached_response))
 
     with patch("app.ai_manager.client") as mock_client_fn:
         result, warnings = get_declaration({"declaration_text": decl_text})
