@@ -303,11 +303,35 @@ def download_supporting_document(file_id: str, output_path: str) -> bool:
 
 
 # Compatibility stub functions required by main.py
-def load_raw_replies(ref: str) -> dict: 
-    return {}
+def load_raw_replies(ref: str) -> dict:
+    path = os.path.join(DATA_DIR, "cache", "forecasting", f"{ref}.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, IOError):
+        return {}
 
-def save_raw_replies(ref: str, replies: dict) -> int: 
-    return len(replies) if isinstance(replies, dict) else 0
+
+def save_raw_replies(ref: str, replies: dict) -> int:
+    if not isinstance(replies, dict):
+        return 0
+    path = os.path.join(DATA_DIR, "cache", "forecasting", f"{ref}.json")
+    existing = load_raw_replies(ref)
+    count = 0
+    for name, result in replies.items():
+        if isinstance(result, dict) and result.get("raw"):
+            existing[name] = result["raw"]
+            count += 1
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+    except IOError:
+        return 0
+    return count
 
 def save_forecast(ref: str, forecast: dict) -> bool: 
     return True
