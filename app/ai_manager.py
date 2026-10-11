@@ -109,11 +109,23 @@ def parse_ai_response(response):
 
 #Get the AI result, to be used in logic
 def get_ai_data(client_data):
+    template = load_prompt("benchmark.txt")
+    prompt_version = extract_prompt_version(template)
+    mdl = "gpt-4.1-nano"
+
+    key = cache_key("benchmark", client_data, prompt_version, mdl)
+    cached = cache_read(key, "benchmark")
+    if cached is not None:
+        return cached
+
     prompt = generate_prompt(client_data)
     result = call_openai(prompt)
 
     if result is not None:
-        return parse_ai_response(result)
+        data = parse_ai_response(result)
+        if data is not None:
+            cache_write(key, data, "benchmark")
+        return data
     return None
     
 
