@@ -165,5 +165,6 @@
       "DOC_BANK_STATEMENTS"
     ]
   },
-  "max_documents": 6
+  "max_documents": 6,
+  "source_max_age_years": 10
 }

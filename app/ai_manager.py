@@ -109,11 +109,23 @@ def parse_ai_response(response):
 
 #Get the AI result, to be used in logic
 def get_ai_data(client_data):
+    template = load_prompt("benchmark.txt")
+    prompt_version = extract_prompt_version(template)
+    mdl = "gpt-4.1-nano"
+
+    key = cache_key("benchmark", client_data, prompt_version, mdl)
+    cached = cache_read(key, "benchmark")
+    if cached is not None:
+        return cached
+
     prompt = generate_prompt(client_data)
     result = call_openai(prompt)
 
     if result is not None:
-        return parse_ai_response(result)
+        data = parse_ai_response(result)
+        if data is not None:
+            cache_write(key, data, "benchmark")
+        return data
     return None
     
 
@@ -123,6 +135,7 @@ def get_ai_data(client_data):
 
 BENCHMARK_ALLOWED_FIELDS = ["occupation", "industry", "age", "career_start_year", "country"]
 RESEARCH_ALLOWED_FIELDS = ["industry", "country"]
+_TYPOLOGY_REPORT_FIELDS = ["report_id", "organisation", "title", "year", "summary", "excerpts"]
 
 # Must match policy.json "typology_max_patterns"
 _TYPOLOGY_MAX_PATTERNS = 5
@@ -194,10 +207,10 @@ def _call_ai(
     mdl = model()
 
     key = cache_key(kind, payload, prompt_version, mdl)
-    cached = cache_read(key)
+    cached = cache_read(key, kind)
     if cached is not None:
         logger.debug("Cache hit for key %.12s", key)
-        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         return cached, warnings
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
@@ -264,8 +277,8 @@ def _call_ai(
 
         # ── Success ───────────────────────────────────────────────────────
         data["model"] = mdl
-        cache_write(key, data)
-        data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cache_write(key, data, kind)
+        data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         warnings.extend(attempt_warnings)
         return data, warnings
 
@@ -277,19 +290,36 @@ def _call_ai(
     return None, [_user_warning(kind, error_type)]
 
 
-def get_typologies(case_input: dict) -> tuple[dict | None, list[str]]:
-    """Call AI for sector abuse typologies only.
+def _build_typology_reports(research: dict) -> list[dict]:
+    """Extract only safe fields from research reports (no URLs)."""
+    return [
+        {k: r[k] for k in _TYPOLOGY_REPORT_FIELDS if k in r}
+        for r in research.get("reports", [])
+    ]
 
-    Only the fields in BENCHMARK_ALLOWED_FIELDS are sent to the AI.
-    The client's declared figures are never included.
+
+def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
+    """Call AI for sector abuse typologies, grounded in the provided research reports.
+
+    Only BENCHMARK_ALLOWED_FIELDS are sent as the client profile.
+    Reports are injected from the research result (no URLs included).
     Returns: (response_dict | None, warnings)
     """
-    payload = {k: case_input[k] for k in BENCHMARK_ALLOWED_FIELDS if k in case_input}
-    if "country" not in payload:
-        payload["country"] = case_input.get("country_of_residence", "Singapore")
+    profile_payload = {k: case_input[k] for k in BENCHMARK_ALLOWED_FIELDS if k in case_input}
+    if "country" not in profile_payload:
+        profile_payload["country"] = case_input.get("country_of_residence", "Singapore")
+
+    reports = _build_typology_reports(research) if research is not None else []
+
+    # payload includes reports so the cache key changes when research changes
+    payload = {**profile_payload, "reports": reports}
 
     template = load_prompt("typology.txt")
-    prompt = template.replace("{payload_json}", json.dumps(payload, indent=2))
+    prompt = (
+        template
+        .replace("{payload_json}", json.dumps(profile_payload, indent=2))
+        .replace("{reports_json}", json.dumps(reports, indent=2))
+    )
     schema = load_schema("typology_response.schema.json")
 
     return _call_ai("typology", payload, prompt, schema, transform=_trim_typologies)
@@ -412,10 +442,10 @@ def _call_ai_research(
     mdl = research_model()
 
     key = cache_key(kind, payload, prompt_version, mdl)
-    cached = cache_read(key)
+    cached = cache_read(key, kind)
     if cached is not None:
         logger.debug("Cache hit for research key %.12s", key)
-        cached["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
         return cached, warnings
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
@@ -519,8 +549,8 @@ def _call_ai_research(
             data["api_sources"] = api_sources
             data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
             data["model"] = mdl
-            cache_write(key, data)
-            data["_cache_path"] = os.path.join(cache_dir(), f"{key}.json")
+            cache_write(key, data, kind)
+            data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
             warnings.extend(attempt_warnings)
             return data, warnings
         except Exception as exc:

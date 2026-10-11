@@ -7,7 +7,10 @@ import jsonschema
 import pytest
 
 from app import ai_manager
-from app.ai_manager import _call_ai, _call_ai_research, get_research, get_typologies
+from app.ai_manager import (
+    _call_ai, _call_ai_research, _build_typology_reports,
+    get_research, get_typologies,
+)
 from app.utilities import cache_key as _cache_key, load_schema as _load_schema
 
 # ---------------------------------------------------------------------------
@@ -52,14 +55,36 @@ def _fake_response(body: dict) -> MagicMock:
     return resp
 
 
+_SAMPLE_RESEARCH = {
+    "reports": [
+        {
+            "report_id": "R1",
+            "organisation": "FATF",
+            "title": "Trade Based Money Laundering",
+            "year": 2006,
+            "url": "https://www.fatf-gafi.org/publications/trade-based-money-laundering.html",
+            "excerpts": ["Trade-based money laundering is one of the main methods used by criminal organisations."],
+            "summary": ["Describes how shipping invoices are manipulated to move value across borders."],
+        }
+    ],
+    "api_sources": [],
+    "retrieved_at": "2026-10-01T00:00:00+00:00",
+    "model": "gpt-5.4",
+}
+
+
 def _valid_typology(typology_id: str = "test_typology") -> dict:
     return {
         "typology_id": typology_id,
         "name": "Test typology name",
         "description": "First sentence about the pattern. Second sentence.",
-        "source_reference": "FATF, Trade-Based Money Laundering, 2020",
-        "source_url": "https://www.fatf-gafi.org/publications/methodsandtrends/documents/trade-based-money-laundering.html",
-        "source_quote": "Trade-based money laundering is one of the main methods used by criminal organisations.",
+        "source_ids": ["R1"],
+        "source_quotes": [
+            {
+                "report_id": "R1",
+                "quote": "Trade-based money laundering is one of the main methods used by criminal organisations.",
+            }
+        ],
         "indicators": [
             {"indicator": "offshore_entity_present", "weight": "core"},
             {"indicator": "counterparty_unnamed", "weight": "supporting"},
@@ -103,7 +128,9 @@ def test_cache_hit_makes_no_api_call(tmp_path, monkeypatch):
 
     key = _cache_key("test", {"x": 1}, "test-v1", "gpt-4o")
     cached = {**_VALID_BODY, "model": "gpt-4o"}
-    (tmp_path / f"{key}.json").write_text(json.dumps(cached))
+    subdir = tmp_path / "test"
+    subdir.mkdir(parents=True, exist_ok=True)
+    (subdir / f"{key}.json").write_text(json.dumps(cached))
 
     with patch("app.ai_manager.client") as mock_client_fn:
         result, warnings = _call_ai("test", {"x": 1}, _PROMPT, _SIMPLE_SCHEMA)
@@ -189,9 +216,9 @@ def test_empty_typologies_passes_schema():
     jsonschema.validate(instance=data, schema=TYPOLOGY_SCHEMA)
 
 
-def test_missing_source_url_fails_schema():
+def test_missing_source_ids_fails_schema():
     t = _valid_typology()
-    del t["source_url"]
+    del t["source_ids"]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(
             instance=_valid_typology_response(typologies=[t]),
@@ -239,7 +266,7 @@ def test_six_typologies_trimmed_to_five(tmp_path, monkeypatch):
     )
 
     with patch("app.ai_manager.client", return_value=mock_client):
-        result, warnings = get_typologies(_SAMPLE_PAYLOAD)
+        result, warnings = get_typologies(_SAMPLE_PAYLOAD, _SAMPLE_RESEARCH)
 
     assert result is not None
     assert len(result["sector_typologies"]) == 5
@@ -763,3 +790,109 @@ def test_excerpt_curly_quotes_stripped(tmp_path, monkeypatch):
     assert excerpts[0] == "This is a quoted excerpt."
     assert excerpts[1] == "Another excerpt"
     assert excerpts[2] == "Double quoted"
+
+
+# ---------------------------------------------------------------------------
+# 32–36. Research → typology connection
+# ---------------------------------------------------------------------------
+
+def test_build_typology_reports_strips_url():
+    """_build_typology_reports must exclude url and non-report keys."""
+    result = _build_typology_reports(_SAMPLE_RESEARCH)
+    assert len(result) == 1
+    assert "url" not in result[0]
+    assert "report_id" in result[0]
+    assert result[0]["organisation"] == "FATF"
+
+
+def test_build_typology_reports_empty_research():
+    assert _build_typology_reports({"reports": []}) == []
+    assert _build_typology_reports({}) == []
+
+
+def test_typology_payload_contains_reports_not_urls(tmp_path, monkeypatch):
+    """get_typologies payload must include reports without url field."""
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    captured_payload = {}
+
+    def fake_call_ai(kind, payload, prompt, schema, transform=None):
+        captured_payload.update(payload)
+        return _valid_typology_response(), []
+
+    with patch("app.ai_manager._call_ai", side_effect=fake_call_ai):
+        get_typologies(_SAMPLE_PAYLOAD, _SAMPLE_RESEARCH)
+
+    assert "reports" in captured_payload
+    assert len(captured_payload["reports"]) == 1
+    assert "url" not in captured_payload["reports"][0]
+    # Client-specific fields must not leak in
+    assert "client_ref" not in captured_payload
+    assert "declaration_text" not in captured_payload
+
+
+def test_source_id_wrong_format_fails_schema():
+    """source_ids entries must match ^R[0-9]+$."""
+    t = _valid_typology()
+    t["source_ids"] = ["X1"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            instance=_valid_typology_response(typologies=[t]),
+            schema=TYPOLOGY_SCHEMA,
+        )
+
+
+def test_missing_source_quotes_fails_schema():
+    t = _valid_typology()
+    del t["source_quotes"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(
+            instance=_valid_typology_response(typologies=[t]),
+            schema=TYPOLOGY_SCHEMA,
+        )
+
+
+# ---------------------------------------------------------------------------
+# 37. get_declaration() is cached — second call with same text hits cache
+# ---------------------------------------------------------------------------
+
+def test_declaration_cache_hit_makes_no_api_call(tmp_path, monkeypatch):
+    """get_declaration() must return cached result without making an API call."""
+    from app.ai_manager import get_declaration
+    from app.utilities import extract_prompt_version, load_prompt
+
+    monkeypatch.setenv("CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
+
+    decl_text = "I earned my wealth from my career as a software engineer."
+    template = load_prompt("declaration.txt")
+    prompt_version = extract_prompt_version(template)
+
+    # Build the same cache key get_declaration() will derive
+    key = _cache_key("declaration", {"declaration_text": decl_text}, prompt_version, "gpt-4o")
+    cached_response = {"sources": [], "model": "gpt-4o"}
+    subdir = tmp_path / "declaration"
+    subdir.mkdir(parents=True, exist_ok=True)
+    (subdir / f"{key}.json").write_text(json.dumps(cached_response))
+
+    with patch("app.ai_manager.client") as mock_client_fn:
+        result, warnings = get_declaration({"declaration_text": decl_text})
+
+    mock_client_fn.assert_not_called()
+    assert result is not None
+    assert warnings == []
+
+
+def test_different_research_gives_different_cache_key():
+    research_a = {"reports": [{"report_id": "R1", "organisation": "FATF", "title": "A", "year": 2020, "summary": [], "excerpts": []}]}
+    research_b = {"reports": [{"report_id": "R1", "organisation": "MAS", "title": "B", "year": 2021, "summary": [], "excerpts": []}]}
+    reports_a = _build_typology_reports(research_a)
+    reports_b = _build_typology_reports(research_b)
+    payload_a = {**_SAMPLE_PAYLOAD, "reports": reports_a}
+    payload_b = {**_SAMPLE_PAYLOAD, "reports": reports_b}
+    k1 = _cache_key("typology", payload_a, "typology-v3", "gpt-4o")
+    k2 = _cache_key("typology", payload_b, "typology-v3", "gpt-4o")
+    assert k1 != k2

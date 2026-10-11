@@ -9,6 +9,7 @@
     "industry": "Technology",
     "career_start_year": 2005,
     "pep_status": "none",
+    "reference_year": 2025,
     "declared_net_worth_sgd": 2000000,
     "expected_aum_sgd": 1500000,
     "asset_composition": {
@@ -79,5 +80,5 @@
     },
     "document_map": {}
   },
-  "expected_outcome": "PASSED"
+  "expected_breach_count": 0
 }

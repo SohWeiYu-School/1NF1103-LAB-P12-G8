@@ -25,6 +25,7 @@ instead of crashing.
 
 import json
 import os
+import uuid
 import certifi
 from dotenv import load_dotenv
 from bson import ObjectId
@@ -46,11 +47,14 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Define the local data directory folder (e.g., .../data)
 DATA_DIR = os.path.join(_BASE_DIR, "data")
 
+# Subfolder for local JSON database files
+LOCAL_DB_DIR = os.path.join(DATA_DIR, "local database")
+
 # Set the path for saving client profiles locally
-LOCAL_CASES_JSON = os.path.join(DATA_DIR, "sow_cases.json")
+LOCAL_CASES_JSON = os.path.join(LOCAL_DB_DIR, "sow_cases.json")
 
 # Set the path for saving AI assessment results locally
-LOCAL_ASSESSMENTS_JSON = os.path.join(DATA_DIR, "ai_assessments.json")
+LOCAL_ASSESSMENTS_JSON = os.path.join(LOCAL_DB_DIR, "ai_assessments.json")
 
 # Define MongoDB database and collection names
 DB_NAME = "sow_risk_db"
@@ -59,8 +63,8 @@ ASSESSMENT_COLLECTION_NAME = "ai_assessments"
 
 
 def _ensure_data_dir():
-    # Make sure the data directory exists on disk before reading or writing
-    os.makedirs(DATA_DIR, exist_ok=True)
+    # Make sure the local database directory exists on disk before reading or writing
+    os.makedirs(LOCAL_DB_DIR, exist_ok=True)
 
 
 # ==============================================================================
@@ -79,7 +83,6 @@ def load_from_json(filepath: str) -> list:
             return data if isinstance(data, list) else []
     except (json.JSONDecodeError, IOError) as e:
         # Catch file read or decode errors
-        print(f"[Data Manager Warning] Could not read {filepath}: {e}")
         return []
 
 
@@ -112,7 +115,6 @@ def save_to_json(record: dict, filepath: str) -> bool:
             json.dump(records, f, indent=4, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[Data Manager Error] Failed writing to {filepath}: {e}")
         return False
 
 
@@ -176,9 +178,26 @@ def filter_cases_by_outcome(outcome: str) -> list:
     return [r for r in all_records if r.get("outcome") == outcome]
 
 
+def append_to_json(record: dict, filepath: str) -> bool:
+    # Append a record to a JSON file without overwriting existing entries
+    _ensure_data_dir()
+    records = load_from_json(filepath)
+    records.append(record)
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=4, ensure_ascii=False)
+        return True
+    except IOError:
+        return False
+
+
 def save_assessment(record: dict) -> bool:
-    # Save or update an AI assessment record strictly in local ai_assessments.json
-    return save_to_json(record, LOCAL_ASSESSMENTS_JSON)
+    # Append an AI assessment record to local ai_assessments.json (multiple per client allowed)
+    if not isinstance(record, dict) or "client_ref" not in record:
+        return False
+    if "assessment_id" not in record:
+        record = {**record, "assessment_id": str(uuid.uuid4())}
+    return append_to_json(record, LOCAL_ASSESSMENTS_JSON)
 
 
 def load_all_assessments() -> list:
@@ -284,11 +303,35 @@ def download_supporting_document(file_id: str, output_path: str) -> bool:
 
 
 # Compatibility stub functions required by main.py
-def load_raw_replies(ref: str) -> dict: 
-    return {}
+def load_raw_replies(ref: str) -> dict:
+    path = os.path.join(DATA_DIR, "cache", "forecasting", f"{ref}.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, IOError):
+        return {}
 
-def save_raw_replies(ref: str, replies: dict) -> int: 
-    return len(replies) if isinstance(replies, dict) else 0
+
+def save_raw_replies(ref: str, replies: dict) -> int:
+    if not isinstance(replies, dict):
+        return 0
+    path = os.path.join(DATA_DIR, "cache", "forecasting", f"{ref}.json")
+    existing = load_raw_replies(ref)
+    count = 0
+    for name, result in replies.items():
+        if isinstance(result, dict) and result.get("raw"):
+            existing[name] = result["raw"]
+            count += 1
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, ensure_ascii=False)
+    except IOError:
+        return 0
+    return count
 
 def save_forecast(ref: str, forecast: dict) -> bool: 
     return True
@@ -316,12 +359,28 @@ def load_case(path: str) -> dict | None:
     except Exception: 
         return None
 
+def load_json(path: str, default=None):
+    # Read any JSON file from disk; return default if missing or unreadable
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return default
+
+
+def sample_dir() -> str:
+    # Return the absolute path to the data/sample directory
+    return os.path.join(DATA_DIR, "sample")
+
+
 def list_sample_cases() -> list:
     # List all sample json files inside data/sample/
-    sample_dir = os.path.join(DATA_DIR, "sample")
-    if not os.path.exists(sample_dir): 
+    sdir = sample_dir()
+    if not os.path.exists(sdir):
         return []
-    return [os.path.join(sample_dir, f) for f in os.listdir(sample_dir) if f.endswith(".json")]
+    return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
 
 def load_forecasting_case(ref: str) -> dict | None: 
     return find_client_record(ref)
@@ -330,10 +389,23 @@ def load_forecast(ref: str) -> dict | None:
     return None
 
 def load_assessment(ref: str, kind: str = "onboarding") -> dict | None:
-    # Find saved assessment matching the given client reference strictly from local JSON
-    assessments = load_all_assessments()
-    for a in assessments:
-        if a.get("client_ref") == ref:
+    # Return the most recent assessment for a client reference
+    matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
+    if not matches:
+        return None
+    return max(matches, key=lambda a: a.get("assessed_at", ""))
+
+
+def load_client_assessments(ref: str) -> list:
+    # Return all assessments for a client, newest first
+    matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
+    return sorted(matches, key=lambda a: a.get("assessed_at", ""), reverse=True)
+
+
+def load_assessment_by_id(assessment_id: str) -> dict | None:
+    # Return a single assessment by its unique assessment_id
+    for a in load_all_assessments():
+        if a.get("assessment_id") == assessment_id:
             return a
     return None
 

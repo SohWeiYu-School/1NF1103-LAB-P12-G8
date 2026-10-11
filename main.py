@@ -67,22 +67,26 @@ def _configure_logging() -> None:
 # ---------------------------------------------------------------------------
 
 def crime_scan_input(client_record: dict) -> dict:
-    """Map the client record (DB fields) to the crime scan input."""
-    profile = client_record["client_profile"]
+    """Map the client record (flat structure) to the crime scan input."""
+    career = client_record["career"]
+    sow = client_record["sow_declaration"]
     return {
-        "client_ref":        client_record["client_ref"],
-        "occupation":        profile["latest_occupation"],
-        "industry":          profile["latest_industry"],
-        "age":               _whole_number(profile["age"]),
-        "career_start_year": _whole_number(profile["career_start_year"]),
-        "country":           profile["country_of_residence"],
-        "country_of_residence": profile["country_of_residence"],
-        "declaration_text":  client_record["sow_declaration"]["declaration_text"],
+        "client_ref":           client_record["client_ref"],
+        "occupation":           career["occupation"],
+        "industry":             career["industry"],
+        "age":                  _whole_number(career["age"]),
+        "career_start_year":    _whole_number(career["career_start_year"]),
+        "country":              career["country_of_residence"],
+        "country_of_residence": career["country_of_residence"],
+        "declaration_text":     sow if isinstance(sow, str) else sow.get("declaration_text", ""),
     }
 
 
 def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | None]:
-    """Research, sector typologies and declaration reading. Returns (research, typologies, declaration)."""
+    """Research, verify, match typologies and parse declaration. Returns (research, typologies, declaration)."""
+    policy = _load_json(os.path.join(_BASE, "config", "policy.json"))
+
+    # Step 1: Research
     io_manager.show_message("\nSearching trusted sources for typology reports...")
     research, res_warnings = ai_manager.get_research(case_input)
     for w in res_warnings:
@@ -90,41 +94,54 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     if research is not None:
         io_manager.show_research_output(research)
 
+    # Step 2: Verify research
+    if research is not None:
+        clean_research, verify_warnings = logic_manager.verify_research(research, policy)
+        for w in verify_warnings:
+            io_manager.show_error(w)
+    else:
+        clean_research = None
+
+    # Step 3: Typologies
     io_manager.show_message("Calling AI for sector typologies...")
     typology_response, typ_warnings = ai_manager.get_typologies(case_input)
     for w in typ_warnings:
         io_manager.show_error(w)
 
+    # Step 4: Verify typology source citations
+    if typology_response is not None and clean_research is not None:
+        verified_typs, typ_verify_warnings = logic_manager.verify_typology_sources(
+            typology_response.get("sector_typologies", []), clean_research, policy,
+        )
+        for w in typ_verify_warnings:
+            io_manager.show_error(w)
+        typology_response = {**typology_response, "sector_typologies": verified_typs}
+
+    # Step 5: Declaration
     io_manager.show_message("Calling AI to parse declaration...")
     declaration, decl_warnings = ai_manager.get_declaration(case_input)
     for w in decl_warnings:
         io_manager.show_error(w)
 
+    # Step 6: Normalise declaration jurisdictions
+    if declaration is not None:
+        declaration, norm_warnings = logic_manager.normalize_declaration_jurisdictions(declaration)
+        for w in norm_warnings:
+            io_manager.show_error(w)
+
+    # Steps 7-8: Match typologies and display result
     if typology_response is not None and declaration is not None:
         io_manager.show_ai_output(case_input, typology_response, declaration)
+        crime_result = logic_manager.assess_case(case_input, typology_response, declaration, policy)
+        io_manager.show_crime_scan_result(crime_result, typology_response, research)
+
     return research, typology_response, declaration
 
 
 def _run_sample_assessment() -> None:
     """Crime scan of the hardcoded sample client (python main.py --crime-scan-sample)."""
     raw = _load_json(SAMPLE_CLIENT_PATH)
-    profile = raw["client_profile"]
-
-    # Field name mapping: sample JSON uses different keys from the internal schema.
-    #   latest_occupation  → occupation
-    #   latest_industry    → industry
-    #   country_of_residence is kept for the get_typologies fallback
-    #   sow_declaration.text → declaration_text
-    case_input = {
-        "client_ref": profile["client_ref"],
-        "occupation": profile["latest_occupation"],
-        "industry": profile["latest_industry"],
-        "age": profile["age"],
-        "career_start_year": profile["career_start_year"],
-        "country": profile["country_of_residence"],
-        "country_of_residence": profile["country_of_residence"],
-        "declaration_text": raw["sow_declaration"]["text"],
-    }
+    case_input = crime_scan_input(raw)
     run_crime_scan(case_input)
 
 
@@ -134,19 +151,33 @@ def _run_sample_assessment() -> None:
 
 def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     """The benchmark check on the declared net worth and asset split."""
-    comp = client_record.get("asset_composition", {})
-    decl = client_record.get("client_declarations", {})
+    claims = client_record.get("claims", {})
+    comp   = claims.get("asset_composition", {})
+
+    def _comp_pct(val) -> int | None:
+        """Convert fraction (0.1) or percentage (10) to whole-number percentage."""
+        n = _whole_number(val)
+        if n is None:
+            return None
+        # If stored as fraction (0-1), multiply by 100
+        raw = val if val is not None else 0
+        try:
+            f = float(raw)
+            return round(f * 100) if f <= 1.0 else n
+        except (TypeError, ValueError):
+            return n
+
     benchmark_input = {
         **case_input,
-        "declared_net_worth": _whole_number(decl.get("declared_net_worth")),
-        "listed_equities": _whole_number(comp.get("listed_equities")),
-        "cash": _whole_number(comp.get("cash")),
-        "property": _whole_number(comp.get("property")),
-        "private_business": _whole_number(comp.get("private_business")),
-        "biggest_wealth_jump": _whole_number(decl.get("biggest_wealth_jump")),
-        "wealth_jump_years": float(decl.get("wealth_jump_years") or 0),
-        "declared_counterparties": decl.get("declared_counterparties", []),
-        "declared_countries": decl.get("declared_countries", []),
+        "declared_net_worth":      _whole_number(claims.get("declared_net_worth")),
+        "listed_equities":         _comp_pct(comp.get("listed_equities")),
+        "cash":                    _comp_pct(comp.get("cash")),
+        "property":                _comp_pct(comp.get("property")),
+        "private_business":        _comp_pct(comp.get("private_business")),
+        "biggest_wealth_jump":     None,
+        "wealth_jump_years":       0.0,
+        "declared_counterparties": [],
+        "declared_countries":      [],
     }
 
     unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
@@ -218,6 +249,8 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
         research, typology_response, declaration = run_crime_scan(case_input)
         # Benchmark
         ai_data = run_benchmark_for(client_record, case_input)
+        if ai_data is not None:
+            io_manager.show_benchmark_result(ai_data)
 
     # Save AI results to ai_assessments collection
     assessment = {
@@ -327,15 +360,25 @@ def run_menu(client: ai_manager.AIClient) -> None:
     while True:
         choice = io_manager.show_app_menu()
         if choice == "1":
-            client_record = io_manager.create_new_client()
+            client_record = io_manager.create_new_client(
+                save_fn=data_manager.save_case_record,
+                upload_fn=data_manager.upload_supporting_document,
+            )
             if client_record is not None:
                 assess_client_record(client_record, client)
 
         elif choice == "2":
-            io_manager.find_existing_client()
+            io_manager.find_existing_client(
+                load_fn=data_manager.load_all_records,
+                save_fn=data_manager.save_case_record,
+                download_fn=data_manager.download_supporting_document,
+                upload_fn=data_manager.upload_supporting_document,
+            )
 
         elif choice == "3":
             ref = io_manager.ask_client_ref()
+            if ref is None:
+                continue
             client_record = data_manager.find_client_record(ref)
             if client_record is None:
                 io_manager.show_error(f"No client found with reference {ref} (or the database can't be reached).")
@@ -344,6 +387,8 @@ def run_menu(client: ai_manager.AIClient) -> None:
 
         elif choice == "4":
             ref = io_manager.ask_client_ref()
+            if ref is None:
+                continue
             case, forecast, onboarding = saved_case_forecast(ref)
             if not (case and forecast and onboarding):
                 io_manager.show_error(f"{ref} hasn't been assessed yet. Use option 3 first.")
@@ -354,7 +399,10 @@ def run_menu(client: ai_manager.AIClient) -> None:
             list_assessments()
 
         elif choice == "6":
-            # NEW: Option to manually trigger cloud sync on demand
+            io_manager.show_client_list(data_manager.load_all_records())
+            input("Press Enter to continue...")
+
+        elif choice == "7":
             io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
             stats = data_manager.sync_json_to_mongodb()
             io_manager.show_message(
@@ -365,7 +413,7 @@ def run_menu(client: ai_manager.AIClient) -> None:
                 for err in stats["errors"]:
                     io_manager.show_error(err)
 
-        elif choice == "7":  # Shifted exit choice from 6 to 7
+        elif choice == "8":
             io_manager.show_message("\nGoodbye.")
             break
 

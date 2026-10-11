@@ -22,7 +22,6 @@ def _load_golden_cases():
     return cases
 
 
-@pytest.mark.skip(reason="Sector Crime Scan logic being redesigned")
 @pytest.mark.parametrize(
     "case",
     _load_golden_cases(),
@@ -35,9 +34,9 @@ def test_golden_case(case):
         case["declaration"],
         case["policy"],
     )
-    assert result["outcome"] == case["expected_outcome"], (
+    assert result["breach_count"] == case["expected_breach_count"], (
         f"[{case['_path']}] {case['description']}\n"
-        f"  Expected: {case['expected_outcome']}\n"
-        f"  Got:      {result['outcome']}\n"
-        f"  Findings: {[f['rule_id'] for f in result['findings']]}"
+        f"  Expected breach_count: {case['expected_breach_count']}\n"
+        f"  Got:                   {result['breach_count']}\n"
+        f"  Match results: {[(mr['typology_id'], mr['breached']) for mr in result['match_results']]}"
     )

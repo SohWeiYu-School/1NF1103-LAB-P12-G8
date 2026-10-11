@@ -16,18 +16,13 @@ typing) so tests can feed in typed answers.
 import datetime
 import json
 import os
+import textwrap
 import uuid
 from typing import Callable
 
 from jsonschema import Draft202012Validator
 
 from app import common
-from app.data_manager import (
-    save_case_record,
-    upload_supporting_document,
-    load_all_records,
-    download_supporting_document
-)
 
 # The file picker needs tkinter, which isn't installed everywhere (e.g. the Docker image).
 # Without it the app still runs; only choosing files to upload or download is unavailable.
@@ -42,7 +37,7 @@ LINE = "-" * 72
 
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-7)."""
+    """Display the unified main menu and return the user's choice (1-8)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
@@ -51,13 +46,14 @@ def show_app_menu() -> str:
     print("3. Assess an Existing Client (crime scan, benchmark and forecasting)")
     print("4. Run a Periodic Review")
     print("5. List Saved Assessments")
-    print("6. Manual Sync to Cloud Database")
-    print("7. Quit")
+    print("6. View All Clients")
+    print("7. Manual Sync to Cloud Database")
+    print("8. Quit")
     while True:
-        choice = input("\nEnter your choice (1-7): ").strip()
-        if choice in ("1", "2", "3", "4", "5", "6", "7"):
+        choice = input("\nEnter your choice (1-8): ").strip()
+        if choice in ("1", "2", "3", "4", "5", "6", "7", "8"):
             return choice
-        print("Invalid choice. Please enter 1 to 7.")
+        print("Invalid choice. Please enter 1 to 8.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
@@ -79,23 +75,197 @@ def show_research_output(research_response: dict) -> None:
         print(f"  {rid}  {org} — {title} ({year})")
     print()
 
-def show_ai_output(case_input: dict, typology_response: dict, declaration: dict) -> None:
+def show_crime_scan_result(result: dict, typology_response: dict | None = None, research: dict | None = None) -> None:
+    """Print a professional typology matching summary for the crime scan."""
+    match_results = result.get("match_results", [])
+    breach_count  = result.get("breach_count", 0)
+    total         = len(match_results)
+    not_matched   = total - breach_count
+
+    W = 68
+    print("\n" + "═" * W)
+    print("  SECTOR CRIME SCAN — TYPOLOGY MATCHING")
+    print("═" * W)
+
+    # --- Research Reports section ---
+    reports = (research or {}).get("reports", [])
+    if reports:
+        print(f"\n  Research Reports Retrieved: {len(reports)}\n")
+        for r in reports:
+            rid  = r.get("report_id", "?")
+            org  = r.get("organisation", "Unknown")
+            year = r.get("year", "")
+            title = r.get("title", "")
+            url  = r.get("url", "")
+            year_str = f" ({year})" if year else ""
+            print(f"  [{rid}] {org}{year_str}")
+            print(f"       {title}")
+            if url:
+                print(f"       {url}")
+        print()
+
+    # Build lookup: typology_id → typology dict (for source_ids and source_quotes)
+    typ_lookup: dict = {}
+    if typology_response:
+        for t in typology_response.get("sector_typologies", []):
+            typ_lookup[t.get("typology_id", "")] = t
+
+    # Build lookup: report_id → "Org Year" label
+    report_label: dict = {}
+    for r in reports:
+        rid  = r.get("report_id", "")
+        org  = r.get("organisation", "")
+        year = r.get("year", "")
+        if rid:
+            report_label[rid] = f"{org} {year}".strip()
+
+    # --- Typology table ---
+    print(f"  Typologies Generated: {total}\n")
+
+    if not match_results:
+        print("  No typologies returned by AI.")
+    else:
+        col_name  = 38
+        col_res   = 10
+        print(f"  {'#':<4}{'Typology':<{col_name}}{'Result':<{col_res}}Indicators Fired")
+        print("  " + "─" * (W - 2))
+        for i, mr in enumerate(match_results, start=1):
+            typ_id    = mr.get("typology_id", "")
+            name      = mr.get("name", typ_id or "?")
+            breached  = mr.get("breached", False)
+            status    = "BREACH" if breached else "PASS"
+            fired     = mr.get("core_fired", []) + mr.get("supporting_fired", [])
+            fired_str = fired[0].replace("_", " ") if fired else "—"
+            print(f"  {i:<4}{name:<{col_name}}{status:<{col_res}}{fired_str}")
+            for indicator in fired[1:]:
+                print(f"  {'':<4}{'':<{col_name}}{'':<{col_res}}{indicator.replace('_', ' ')}")
+
+            # Description (breached only)
+            typ_data = typ_lookup.get(typ_id, {})
+            if breached:
+                desc = typ_data.get("description", "").strip()
+                if desc:
+                    indent = "        "
+                    for line in textwrap.wrap(desc, width=W - len(indent)):
+                        print(f"{indent}{line}")
+
+            # Source citations for this typology
+            src_ids  = typ_data.get("source_ids", [])
+            if src_ids:
+                labels = ", ".join(
+                    f"{sid} ({report_label[sid]})" if sid in report_label else sid
+                    for sid in src_ids
+                )
+                print(f"  {'':<4}  Sources: {labels}")
+
+            # Source quotes (only for breached typologies to keep output clean)
+            if breached:
+                for sq in typ_data.get("source_quotes", []):
+                    rid   = sq.get("report_id", "")
+                    quote = sq.get("quote", "").strip()
+                    if quote:
+                        # Wrap long quotes at ~60 chars
+                        prefix = f"  {'':<4}  [{rid}] \""
+                        suffix = "\""
+                        wrap   = W - len(prefix) - 1
+                        if len(quote) <= wrap:
+                            print(f"{prefix}{quote}{suffix}")
+                        else:
+                            print(f"{prefix}{quote[:wrap]}...")
+            print()
+
+    print("  " + "─" * (W - 2))
+    print(f"  Total: {total}  |  Matched: {breach_count}  |  Not Matched: {not_matched}")
+    print("═" * W + "\n")
+
+
+def show_benchmark_result(result: dict) -> None:
+    """Print detailed benchmark check output followed by a summary table."""
+    findings = result.get("findings", [])
+    total    = len(findings)
+    failed   = sum(1 for f in findings if f.get("failed"))
+    passed   = total - failed
+
+    W = 68
+    print("\n" + "═" * W)
+    print("  WEALTH BENCHMARK — CHECK RESULTS")
+    print("═" * W)
+
+    # Detailed per-check output
+    for f in findings:
+        rule   = f.get("rule_id", "").replace("_", " ")
+        status = "FAIL" if f.get("failed") else "PASS"
+        detail = f.get("detail", "")
+        print(f"\n  --- {rule} ---")
+        print(f"  {detail}")
+        print(f"  Result: {status}")
+
+    # Summary table
+    print("\n" + "  " + "─" * (W - 2))
+    col_check  = 26
+    col_result = 10
+    print(f"  {'Check':<{col_check}}{'Result':<{col_result}}Detail")
+    print("  " + "─" * (W - 2))
+    for f in findings:
+        rule   = f.get("rule_id", "").replace("_", " ")
+        status = "FAIL" if f.get("failed") else "PASS"
+        detail = f.get("detail", "")
+        print(f"  {rule:<{col_check}}{status:<{col_result}}{detail}")
+
+    print("\n  " + "─" * (W - 2))
+    print(f"  Total: {total}  |  Failed: {failed}  |  Passed: {passed}")
+    print("═" * W + "\n")
+
+
+def show_ai_output(
+    case_input: dict,
+    typology_response: dict,
+    declaration: dict,
+    research: dict | None = None,
+) -> None:
     """Print a short summary of AI results for the officer."""
     client_ref = case_input.get("client_ref", "—")
     print(f"\n--- Sector Crime Scan ---")
     print(f"Client: {client_ref} | Fields sent to AI: 5 (safe fields only)")
 
-    typologies = typology_response.get("sector_typologies", [])
-    print(f"\nTypologies: {len(typologies)} found")
+    # Build lookup: report_id → "Organisation Year" for display
+    report_lookup: dict[str, str] = {}
+    if research:
+        for r in research.get("reports", []):
+            rid = r.get("report_id", "")
+            org = r.get("organisation", "")
+            year = r.get("year", "")
+            if rid:
+                report_lookup[rid] = f"{org} {year}".strip()
+
+    typologies = typology_response.get("sector_typologies", []) if typology_response else []
+    print(f"\nSector Crime Scan: {len(typologies)} pattern(s)")
     for i, t in enumerate(typologies, 1):
-        ref = t.get("source_reference", "")
-        suffix = f" | {ref}" if ref else ""
+        source_ids = t.get("source_ids", [])
+        outdated_ids = set(t.get("outdated_source_ids", []))
+        resolved = []
+        for rid in source_ids:
+            label = report_lookup.get(rid)
+            base = f"{rid} ({label})" if label else f"{rid} (unknown source)"
+            if rid in outdated_ids:
+                base += ", may be outdated"
+            resolved.append(base)
+        suffix = f" — sources: {', '.join(resolved)}" if resolved else ""
         print(f"  {i}. {t.get('name', '—')}{suffix}")
+
+        corroborated = t.get("corroborated")
+        if corroborated is True:
+            print(f"       Corroborated: 2+ independent organisations")
+        elif corroborated is False:
+            print(f"       Single source organisation")
+
+        for sq in t.get("source_quotes", []):
+            print(f"       [{sq.get('report_id','')}] \"{sq.get('quote','')}\"")
 
     sources = declaration.get("sources", [])
     print(f"\nDeclaration: {len(sources)} source(s) found")
 
-    cache_path = typology_response.get("_cache_path", "")
+    cache_path = typology_response.get("_cache_path", "") if typology_response else ""
     if cache_path:
         print(f"Cache: {cache_path}")
     print()
@@ -107,262 +277,108 @@ def generate_client_id() -> str:
 
 
 def get_client_profile() -> dict:
-    """Collect basic client profile information."""
-
+    """Collect name, nationality and current position."""
     print("\n=== Client Profile ===")
-
-    full_name = input("Full name: ").strip()
-    age = input("Age: ").strip()
+    name        = input("Full name: ").strip()
     nationality = input("Nationality: ").strip()
-    country_of_residence = input("Country of residence: ").strip()
-    latest_occupation = input("Latest occupation: ").strip()
-    latest_seniority = input("Latest seniority: ").strip()
-    latest_industry = input("Latest industry: ").strip()
-    current_company = input("Current company name: ").strip()
-    career_start_year = input("Career start year: ").strip()
-    years_of_employment = input("Years of employment: ").strip()
-
-    date_profile_created = input(
-        "Date profile created (YYYY-MM-DD): "
-    ).strip()
-
-    return {
-        "full_name": full_name,
-        "age": age,
-        "nationality": nationality,
-        "country_of_residence": country_of_residence,
-        "latest_occupation": latest_occupation,
-        "latest_seniority": latest_seniority,
-        "latest_industry": latest_industry,
-        "current_company": current_company,
-        "career_start_year": career_start_year,
-        "years_of_employment": years_of_employment,
-        "date_profile_created": date_profile_created
+    print("\n=== Current Position ===")
+    career = {
+        "occupation":           input("Current job title: ").strip(),
+        "seniority":            input("Seniority (e.g. Senior Manager, C-suite): ").strip(),
+        "industry":             input("Industry: ").strip(),
+        "employer_name":        input("Employer name: ").strip(),
+        "employer_size":        input("Employer size (e.g. 1,000-5,000 employees): ").strip(),
+        "country_of_residence": input("Country of residence: ").strip(),
+        "age":                  input("Age: ").strip(),
+        "career_start_year":    input("Year first career started: ").strip(),
     }
+    return {"name": name, "nationality": nationality, "career": career}
 
 
-def get_career_timeline() -> list:
-    """Collect the client's previous career history."""
-
-    career_timeline = []
-
+def get_career_history() -> list:
+    """Collect previous jobs (before the current one)."""
+    career_history = []
     while True:
-
-        print("\n=== Previous Career History ===")
-
-        start_year = input("Start year: ").strip()
-        end_year = input("End year: ").strip()
-        job_title = input("Job title: ").strip()
-        seniority = input("Seniority: ").strip()
-        industry = input("Industry: ").strip()
-        company_name = input("Company name: ").strip()
-        company_size = input("Company size: ").strip()
-        country = input("Country: ").strip()
-
-        career_timeline.append({
-            "start_year": start_year,
-            "end_year": end_year,
-            "job_title": job_title,
-            "seniority": seniority,
-            "industry": industry,
-            "company_name": company_name,
-            "company_size": company_size,
-            "country": country
+        print("\n=== Previous Job ===")
+        end_year = input("End year (leave blank if current): ").strip() or None
+        career_history.append({
+            "start_year":    input("Start year: ").strip(),
+            "end_year":      end_year,
+            "occupation":    input("Job title: ").strip(),
+            "seniority":     input("Seniority: ").strip(),
+            "industry":      input("Industry: ").strip(),
+            "employer_name": input("Employer name: ").strip(),
+            "employer_size": input("Employer size: ").strip(),
+            "country":       input("Country: ").strip(),
         })
-
-        another = input(
-            "\nAdd another previous job? (y/n): "
-        ).strip().lower()
-
-        if another != "y":
+        if input("\nAdd another previous job? (y/n): ").strip().lower() != "y":
             break
+    return career_history
 
-    return career_timeline
 
-
-def get_asset_timeline() -> list:
-    """Collect the client's asset history."""
-
-    asset_timeline = []
-
+def get_investments() -> list:
+    """Collect assets and investments."""
+    investments = []
+    if input("\nDoes the client have any investments or assets? (y/n): ").strip().lower() != "y":
+        return investments
     while True:
-
-        print("\n=== Asset Information ===")
-
-        asset_type = input("Asset type: ").strip()
-        asset_description = input("Asset description: ").strip()
-        country = input("Country: ").strip()
-        year_acquired = input("Year acquired: ").strip()
-        price_paid = input("Price paid: ").strip()
-        payment_method = input("Payment method: ").strip()
-
-        year_sold = input(
-            "Year sold (leave blank if still owned): "
-        ).strip()
-
-        sale_price = input(
-            "Sale price (leave blank if still owned): "
-        ).strip()
-
-        current_value = input("Current value: ").strip()
-        yearly_income = input("Yearly income: ").strip()
-        currency = input("Currency: ").strip()
-
-        asset = {
-            "asset_type": asset_type,
-            "asset_description": asset_description,
-            "country": country,
-            "year_acquired": year_acquired,
-            "price_paid": price_paid,
-            "payment_method": payment_method,
-            "year_sold": year_sold,
-            "sale_price": sale_price,
-            "current_value": current_value,
-            "yearly_income": yearly_income,
-            "currency": currency
-        }
-
-        asset_timeline.append(asset)
-
-        another = input(
-            "\nAdd another asset? (y/n): "
-        ).strip().lower()
-
-        if another != "y":
+        print("\n=== Investment / Asset ===")
+        investments.append({
+            "asset_type":        input("Asset type (e.g. Property, Shares): ").strip(),
+            "asset_description": input("Description: ").strip(),
+            "country":           input("Country: ").strip(),
+            "year_acquired":     input("Year acquired: ").strip(),
+            "price_paid":        input("Price paid: ").strip(),
+            "payment_method":    input("Payment method (cash/loan/asset_sale): ").strip(),
+            "year_sold":         input("Year sold (leave blank if still owned): ").strip() or None,
+            "sale_price":        input("Sale price (leave blank if still owned): ").strip() or None,
+            "current_value":     input("Current value: ").strip(),
+            "yearly_income":     input("Yearly income from this asset: ").strip(),
+            "currency":          input("Currency (e.g. SGD): ").strip(),
+        })
+        if input("\nAdd another investment or asset? (y/n): ").strip().lower() != "y":
             break
+    return investments
 
-    return asset_timeline
 
-
-def get_asset_composition() -> dict:
-    """Collect the client's asset composition."""
+def get_claims() -> dict:
+    """Collect financial claims and asset composition."""
+    print("\n=== Financial Claims ===")
+    declared_net_worth = input("Declared net worth (SGD): ").strip()
+    expected_aum       = input("Expected assets to be managed by the bank (SGD): ").strip()
+    pep_status         = input("PEP status (e.g. None, Domestic PEP): ").strip()
+    wealth_countries   = input("Countries where wealth was generated (comma-separated): ").strip()
 
     print("\n=== Asset Composition ===")
-    print("Enter the percentage of total wealth for each category.")
+    print("Enter the percentage of total wealth for each category (must add up to 100%).")
 
-    property_share = input(
-        "Property (%): "
-    ).strip()
-
-    listed_equities_share = input(
-        "Listed Equities (%): "
-    ).strip()
-
-    private_business_share = input(
-        "Private Business (%): "
-    ).strip()
-
-    cash_share = input(
-        "Cash (%): "
-    ).strip()
-
-    return {
-        "property": property_share,
-        "listed_equities": listed_equities_share,
-        "private_business": private_business_share,
-        "cash": cash_share
-    }
-
-
-def get_client_declarations() -> dict:
-    """Collect the client's declarations."""
-
-    print("\n=== Client Declarations ===")
-
-    declared_net_worth = input(
-        "Declared net worth: "
-    ).strip()
-
-    expected_aum = input(
-        "Expected Assets Under Management: "
-    ).strip()
-
-    owns_property = input(
-        "Owns property? (yes/no): "
-    ).strip().lower()
-
-    owns_investments = input(
-        "Owns investments? (yes/no): "
-    ).strip().lower()
-
-    pep_status = input(
-        "PEP status: "
-    ).strip()
-
-    wealth_countries = input(
-        "Countries where wealth was generated "
-        "(separate multiple countries with commas): "
-    ).strip()
-
-    date_declared = input(
-        "Date declared (YYYY-MM-DD): "
-    ).strip()
-
-    biggest_wealth_jump = input(
-        "Biggest wealth increase (SGD): "
-    ).strip()
-
-    wealth_jump_years = input(
-        "Number of years for this wealth increase: "
-    ).strip()
-
-    counterparties = input(
-        "People or organisations the client deals with (separate with commas): "
-    ).strip()
-
-    countries = input(
-        "Countries connected to the client's financial activities "
-        "(separate with commas): "
-    ).strip()
+    def _pct_to_fraction(val: str) -> float:
+        try:
+            return float(val) / 100
+        except (TypeError, ValueError):
+            return 0.0
 
     return {
         "declared_net_worth": declared_net_worth,
-        "expected_assets_under_management": expected_aum,
-        "owns_property": owns_property,
-        "owns_investments": owns_investments,
-        "pep_status": pep_status,
-        "countries_where_wealth_was_generated": wealth_countries,
-        "date_declared": date_declared,
-        "biggest_wealth_jump": biggest_wealth_jump,
-        "wealth_jump_years": wealth_jump_years,
-        "declared_counterparties": [
-            item.strip()
-            for item in counterparties.split(",")
-            if item.strip()
-        ],
-        "declared_countries": [
-            item.strip()
-            for item in countries.split(",")
-            if item.strip()
-        ]
+        "expected_aum":       expected_aum,
+        "pep_status":         pep_status,
+        "wealth_countries":   [c.strip() for c in wealth_countries.split(",") if c.strip()],
+        "asset_composition": {
+            "property":         _pct_to_fraction(input("Property (%): ").strip()),
+            "listed_equities":  _pct_to_fraction(input("Listed Equities (%): ").strip()),
+            "private_business": _pct_to_fraction(input("Private Business (%): ").strip()),
+            "cash":             _pct_to_fraction(input("Cash (%): ").strip()),
+        },
     }
 
 
-def get_sow_declaration() -> dict:
-    """Collect the client's Source of Wealth declaration."""
-
+def get_sow_declaration() -> str:
+    """Collect the Source of Wealth declaration text."""
     print("\n=== Source of Wealth Declaration ===")
-
-    declaration_text = input(
-        "Declaration text: "
-    ).strip()
-
-    written_by = input(
-        "Written by: "
-    ).strip()
-
-    date_written = input(
-        "Date written (YYYY-MM-DD): "
-    ).strip()
-
-    return {
-        "declaration_text": declaration_text,
-        "written_by": written_by,
-        "date_written": date_written
-    }
+    return input("Describe how the client accumulated their wealth: ").strip()
 
 
-def get_supporting_documents() -> list:
+def get_supporting_documents(upload_fn=None) -> list:
     """
     Ask whether the client has supporting documents.
 
@@ -413,7 +429,7 @@ def get_supporting_documents() -> list:
 
         print(f"Uploading: {os.path.basename(path)}")
 
-        file_id = upload_supporting_document(path)
+        file_id = upload_fn(path) if upload_fn else None
 
         if file_id is None:
             print(
@@ -447,6 +463,23 @@ def display_section(title: str):
     print("=" * 60)
 
 
+def show_client_list(records: list) -> None:
+    """Print a compact table of all saved clients."""
+    if not records:
+        print("\n  No clients saved yet.\n")
+        return
+    W = 68
+    print("\n" + "─" * W)
+    print(f"  {'#':<4}{'Reference':<18}{'Name':<28}Industry")
+    print("─" * W)
+    for i, r in enumerate(records, start=1):
+        ref      = r.get("client_ref", "—")
+        name     = r.get("name") or r.get("client_profile", {}).get("full_name", "—")
+        industry = r.get("career", {}).get("industry") or r.get("client_profile", {}).get("industry", "—")
+        print(f"  {i:<4}{ref:<18}{name:<28}{industry}")
+    print("─" * W + "\n")
+
+
 def display_client_record(record: dict):
     """Display all information collected for the client."""
 
@@ -458,81 +491,51 @@ def display_client_record(record: dict):
     # Client Profile
     # -------------------------------------------------
 
-    profile = record["client_profile"]
-
     display_section("CLIENT PROFILE")
-
-    for key, value in profile.items():
-        print(f"{key.replace('_', ' ').title()}: {value}")
+    print(f"Name:        {record.get('name', '—')}")
+    print(f"Nationality: {record.get('nationality', '—')}")
 
     # -------------------------------------------------
-    # Career Timeline
+    # Career History
     # -------------------------------------------------
 
     display_section("CAREER HISTORY")
 
-    for index, career in enumerate(
-        record["career_timeline"],
-        start=1
-    ):
-
-        print(f"\n--- Previous Job {index} ---")
-
+    for index, career in enumerate(record.get("career_history", []), start=1):
+        print(f"\n--- Job {index} ---")
         for key, value in career.items():
-            print(
-                f"{key.replace('_', ' ').title()}: {value}"
-            )
+            print(f"{key.replace('_', ' ').title()}: {value}")
 
     # -------------------------------------------------
-    # Asset Timeline
+    # Investments
     # -------------------------------------------------
 
-    display_section("ASSET HISTORY")
-
-    for index, asset in enumerate(
-        record["asset_timeline"],
-        start=1
-    ):
-
-        print(f"\n--- Asset {index} ---")
-
-        for key, value in asset.items():
-            print(
-                f"{key.replace('_', ' ').title()}: {value}"
-            )
+    investments = record.get("investments", [])
+    if investments:
+        display_section("INVESTMENTS")
+        for index, inv in enumerate(investments, start=1):
+            print(f"\n--- Investment {index} ---")
+            for key, value in inv.items():
+                print(f"{key.replace('_', ' ').title()}: {value}")
 
     # -------------------------------------------------
-    # Asset Composition
+    # Claims
     # -------------------------------------------------
 
-    display_section("ASSET COMPOSITION")
-
-    for key, value in record["asset_composition"].items():
-        print(
-            f"{key.replace('_', ' ').title()}: {value}%"
-        )
-
-    # -------------------------------------------------
-    # Client Declarations
-    # -------------------------------------------------
-
-    display_section("CLIENT DECLARATIONS")
-
-    for key, value in record["client_declarations"].items():
-        print(
-            f"{key.replace('_', ' ').title()}: {value}"
-        )
+    claims = record.get("claims", {})
+    if claims:
+        display_section("CLAIMS")
+        for key, value in claims.items():
+            print(f"{key.replace('_', ' ').title()}: {value}")
 
     # -------------------------------------------------
     # Source of Wealth Declaration
     # -------------------------------------------------
 
-    display_section("SOURCE OF WEALTH DECLARATION")
-
-    for key, value in record["sow_declaration"].items():
-        print(
-            f"{key.replace('_', ' ').title()}: {value}"
-        )
+    sow = record.get("sow_declaration")
+    if sow:
+        display_section("SOURCE OF WEALTH DECLARATION")
+        print(sow)
 
     # -------------------------------------------------
     # Supporting Documents
@@ -560,7 +563,7 @@ def display_client_record(record: dict):
                 print("   No document reference found.")
 
 
-def create_new_client():
+def create_new_client(save_fn=None, upload_fn=None):
     """Collect, review and optionally save a new client."""
 
     print("\n")
@@ -574,30 +577,26 @@ def create_new_client():
     print(f"\nGenerated Client Reference: {client_ref}")
 
     # Collect information
-    profile = get_client_profile()
-
-    career_timeline = get_career_timeline()
-
-    asset_timeline = get_asset_timeline()
-
-    asset_composition = get_asset_composition()
-
-    client_declarations = get_client_declarations()
-
-    sow_declaration = get_sow_declaration()
-
-    supporting_documents = get_supporting_documents()
+    profile_data         = get_client_profile()
+    career_history       = get_career_history()
+    investments          = get_investments()
+    claims               = get_claims()
+    sow_declaration      = get_sow_declaration()
+    supporting_documents = get_supporting_documents(upload_fn)
 
     # Create complete record
     client_record = {
-        "client_ref": client_ref,
-        "client_profile": profile,
-        "career_timeline": career_timeline,
-        "asset_timeline": asset_timeline,
-        "asset_composition": asset_composition,
-        "client_declarations": client_declarations,
-        "sow_declaration": sow_declaration,
-        "supporting_documents": supporting_documents
+        "client_ref":          client_ref,
+        "name":                profile_data["name"],
+        "nationality":         profile_data["nationality"],
+        "current_date":        datetime.date.today().isoformat(),
+        "career":              profile_data["career"],
+        "career_history":      career_history,
+        "investments":         investments,
+        "claims":              claims,
+        "sow_declaration":     sow_declaration,
+        "reviews":             [],
+        "supporting_documents": supporting_documents,
     }
 
     # Show everything before saving
@@ -620,7 +619,7 @@ def create_new_client():
 
         print("\nSaving client to database...")
 
-        success = save_case_record(client_record)
+        success = save_fn(client_record) if save_fn else False
 
         if success:
             print("\nClient successfully saved!")
@@ -642,417 +641,178 @@ def create_new_client():
     return client_record
 
 def edit_client_profile(record):
-    """Edit the client's basic profile information."""
-
+    """Edit name, nationality and current career info."""
     print("\n=== Edit Client Profile ===")
-    profile = record["client_profile"]
+    print("Press Enter to keep the existing value.")
 
-    print("\nPress Enter to keep the existing value.")
+    v = input(f"Full name [{record.get('name', '')}]: ").strip()
+    if v: record["name"] = v
 
-    value = input(
-        f"Full name [{profile['full_name']}]: "
-    ).strip()
-    if value:
-        profile["full_name"] = value
+    v = input(f"Nationality [{record.get('nationality', '')}]: ").strip()
+    if v: record["nationality"] = v
 
-    value = input(
-        f"Age [{profile['age']}]: "
-    ).strip()
-    if value:
-        profile["age"] = value
-
-    value = input(
-        f"Nationality [{profile['nationality']}]: "
-    ).strip()
-    if value:
-        profile["nationality"] = value
-
-    value = input(
-        f"Country of residence [{profile['country_of_residence']}]: "
-    ).strip()
-    if value:
-        profile["country_of_residence"] = value
-
-    value = input(
-        f"Latest occupation [{profile['latest_occupation']}]: "
-    ).strip()
-    if value:
-        profile["latest_occupation"] = value
-
-    value = input(
-        f"Latest seniority [{profile['latest_seniority']}]: "
-    ).strip()
-    if value:
-        profile["latest_seniority"] = value
-
-    value = input(
-        f"Latest industry [{profile['latest_industry']}]: "
-    ).strip()
-    if value:
-        profile["latest_industry"] = value
-
-    value = input(
-        f"Current company [{profile['current_company']}]: "
-    ).strip()
-    if value:
-        profile["current_company"] = value
-
-    value = input(
-        f"Career start year [{profile['career_start_year']}]: "
-    ).strip()
-    if value:
-        profile["career_start_year"] = value
-
-    value = input(
-        f"Years of employment [{profile['years_of_employment']}]: "
-    ).strip()
-    if value:
-        profile["years_of_employment"] = value
-
-    value = input(
-        f"Date profile created [{profile['date_profile_created']}]: "
-    ).strip()
-    if value:
-        profile["date_profile_created"] = value
-
+    career = record.setdefault("career", {})
+    fields = [
+        ("occupation",           "Current job title"),
+        ("seniority",            "Seniority"),
+        ("industry",             "Industry"),
+        ("employer_name",        "Employer name"),
+        ("employer_size",        "Employer size"),
+        ("country_of_residence", "Country of residence"),
+        ("age",                  "Age"),
+        ("career_start_year",    "Year first career started"),
+    ]
+    for key, label in fields:
+        v = input(f"{label} [{career.get(key, '')}]: ").strip()
+        if v: career[key] = v
 
     print("\nClient profile updated.")
 
 
 def add_career_record(record):
-    """Add a new career record."""
-
+    """Add a job to career_history."""
     print("\n=== Add Career Record ===")
-
-    start_year = input("Start year: ").strip()
-    end_year = input("End year: ").strip()
-    job_title = input("Job title: ").strip()
-    seniority = input("Seniority: ").strip()
-    industry = input("Industry: ").strip()
-    company_name = input("Company name: ").strip()
-    company_size = input("Company size: ").strip()
-    country = input("Country: ").strip()
-
-    record["career_timeline"].append({
-        "start_year": start_year,
-        "end_year": end_year,
-        "job_title": job_title,
-        "seniority": seniority,
-        "industry": industry,
-        "company_name": company_name,
-        "company_size": company_size,
-        "country": country
+    end_year = input("End year (leave blank if current): ").strip() or None
+    record.setdefault("career_history", []).append({
+        "start_year":    input("Start year: ").strip(),
+        "end_year":      end_year,
+        "occupation":    input("Job title: ").strip(),
+        "seniority":     input("Seniority: ").strip(),
+        "industry":      input("Industry: ").strip(),
+        "employer_name": input("Employer name: ").strip(),
+        "employer_size": input("Employer size: ").strip(),
+        "country":       input("Country: ").strip(),
     })
-
     print("\nCareer record added.")
 
 
 def edit_career_record(record):
-    """Edit an existing career record."""
-
-    careers = record["career_timeline"]
-
+    """Edit a job in career_history."""
+    careers = record.get("career_history", [])
     if not careers:
         print("\nNo career records found.")
         return
-
     print("\n=== Career History ===")
-
-    for index, career in enumerate(careers, start=1):
-        print(
-            f"{index}. "
-            f"{career['job_title']} - "
-            f"{career['company_name']} "
-            f"({career['start_year']} - {career['end_year']})"
-        )
-
-    choice = input(
-        "\nSelect career record to edit: "
-    ).strip()
-
-    if not choice.isdigit():
+    for i, c in enumerate(careers, start=1):
+        print(f"{i}. {c.get('occupation','?')} - {c.get('employer_name','?')} "
+              f"({c.get('start_year','?')} - {c.get('end_year','present')})")
+    choice = input("\nSelect career record to edit: ").strip()
+    if not choice.isdigit() or not (1 <= int(choice) <= len(careers)):
         print("Invalid selection.")
         return
-
-    index = int(choice) - 1
-
-    if index < 0 or index >= len(careers):
-        print("Invalid selection.")
-        return
-
-    career = careers[index]
-
+    career = careers[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
-
-    fields = [
-        ("start_year", "Start year"),
-        ("end_year", "End year"),
-        ("job_title", "Job title"),
-        ("seniority", "Seniority"),
-        ("industry", "Industry"),
-        ("company_name", "Company name"),
-        ("company_size", "Company size"),
-        ("country", "Country")
-    ]
-
-    for key, label in fields:
-        value = input(
-            f"{label} [{career[key]}]: "
-        ).strip()
-
-        if value:
-            career[key] = value
-
+    for key, label in [("start_year","Start year"),("end_year","End year"),
+                       ("occupation","Job title"),("seniority","Seniority"),
+                       ("industry","Industry"),("employer_name","Employer name"),
+                       ("employer_size","Employer size"),("country","Country")]:
+        v = input(f"{label} [{career.get(key,'')}]: ").strip()
+        if v: career[key] = v
     print("\nCareer record updated.")
 
 
 def add_asset_record(record):
-    """Add a new asset record."""
-
-    print("\n=== Add Asset ===")
-
-    asset = {
-        "asset_type": input("Asset type: ").strip(),
-        "asset_description": input("Asset description: ").strip(),
-        "country": input("Country: ").strip(),
-        "year_acquired": input("Year acquired: ").strip(),
-        "price_paid": input("Price paid: ").strip(),
-        "payment_method": input("Payment method: ").strip(),
-        "year_sold": input(
-            "Year sold (leave blank if still owned): "
-        ).strip(),
-        "sale_price": input(
-            "Sale price (leave blank if still owned): "
-        ).strip(),
-        "current_value": input("Current value: ").strip(),
-        "yearly_income": input("Yearly income: ").strip(),
-        "currency": input("Currency: ").strip()
-    }
-
-    record["asset_timeline"].append(asset)
-
+    """Add an entry to investments."""
+    print("\n=== Add Investment / Asset ===")
+    record.setdefault("investments", []).append({
+        "asset_type":        input("Asset type (e.g. Property, Shares): ").strip(),
+        "asset_description": input("Description: ").strip(),
+        "country":           input("Country: ").strip(),
+        "year_acquired":     input("Year acquired: ").strip(),
+        "price_paid":        input("Price paid: ").strip(),
+        "payment_method":    input("Payment method (cash/loan/asset_sale): ").strip(),
+        "year_sold":         input("Year sold (leave blank if still owned): ").strip() or None,
+        "sale_price":        input("Sale price (leave blank if still owned): ").strip() or None,
+        "current_value":     input("Current value: ").strip(),
+        "yearly_income":     input("Yearly income from this asset: ").strip(),
+        "currency":          input("Currency (e.g. SGD): ").strip(),
+    })
     print("\nAsset added.")
 
 
 def edit_asset_record(record):
-    """Edit an existing asset."""
-
-    assets = record["asset_timeline"]
-
+    """Edit an entry in investments."""
+    assets = record.get("investments", [])
     if not assets:
-        print("\nNo asset records found.")
+        print("\nNo investment records found.")
         return
-
-    print("\n=== Asset History ===")
-
-    for index, asset in enumerate(assets, start=1):
-        print(
-            f"{index}. "
-            f"{asset['asset_type']} - "
-            f"{asset['asset_description']}"
-        )
-
-    choice = input(
-        "\nSelect asset to edit: "
-    ).strip()
-
-    if not choice.isdigit():
+    print("\n=== Investments ===")
+    for i, a in enumerate(assets, start=1):
+        print(f"{i}. {a.get('asset_type','?')} - {a.get('asset_description','?')}")
+    choice = input("\nSelect asset to edit: ").strip()
+    if not choice.isdigit() or not (1 <= int(choice) <= len(assets)):
         print("Invalid selection.")
         return
-
-    index = int(choice) - 1
-
-    if index < 0 or index >= len(assets):
-        print("Invalid selection.")
-        return
-
-    asset = assets[index]
-
+    asset = assets[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
-
-    fields = [
-        ("asset_type", "Asset type"),
-        ("asset_description", "Asset description"),
-        ("country", "Country"),
-        ("year_acquired", "Year acquired"),
-        ("price_paid", "Price paid"),
-        ("payment_method", "Payment method"),
-        ("year_sold", "Year sold"),
-        ("sale_price", "Sale price"),
-        ("current_value", "Current value"),
-        ("yearly_income", "Yearly income"),
-        ("currency", "Currency")
-    ]
-
-    for key, label in fields:
-        value = input(
-            f"{label} [{asset[key]}]: "
-        ).strip()
-
-        if value:
-            asset[key] = value
-
+    for key, label in [("asset_type","Asset type"),("asset_description","Description"),
+                       ("country","Country"),("year_acquired","Year acquired"),
+                       ("price_paid","Price paid"),("payment_method","Payment method"),
+                       ("year_sold","Year sold"),("sale_price","Sale price"),
+                       ("current_value","Current value"),("yearly_income","Yearly income"),
+                       ("currency","Currency")]:
+        v = input(f"{label} [{asset.get(key,'')}]: ").strip()
+        if v: asset[key] = v
     print("\nAsset updated.")
 
 
 def edit_asset_composition(record):
-    """Edit asset composition."""
-
+    """Edit asset composition inside claims."""
     print("\n=== Edit Asset Composition ===")
+    composition = record.setdefault("claims", {}).setdefault("asset_composition", {})
+    print("Press Enter to keep the existing value. Enter new value as a percentage (e.g. 30).")
 
-    composition = record["asset_composition"]
+    def _show_pct(val):
+        try: return f"{float(val)*100:.0f}%"
+        except: return str(val)
 
-    print("\nPress Enter to keep the existing value.")
+    def _to_fraction(val):
+        try: return float(val) / 100
+        except: return composition.get(key, 0.0)
 
-    value = input(
-        f"Property (%) [{composition['property']}]: "
-    ).strip()
-    if value:
-        composition["property"] = value
-
-    value = input(
-        f"Listed Equities (%) [{composition['listed_equities']}]: "
-    ).strip()
-    if value:
-        composition["listed_equities"] = value
-
-    value = input(
-        f"Private Business (%) [{composition['private_business']}]: "
-    ).strip()
-    if value:
-        composition["private_business"] = value
-
-    value = input(
-        f"Cash (%) [{composition['cash']}]: "
-    ).strip()
-    if value:
-        composition["cash"] = value
+    for key, label in [("property","Property"),("listed_equities","Listed Equities"),
+                       ("private_business","Private Business"),("cash","Cash")]:
+        v = input(f"{label} [current: {_show_pct(composition.get(key, 0))}]: ").strip()
+        if v: composition[key] = _to_fraction(v)
 
     print("\nAsset composition updated.")
 
 
 def edit_client_declarations(record):
-    """Edit client declarations."""
+    """Edit claims fields."""
+    print("\n=== Edit Financial Claims ===")
+    claims = record.setdefault("claims", {})
+    print("Press Enter to keep the existing value.")
 
-    print("\n=== Edit Client Declarations ===")
+    v = input(f"Declared net worth (SGD) [{claims.get('declared_net_worth','')}]: ").strip()
+    if v: claims["declared_net_worth"] = v
 
-    declarations = record["client_declarations"]
+    v = input(f"Expected AUM (SGD) [{claims.get('expected_aum','')}]: ").strip()
+    if v: claims["expected_aum"] = v
 
-    print("\nPress Enter to keep the existing value.")
+    v = input(f"PEP status [{claims.get('pep_status','')}]: ").strip()
+    if v: claims["pep_status"] = v
 
-    value = input(
-        f"Declared net worth [{declarations['declared_net_worth']}]: "
-    ).strip()
-    if value:
-        declarations["declared_net_worth"] = value
+    v = input(f"Wealth countries [{', '.join(claims.get('wealth_countries', []))}]: ").strip()
+    if v: claims["wealth_countries"] = [c.strip() for c in v.split(",") if c.strip()]
 
-    value = input(
-        f"Expected Assets Under Management "
-        f"[{declarations['expected_assets_under_management']}]: "
-    ).strip()
-    if value:
-        declarations["expected_assets_under_management"] = value
-
-    value = input(
-        f"Owns property? [{declarations['owns_property']}]: "
-    ).strip().lower()
-    if value:
-        declarations["owns_property"] = value
-
-    value = input(
-        f"Owns investments? [{declarations['owns_investments']}]: "
-    ).strip().lower()
-    if value:
-        declarations["owns_investments"] = value
-
-    value = input(
-        f"PEP status [{declarations['pep_status']}]: "
-    ).strip()
-    if value:
-        declarations["pep_status"] = value
-
-    value = input(
-        "Countries where wealth was generated "
-        f"[{declarations['countries_where_wealth_was_generated']}]: "
-    ).strip()
-    if value:
-        declarations["countries_where_wealth_was_generated"] = value
-
-    value = input(
-        f"Date declared [{declarations['date_declared']}]: "
-    ).strip()
-    if value:
-        declarations["date_declared"] = value
-
-    value = input(
-        f"Biggest wealth increase (SGD) "
-        f"[{declarations.get('biggest_wealth_jump', '')}]: "
-    ).strip()
-    if value:
-        declarations["biggest_wealth_jump"] = value
-
-    value = input(
-        f"Years for this wealth increase "
-        f"[{declarations.get('wealth_jump_years', '')}]: "
-    ).strip()
-    if value:
-        declarations["wealth_jump_years"] = value
-
-    value = input(
-        "People or organisations the client deals with "
-        f"[{', '.join(declarations.get('declared_counterparties', []))}]: "
-    ).strip()
-    if value:
-        declarations["declared_counterparties"] = [
-            item.strip() for item in value.split(",") if item.strip()
-        ]
-
-    value = input(
-        "Countries connected to financial activities "
-        f"[{', '.join(declarations.get('declared_countries', []))}]: "
-    ).strip()
-    if value:
-        declarations["declared_countries"] = [
-            item.strip() for item in value.split(",") if item.strip()
-        ]
-
-    print("\nClient declarations updated.")
+    print("\nClaims updated.")
 
 
 def edit_sow_declaration(record):
-    """Edit Source of Wealth declaration."""
-
+    """Edit the Source of Wealth declaration string."""
     print("\n=== Edit Source of Wealth Declaration ===")
-
-    sow = record["sow_declaration"]
-
-    print("\nPress Enter to keep the existing value.")
-
-    value = input(
-        f"Declaration text [{sow['declaration_text']}]: "
-    ).strip()
-    if value:
-        sow["declaration_text"] = value
-
-    value = input(
-        f"Written by [{sow['written_by']}]: "
-    ).strip()
-    if value:
-        sow["written_by"] = value
-
-    value = input(
-        f"Date written [{sow['date_written']}]: "
-    ).strip()
-    if value:
-        sow["date_written"] = value
-
-    print("\nSource of Wealth declaration updated.")
+    current = record.get("sow_declaration", "")
+    print(f"Current: {current}")
+    v = input("New declaration text (Enter to keep): ").strip()
+    if v: record["sow_declaration"] = v
+    print("\nDeclaration updated.")
 
 
-def add_supporting_documents(record):
+def add_supporting_documents(record, upload_fn=None):
     """Add supporting documents to an existing client."""
 
-    new_documents = get_supporting_documents()
+    new_documents = get_supporting_documents(upload_fn)
 
     if not new_documents:
         return
@@ -1066,7 +826,7 @@ def add_supporting_documents(record):
         f"\n{len(new_documents)} document(s) added."
     )
 
-def edit_existing_client(record):
+def edit_existing_client(record, upload_fn=None):
     """Allow the user to edit or add information to an existing client."""
 
     while True:
@@ -1142,7 +902,7 @@ def edit_existing_client(record):
 
         elif choice == "7":
 
-            add_supporting_documents(record)
+            add_supporting_documents(record, upload_fn)
 
         elif choice == "8":
 
@@ -1164,18 +924,21 @@ def edit_existing_client(record):
         if again != "y":
             break
 
-def find_existing_client():
+def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn=None):
     """Find, display, edit and manage an existing client from MongoDB."""
 
     print("\n=== Existing Client ===")
 
     client_ref = input(
-        "Enter client reference: "
+        "Enter client reference (0 to go back): "
     ).strip()
+
+    if client_ref == "0":
+        return
 
     print("\nSearching database...")
 
-    records = load_all_records()
+    records = load_fn() if load_fn else []
 
     if not records:
         print("No client records found in the database.")
@@ -1202,7 +965,12 @@ def find_existing_client():
     # Initial display
     # -------------------------------------------------
 
-    display_client_record(client_record)
+    try:
+        display_client_record(client_record)
+    except Exception as e:
+        print(f"\n[ERROR] Could not display client record: {e}")
+        input("\nPress Enter to return to the main menu...")
+        return
 
     # -------------------------------------------------
     # Existing Client Options
@@ -1227,11 +995,11 @@ def find_existing_client():
 
         if choice == "1":
 
-            edit_existing_client(client_record)
+            edit_existing_client(client_record, upload_fn)
 
             print("\nSaving changes to MongoDB...")
 
-            success = save_case_record(client_record)
+            success = save_fn(client_record) if save_fn else False
 
             if success:
                 print(
@@ -1345,10 +1113,7 @@ def find_existing_client():
                     print("Download cancelled.")
                     continue
 
-                success = download_supporting_document(
-                    file_id,
-                    output_path
-                )
+                success = download_fn(file_id, output_path) if download_fn else False
 
                 if success:
                     print(
@@ -1609,50 +1374,50 @@ def _text_or_ask(value: object, question: str, ask: Ask) -> str:
 
 
 def _jobs_from_record(record: dict, this_year: int, ask: Ask) -> list[dict]:
-    """Previous jobs from the career timeline, plus the current job from the profile."""
-    profile = record.get("client_profile", {})
+    """Career history entries plus the current job from career dict."""
+    career = record.get("career", {})
     jobs = []
-    for number, entry in enumerate(record.get("career_timeline", []), start=1):
-        label = f"Job {number} ({entry.get('job_title') or 'no title'})"
+    for number, entry in enumerate(record.get("career_history", []), start=1):
+        label = f"Job {number} ({entry.get('occupation') or 'no title'})"
         start = _year_or_ask(entry.get("start_year"), f"{label}: start year", ask, 1900, this_year)
         end_text = str(entry.get("end_year") or "").strip().lower()
-        end = None if end_text in ("", "present", "now", "current", "-") else \
+        end = None if end_text in ("", "present", "now", "current", "-", "none") else \
             _year_or_ask(entry.get("end_year"), f"{label}: end year", ask, start, this_year)
         jobs.append({
-            "start_year": start, "end_year": end,
-            "occupation": _text_or_ask(entry.get("job_title"), f"{label}: job title", ask),
-            "seniority": _text_or_ask(entry.get("seniority"), f"{label}: seniority", ask),
-            "industry": _text_or_ask(entry.get("industry"), f"{label}: industry", ask),
-            "employer_name": _text_or_ask(entry.get("company_name"), f"{label}: employer", ask),
-            "employer_size": _text_or_ask(entry.get("company_size"), f"{label}: employer size", ask),
-            "country": _text_or_ask(entry.get("country"), f"{label}: country", ask),
+            "start_year":    start, "end_year": end,
+            "occupation":    _text_or_ask(entry.get("occupation"),    f"{label}: job title", ask),
+            "seniority":     _text_or_ask(entry.get("seniority"),     f"{label}: seniority", ask),
+            "industry":      _text_or_ask(entry.get("industry"),      f"{label}: industry", ask),
+            "employer_name": _text_or_ask(entry.get("employer_name"), f"{label}: employer", ask),
+            "employer_size": _text_or_ask(entry.get("employer_size"), f"{label}: employer size", ask),
+            "country":       _text_or_ask(entry.get("country"),       f"{label}: country", ask),
         })
     jobs.sort(key=lambda job: job["start_year"])
 
-    # The current job is in the profile unless the timeline already has a job with no end year.
+    # Add current job from career dict if not already present as an open-ended entry
     if not jobs or jobs[-1]["end_year"] is not None:
         earliest = jobs[-1]["end_year"] if jobs else 1900
-        show("\nCurrent job (from the client profile)")
+        show("\nCurrent job (from client profile)")
         jobs.append({
-            "start_year": ask_int(f"  Year he started as {profile.get('latest_occupation') or 'his current job'} "
-                                  f"at {profile.get('current_company') or 'his current employer'}",
-                                  ask, earliest, this_year),
-            "end_year": None,
-            "occupation": _text_or_ask(profile.get("latest_occupation"), "  Current job title", ask),
-            "seniority": _text_or_ask(profile.get("latest_seniority"), "  Current seniority", ask),
-            "industry": _text_or_ask(profile.get("latest_industry"), "  Current industry", ask),
-            "employer_name": _text_or_ask(profile.get("current_company"), "  Current employer", ask),
-            "employer_size": ask_text("  Current employer size (e.g. 1,000-5,000 employees)", ask),
-            "country": _text_or_ask(profile.get("country_of_residence"), "  Country of the current job", ask),
+            "start_year": ask_int(
+                f"  Year started as {career.get('occupation') or 'current role'} "
+                f"at {career.get('employer_name') or 'current employer'}",
+                ask, earliest, this_year),
+            "end_year":      None,
+            "occupation":    _text_or_ask(career.get("occupation"),           "  Current job title", ask),
+            "seniority":     _text_or_ask(career.get("seniority"),            "  Current seniority", ask),
+            "industry":      _text_or_ask(career.get("industry"),             "  Current industry", ask),
+            "employer_name": _text_or_ask(career.get("employer_name"),        "  Current employer", ask),
+            "employer_size": _text_or_ask(career.get("employer_size"),        "  Current employer size", ask),
+            "country":       _text_or_ask(career.get("country_of_residence"), "  Country of current job", ask),
         })
     return jobs
 
 
 def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask) -> list[dict]:
-    """Assets he still holds, with amounts in SGD. Sold assets are left out (their sale
-    is money he received, which the declaration should mention)."""
+    """Investments still held, amounts in SGD. Sold assets are excluded."""
     investments = []
-    for number, entry in enumerate(record.get("asset_timeline", []), start=1):
+    for number, entry in enumerate(record.get("investments", []), start=1):
         name = " - ".join(p for p in (str(entry.get("asset_type") or "").strip(),
                                       str(entry.get("asset_description") or "").strip()) if p) or f"Asset {number}"
         if str(entry.get("year_sold") or "").strip():
@@ -1666,26 +1431,31 @@ def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask)
         if method is None:
             method = PAYMENT_METHODS[ask_choice(f"{name}: how was it paid for?", PAYMENT_METHODS, ask)]
         investments.append({
-            "asset_type": name,
-            "country": _text_or_ask(entry.get("country"), f"{name}: country", ask),
-            "year_acquired": _year_or_ask(entry.get("year_acquired"), f"{name}: year bought", ask, first_year, this_year),
-            "price_paid": _number_or_ask(entry.get("price_paid") if in_sgd else None,
-                                         f"{name}: price paid (SGD)", ask, allow_zero=False),
+            "asset_type":             name,
+            "country":                _text_or_ask(entry.get("country"), f"{name}: country", ask),
+            "year_acquired":          _year_or_ask(entry.get("year_acquired"), f"{name}: year bought", ask, first_year, this_year),
+            "price_paid":             _number_or_ask(entry.get("price_paid") if in_sgd else None,
+                                                     f"{name}: price paid (SGD)", ask, allow_zero=False),
             "current_declared_value": _number_or_ask(entry.get("current_value") if in_sgd else None,
-                                                     f"{name}: what the client says it's worth now (SGD)", ask),
-            "payment_method": method,
-            "income_produced": _number_or_ask((entry.get("yearly_income") or "0") if in_sgd else None,
-                                              f"{name}: income it produces a year (SGD, 0 if none)", ask),
+                                                     f"{name}: current value (SGD)", ask),
+            "payment_method":         method,
+            "income_produced":        _number_or_ask((entry.get("yearly_income") or "0") if in_sgd else None,
+                                                     f"{name}: yearly income (SGD, 0 if none)", ask),
         })
     return investments
 
 
 def _composition_from_record(record: dict, ask: Ask) -> dict:
-    """The % split of his wealth as fractions (60 -> 0.60). Asked again if it doesn't add up to 100%."""
-    typed = record.get("asset_composition", {})
+    """Asset composition as fractions (0.60 = 60%). Asks if missing or doesn't add up."""
+    typed = record.get("claims", {}).get("asset_composition", {})
     split = {key: _number(typed.get(key)) for key in ("property", "listed_equities", "private_business", "cash")}
-    if all(value is not None for value in split.values()) and 95 <= sum(split.values()) <= 105:
-        return {key: value / 100 for key, value in split.items()}
+    # Values may already be fractions (0-1) — check sum
+    if all(v is not None for v in split.values()):
+        total = sum(split.values())
+        if 0.95 <= total <= 1.05:
+            return split   # already fractions
+        if 95 <= total <= 105:
+            return {k: v / 100 for k, v in split.items()}  # were percentages
     show_error("The asset composition is missing or doesn't add up to 100%.")
     while True:
         show("\nHow the client says his wealth is split (percent)")
@@ -1698,16 +1468,16 @@ def _composition_from_record(record: dict, ask: Ask) -> dict:
 
 
 def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None:
-    """Build the forecasting case from a client record saved by the New Client form.
+    """Build the forecasting case from a saved client record.
 
-    Everything the form already has is reused; the officer is asked only for what's
-    missing or unreadable (e.g. the assessment date and when the current job started).
-    Returns None, after showing what's wrong, if the case still isn't valid.
+    Reads directly from the new flat structure. The officer is asked only for
+    what's missing or unreadable.
+    Returns None if the case fails validation.
     """
     if not record:
         return None
-    profile = record.get("client_profile", {})
-    declarations = record.get("client_declarations", {})
+    career     = record.get("career", {})
+    claims     = record.get("claims", {})
     show(LINE)
     show(f"Preparing {record.get('client_ref')} for the forecasting assessment")
     show(LINE)
@@ -1721,41 +1491,45 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
         current_date = ask_date("Assessment date", ask)
     this_year = int(current_date[:4])
 
-    age = int(_number_or_ask(profile.get("age"), "Age", ask, allow_zero=False))
+    age  = int(_number_or_ask(career.get("age"), "Age", ask, allow_zero=False))
     jobs = _jobs_from_record(record, this_year, ask)
     first_year = jobs[0]["start_year"]
-    current = jobs[-1]
-    countries = str(declarations.get("countries_where_wealth_was_generated") or "")
+    current    = jobs[-1]
 
     case = {
-        "client_ref": record["client_ref"],
+        "client_ref":   record["client_ref"],
         "current_date": current_date,
-        "name": _text_or_ask(profile.get("full_name"), "Client name", ask),
-        "nationality": _text_or_ask(profile.get("nationality"), "Nationality", ask),
-        "career": {"occupation": current["occupation"], "seniority": current["seniority"],
-                   "industry": current["industry"], "employer_name": current["employer_name"],
-                   "employer_size": current["employer_size"],
-                   "country_of_residence": _text_or_ask(profile.get("country_of_residence"),
-                                                        "Country of residence", ask),
-                   "age": age, "career_start_year": first_year},
-        "career_history": jobs,
-        "investments": _assets_from_record(record, first_year, this_year, ask),
-        "claims": {
-            "declared_net_worth": _number_or_ask(declarations.get("declared_net_worth"),
-                                                 "Declared net worth (SGD)", ask, allow_zero=False),
-            "expected_aum": _number_or_ask(declarations.get("expected_assets_under_management"),
-                                           "Expected assets to be managed by the bank (SGD)", ask, allow_zero=False),
-            "asset_composition": _composition_from_record(record, ask),
-            "wealth_countries": [c.strip() for c in countries.split(",") if c.strip()]
-                                or [c.strip() for c in ask_text("Countries his wealth came from (comma separated)",
-                                                                ask).split(",") if c.strip()],
-            "pep_status": _text_or_ask(declarations.get("pep_status"), "PEP status (e.g. None)", ask),
+        "name":         _text_or_ask(record.get("name"),        "Client name", ask),
+        "nationality":  _text_or_ask(record.get("nationality"), "Nationality", ask),
+        "career": {
+            "occupation":           current["occupation"],
+            "seniority":            current["seniority"],
+            "industry":             current["industry"],
+            "employer_name":        current["employer_name"],
+            "employer_size":        current["employer_size"],
+            "country_of_residence": _text_or_ask(career.get("country_of_residence"), "Country of residence", ask),
+            "age":                  age,
+            "career_start_year":    first_year,
         },
-        "sow_declaration": str(record.get("sow_declaration", {}).get("declaration_text") or "").strip(),
+        "career_history": jobs,
+        "investments":    _assets_from_record(record, first_year, this_year, ask),
+        "claims": {
+            "declared_net_worth": _number_or_ask(claims.get("declared_net_worth"),
+                                                 "Declared net worth (SGD)", ask, allow_zero=False),
+            "expected_aum":       _number_or_ask(claims.get("expected_aum"),
+                                                 "Expected AUM (SGD)", ask, allow_zero=False),
+            "asset_composition":  _composition_from_record(record, ask),
+            "wealth_countries":   claims.get("wealth_countries")
+                                  or [c.strip() for c in ask_text(
+                                      "Countries his wealth came from (comma separated)", ask
+                                  ).split(",") if c.strip()],
+            "pep_status":         _text_or_ask(claims.get("pep_status"), "PEP status (e.g. None)", ask),
+        },
+        "sow_declaration": _text_or_ask(record.get("sow_declaration"), "Source of wealth declaration", ask),
         "reviews": [],
     }
     if len(case["sow_declaration"]) < 50:
-        show_error("The source of wealth declaration is too short for the assessment (50 characters minimum).")
+        show_error("The source of wealth declaration is too short (50 characters minimum).")
         case["sow_declaration"] = ask_text("Source of wealth declaration (one paragraph)", ask, min_length=50)
 
     problems = validate_case(case)
@@ -1772,8 +1546,9 @@ def show_case_problems(where: str, problems: list[str]) -> None:
     show("  Fix the client record (Find / Edit Existing Client) and try again.")
 
 
-def ask_client_ref(ask: Ask = read_answer) -> str:
-    return ask_text("Client reference (e.g. CL-1A2B3C4D)", ask)
+def ask_client_ref(ask: Ask = read_answer) -> str | None:
+    ref = ask_text("Client reference (e.g. CL-1A2B3C4D, 0 to go back)", ask)
+    return None if ref == "0" else ref
 
 
 # ============================================================================
@@ -1861,7 +1636,12 @@ def format_assessment_list(records: list[dict]) -> str:
 
 
 def show_onboarding(assessment: dict) -> None:
+    W = 68
+    print("\n" + "═" * W)
+    print("  FORECASTING — ONBOARDING ASSESSMENT")
+    print("═" * W)
     show(format_onboarding(assessment))
+    print("═" * W + "\n")
 
 
 def show_review(assessment: dict) -> None:

@@ -83,8 +83,9 @@ def extract_json(text: str) -> str:
 # Response cache
 # ---------------------------------------------------------------------------
 
-def cache_dir() -> str:
-    return os.path.join(_BASE, os.getenv("CACHE_DIR", "data/cache"))
+def cache_dir(kind: str | None = None) -> str:
+    base = os.path.join(_BASE, os.getenv("CACHE_DIR", "data/cache"))
+    return os.path.join(base, kind) if kind else base
 
 
 def cache_key(kind: str, payload: dict, prompt_version: str, model: str) -> str:
@@ -96,8 +97,8 @@ def cache_key(kind: str, payload: dict, prompt_version: str, model: str) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def cache_read(key: str) -> dict | None:
-    path = os.path.join(cache_dir(), f"{key}.json")
+def cache_read(key: str, kind: str | None = None) -> dict | None:
+    path = os.path.join(cache_dir(kind), f"{key}.json")
     if os.path.exists(path):
         try:
             with open(path) as f:
@@ -107,9 +108,9 @@ def cache_read(key: str) -> dict | None:
     return None
 
 
-def cache_write(key: str, data: dict) -> None:
+def cache_write(key: str, data: dict, kind: str | None = None) -> None:
     """Write data to cache atomically (temp file + os.replace)."""
-    directory = cache_dir()
+    directory = cache_dir(kind)
     os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, f"{key}.json")
     tmp = path + ".tmp"
