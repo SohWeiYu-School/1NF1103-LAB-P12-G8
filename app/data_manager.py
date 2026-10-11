@@ -25,6 +25,7 @@ instead of crashing.
 
 import json
 import os
+import uuid
 import certifi
 from dotenv import load_dotenv
 from bson import ObjectId
@@ -177,9 +178,26 @@ def filter_cases_by_outcome(outcome: str) -> list:
     return [r for r in all_records if r.get("outcome") == outcome]
 
 
+def append_to_json(record: dict, filepath: str) -> bool:
+    # Append a record to a JSON file without overwriting existing entries
+    _ensure_data_dir()
+    records = load_from_json(filepath)
+    records.append(record)
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=4, ensure_ascii=False)
+        return True
+    except IOError:
+        return False
+
+
 def save_assessment(record: dict) -> bool:
-    # Save or update an AI assessment record strictly in local ai_assessments.json
-    return save_to_json(record, LOCAL_ASSESSMENTS_JSON)
+    # Append an AI assessment record to local ai_assessments.json (multiple per client allowed)
+    if not isinstance(record, dict) or "client_ref" not in record:
+        return False
+    if "assessment_id" not in record:
+        record = {**record, "assessment_id": str(uuid.uuid4())}
+    return append_to_json(record, LOCAL_ASSESSMENTS_JSON)
 
 
 def load_all_assessments() -> list:
@@ -347,10 +365,23 @@ def load_forecast(ref: str) -> dict | None:
     return None
 
 def load_assessment(ref: str, kind: str = "onboarding") -> dict | None:
-    # Find saved assessment matching the given client reference strictly from local JSON
-    assessments = load_all_assessments()
-    for a in assessments:
-        if a.get("client_ref") == ref:
+    # Return the most recent assessment for a client reference
+    matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
+    if not matches:
+        return None
+    return max(matches, key=lambda a: a.get("assessed_at", ""))
+
+
+def load_client_assessments(ref: str) -> list:
+    # Return all assessments for a client, newest first
+    matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
+    return sorted(matches, key=lambda a: a.get("assessed_at", ""), reverse=True)
+
+
+def load_assessment_by_id(assessment_id: str) -> dict | None:
+    # Return a single assessment by its unique assessment_id
+    for a in load_all_assessments():
+        if a.get("assessment_id") == assessment_id:
             return a
     return None
 
