@@ -359,12 +359,20 @@ def run_menu(client: ai_manager.AIClient) -> None:
     while True:
         choice = io_manager.show_app_menu()
         if choice == "1":
-            client_record = io_manager.create_new_client()
+            client_record = io_manager.create_new_client(
+                save_fn=data_manager.save_case_record,
+                upload_fn=data_manager.upload_supporting_document,
+            )
             if client_record is not None:
                 assess_client_record(client_record, client)
 
         elif choice == "2":
-            io_manager.find_existing_client()
+            io_manager.find_existing_client(
+                load_fn=data_manager.load_all_records,
+                save_fn=data_manager.save_case_record,
+                download_fn=data_manager.download_supporting_document,
+                upload_fn=data_manager.upload_supporting_document,
+            )
 
         elif choice == "3":
             ref = io_manager.ask_client_ref()

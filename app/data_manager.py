@@ -79,7 +79,6 @@ def load_from_json(filepath: str) -> list:
             return data if isinstance(data, list) else []
     except (json.JSONDecodeError, IOError) as e:
         # Catch file read or decode errors
-        print(f"[Data Manager Warning] Could not read {filepath}: {e}")
         return []
 
 
@@ -112,7 +111,6 @@ def save_to_json(record: dict, filepath: str) -> bool:
             json.dump(records, f, indent=4, ensure_ascii=False)
         return True
     except IOError as e:
-        print(f"[Data Manager Error] Failed writing to {filepath}: {e}")
         return False
 
 
@@ -316,12 +314,28 @@ def load_case(path: str) -> dict | None:
     except Exception: 
         return None
 
+def load_json(path: str, default=None):
+    # Read any JSON file from disk; return default if missing or unreadable
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return default
+
+
+def sample_dir() -> str:
+    # Return the absolute path to the data/sample directory
+    return os.path.join(DATA_DIR, "sample")
+
+
 def list_sample_cases() -> list:
     # List all sample json files inside data/sample/
-    sample_dir = os.path.join(DATA_DIR, "sample")
-    if not os.path.exists(sample_dir): 
+    sdir = sample_dir()
+    if not os.path.exists(sdir):
         return []
-    return [os.path.join(sample_dir, f) for f in os.listdir(sample_dir) if f.endswith(".json")]
+    return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
 
 def load_forecasting_case(ref: str) -> dict | None: 
     return find_client_record(ref)

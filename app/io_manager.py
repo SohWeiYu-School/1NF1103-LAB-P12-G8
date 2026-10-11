@@ -22,12 +22,6 @@ from typing import Callable
 from jsonschema import Draft202012Validator
 
 from app import common
-from app.data_manager import (
-    save_case_record,
-    upload_supporting_document,
-    load_all_records,
-    download_supporting_document
-)
 
 # The file picker needs tkinter, which isn't installed everywhere (e.g. the Docker image).
 # Without it the app still runs; only choosing files to upload or download is unavailable.
@@ -414,7 +408,7 @@ def get_sow_declaration() -> dict:
     }
 
 
-def get_supporting_documents() -> list:
+def get_supporting_documents(upload_fn=None) -> list:
     """
     Ask whether the client has supporting documents.
 
@@ -465,7 +459,7 @@ def get_supporting_documents() -> list:
 
         print(f"Uploading: {os.path.basename(path)}")
 
-        file_id = upload_supporting_document(path)
+        file_id = upload_fn(path) if upload_fn else None
 
         if file_id is None:
             print(
@@ -612,7 +606,7 @@ def display_client_record(record: dict):
                 print("   No document reference found.")
 
 
-def create_new_client():
+def create_new_client(save_fn=None, upload_fn=None):
     """Collect, review and optionally save a new client."""
 
     print("\n")
@@ -638,7 +632,7 @@ def create_new_client():
 
     sow_declaration = get_sow_declaration()
 
-    supporting_documents = get_supporting_documents()
+    supporting_documents = get_supporting_documents(upload_fn)
 
     # Create complete record
     client_record = {
@@ -672,7 +666,7 @@ def create_new_client():
 
         print("\nSaving client to database...")
 
-        success = save_case_record(client_record)
+        success = save_fn(client_record) if save_fn else False
 
         if success:
             print("\nClient successfully saved!")
@@ -1101,10 +1095,10 @@ def edit_sow_declaration(record):
     print("\nSource of Wealth declaration updated.")
 
 
-def add_supporting_documents(record):
+def add_supporting_documents(record, upload_fn=None):
     """Add supporting documents to an existing client."""
 
-    new_documents = get_supporting_documents()
+    new_documents = get_supporting_documents(upload_fn)
 
     if not new_documents:
         return
@@ -1118,7 +1112,7 @@ def add_supporting_documents(record):
         f"\n{len(new_documents)} document(s) added."
     )
 
-def edit_existing_client(record):
+def edit_existing_client(record, upload_fn=None):
     """Allow the user to edit or add information to an existing client."""
 
     while True:
@@ -1194,7 +1188,7 @@ def edit_existing_client(record):
 
         elif choice == "7":
 
-            add_supporting_documents(record)
+            add_supporting_documents(record, upload_fn)
 
         elif choice == "8":
 
@@ -1216,7 +1210,7 @@ def edit_existing_client(record):
         if again != "y":
             break
 
-def find_existing_client():
+def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn=None):
     """Find, display, edit and manage an existing client from MongoDB."""
 
     print("\n=== Existing Client ===")
@@ -1227,7 +1221,7 @@ def find_existing_client():
 
     print("\nSearching database...")
 
-    records = load_all_records()
+    records = load_fn() if load_fn else []
 
     if not records:
         print("No client records found in the database.")
@@ -1279,11 +1273,11 @@ def find_existing_client():
 
         if choice == "1":
 
-            edit_existing_client(client_record)
+            edit_existing_client(client_record, upload_fn)
 
             print("\nSaving changes to MongoDB...")
 
-            success = save_case_record(client_record)
+            success = save_fn(client_record) if save_fn else False
 
             if success:
                 print(
@@ -1397,10 +1391,7 @@ def find_existing_client():
                     print("Download cancelled.")
                     continue
 
-                success = download_supporting_document(
-                    file_id,
-                    output_path
-                )
+                success = download_fn(file_id, output_path) if download_fn else False
 
                 if success:
                     print(
