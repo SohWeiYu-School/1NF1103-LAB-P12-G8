@@ -235,41 +235,39 @@ def run_benchmark(client_data: dict):
     ):
         actual_velocity = jump / years
         result3 = actual_velocity / expected_velocity
+        vel_failed = result3 > LIMITS["velocity"]
 
         print("Actual Velocity:", round(actual_velocity, 2))
         print("Expected Velocity:", expected_velocity)
         print("Ratio:", round(result3, 2))
+        print("Result: FAIL" if vel_failed else "Result: PASS")
 
-        if result3 <= LIMITS["velocity"]:
-            print("Result: PASS")
-        else:
-            print("Result: FAIL")
+        findings.append({"rule_id": "VELOCITY", "failed": vel_failed,
+                         "detail": f"Actual velocity {round(actual_velocity, 2)}, expected {expected_velocity}, ratio {round(result3, 2)}"})
     else:
         print("Result: SKIPPED - Missing or invalid wealth timeline data")
+        findings.append({"rule_id": "VELOCITY", "failed": False,
+                         "detail": "Skipped — missing or invalid wealth timeline data"})
 
     # 5. COUNTERPARTIES CHECK
     print("\n--- Counterparties Check ---")
 
-    declared_counterparties = client_data.get(
-        "declared_counterparties", []
-    )
-    expected_counterparties = ai_data.get(
-        "expected_counterparties", []
-    )
+    declared_counterparties = client_data.get("declared_counterparties", [])
+    expected_counterparties = ai_data.get("expected_counterparties", [])
 
     unknown_counterparties = calculate_counterparties(
         declared_counterparties,
         expected_counterparties
     )
+    cp_failed = len(unknown_counterparties) > LIMITS["counterparties"]
 
     print("Declared Counterparties:", declared_counterparties)
     print("Expected Counterparties:", expected_counterparties)
     print("Unknown Counterparties:", unknown_counterparties)
+    print("Result: FAIL" if cp_failed else "Result: PASS")
 
-    if len(unknown_counterparties) <= LIMITS["counterparties"]:
-        print("Result: PASS")
-    else:
-        print("Result: FAIL")
+    findings.append({"rule_id": "COUNTERPARTIES", "failed": cp_failed,
+                     "detail": f"Unknown counterparties: {unknown_counterparties or 'none'}"})
 
     # 6. JURISDICTION CHECK
     print("\n--- Jurisdiction Check ---")
@@ -281,15 +279,17 @@ def run_benchmark(client_data: dict):
         declared_countries,
         expected_countries
     )
+    jur_failed = len(unknown_countries) > LIMITS["jurisdiction"]
 
     print("Declared Countries:", declared_countries)
     print("Expected Countries:", expected_countries)
     print("Unknown Countries:", unknown_countries)
+    print("Result: FAIL" if jur_failed else "Result: PASS")
 
-    if len(unknown_countries) <= LIMITS["jurisdiction"]:
-        print("Result: PASS")
-    else:
-        print("Result: FAIL")
+    findings.append({"rule_id": "JURISDICTION", "failed": jur_failed,
+                     "detail": f"Unknown countries: {unknown_countries or 'none'}"})
+
+    return {"findings": findings}
 
     
 # ---------------------------------------------------------------------------
@@ -866,8 +866,7 @@ def assess_case(
     Returns a dict with keys: outcome, findings, documents, match_results.
     """
     if typology_response is None or declaration is None:
-        max_slots = policy.get("typology_max_patterns", 5)
-        return {"breach_count": 0, "pass_count": max_slots, "max_slots": max_slots, "match_results": []}
+        return {"breach_count": 0, "match_results": []}
 
     clean_case, _ = prepare_case_for_matching(case_input)
     typologies = typology_response.get("sector_typologies", [])
@@ -879,16 +878,8 @@ def assess_case(
         expected_jur, max_accum, policy,
     )
 
-    max_slots = policy.get("typology_max_patterns", 5)
     breach_count = sum(1 for mr in match_results if mr["breached"])
-    pass_count = max_slots - breach_count
-
-    return {
-        "breach_count": breach_count,
-        "pass_count": pass_count,
-        "max_slots": max_slots,
-        "match_results": match_results,
-    }
+    return {"breach_count": breach_count, "match_results": match_results}
 
 
 # ===========================================================================
