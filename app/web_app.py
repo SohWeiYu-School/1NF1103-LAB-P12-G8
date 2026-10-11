@@ -58,7 +58,7 @@ from app.data_manager import (
     load_client_assessments,
     load_assessment_by_id,
 )
-from app.io_manager import generate_client_id, validate_case, _number
+from app.io_manager import generate_client_id, validate_case, _number, show_crime_scan_result, show_benchmark_result, show_onboarding
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
@@ -551,10 +551,13 @@ def _run_assessment_job(job_id, client_ref, record):
         crime_result = None
         if typology_response is not None and declaration is not None:
             crime_result = logic_manager.assess_case(case_input, typology_response, declaration, policy)
+            show_crime_scan_result(crime_result, typology_response, research)
         time.sleep(4)
 
         step(8)
         benchmark = _run_benchmark(record, case_input)
+        if benchmark is not None:
+            show_benchmark_result(benchmark)
         time.sleep(4)
 
         step(9)
@@ -566,6 +569,7 @@ def _run_assessment_job(job_id, client_ref, record):
             save_forecast(client_ref, run["forecast"])
             forecast_assessment = logic_manager.assess_onboarding(record, run["forecast"])
             save_forecast_assessment(client_ref, "onboarding", forecast_assessment)
+            show_onboarding(forecast_assessment)
 
         step(10)
         time.sleep(4)
