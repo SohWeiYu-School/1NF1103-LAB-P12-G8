@@ -1,0 +1,201 @@
+[
+    {
+        "client_ref": "CL-C7CC9ACA",
+        "current_date": "2026-10-09",
+        "name": "Marcus Thamus",
+        "nationality": "Singaporean",
+        "career": {
+            "occupation": "IT",
+            "seniority": "Senior",
+            "industry": "IT",
+            "employer_name": "Accenture",
+            "employer_size": "10000",
+            "country_of_residence": "Singapore",
+            "age": 34,
+            "career_start_year": 2017
+        },
+        "career_history": [
+            {
+                "start_year": 2017,
+                "end_year": 2019,
+                "occupation": "IT",
+                "seniority": "Junior",
+                "industry": "IT",
+                "employer_name": "Jobster",
+                "employer_size": "10",
+                "country": "Singapore"
+            },
+            {
+                "start_year": 2021,
+                "end_year": null,
+                "occupation": "IT",
+                "seniority": "Senior",
+                "industry": "IT",
+                "employer_name": "Accenture",
+                "employer_size": "10000",
+                "country": "Singapore"
+            }
+        ],
+        "investments": [
+            {
+                "asset_type": "Property - Testing",
+                "country": "Singapore",
+                "year_acquired": 2019,
+                "price_paid": 60000.0,
+                "current_declared_value": 60000.0,
+                "payment_method": "cash",
+                "income_produced": 0.0
+            }
+        ],
+        "claims": {
+            "declared_net_worth": 500000.0,
+            "expected_aum": 30000.0,
+            "asset_composition": {
+                "property": 0.25,
+                "listed_equities": 0.25,
+                "private_business": 0.25,
+                "cash": 0.25
+            },
+            "wealth_countries": [
+                "Singapore",
+                "Australia"
+            ],
+            "pep_status": "None"
+        },
+        "sow_declaration": "I received 5000 per month, I should get 500000 in 20 years for my professional hard work and investment",
+        "reviews": []
+    },
+    {
+        "client_ref": "CL-4AB0C3DF",
+        "current_date": "2026-10-09",
+        "name": "Wei Yu Tham Dominic",
+        "nationality": "Australian",
+        "career": {
+            "occupation": "IT",
+            "seniority": "Senior",
+            "industry": "IT",
+            "employer_name": "Boston Jobster",
+            "employer_size": "200000",
+            "country_of_residence": "Australia",
+            "age": 45,
+            "career_start_year": 2019
+        },
+        "career_history": [
+            {
+                "start_year": 2019,
+                "end_year": 2020,
+                "occupation": "IT",
+                "seniority": "Senior",
+                "industry": "IT",
+                "employer_name": "Binance",
+                "employer_size": "200000",
+                "country": "Singapore"
+            },
+            {
+                "start_year": 2023,
+                "end_year": null,
+                "occupation": "IT",
+                "seniority": "Senior",
+                "industry": "IT",
+                "employer_name": "Boston Jobster",
+                "employer_size": "200000",
+                "country": "Australia"
+            }
+        ],
+        "investments": [
+            {
+                "asset_type": "Property - Testing only",
+                "country": "Singapore",
+                "year_acquired": 2021,
+                "price_paid": 500.0,
+                "current_declared_value": 300.0,
+                "payment_method": "cash",
+                "income_produced": 2000.0
+            }
+        ],
+        "claims": {
+            "declared_net_worth": 600000.0,
+            "expected_aum": 2000.0,
+            "asset_composition": {
+                "property": 0.25,
+                "listed_equities": 0.25,
+                "private_business": 0.25,
+                "cash": 0.25
+            },
+            "wealth_countries": [
+                "Singapore",
+                "Australia",
+                "United Kingdom"
+            ],
+            "pep_status": "None"
+        },
+        "sow_declaration": "I received 6000 per month, I should get 10000 in 20 years for my professional hard work and investment",
+        "reviews": []
+    },
+    {
+        "client_ref": "CL-2009F814",
+        "current_date": "2026-10-10",
+        "name": "Zuo Wen",
+        "nationality": "Singaporean",
+        "career": {
+            "occupation": "IT",
+            "seniority": "Senior",
+            "industry": "IT",
+            "employer_name": "Binance",
+            "employer_size": "20000",
+            "country_of_residence": "Singapore",
+            "age": 50,
+            "career_start_year": 2015
+        },
+        "career_history": [
+            {
+                "start_year": 2015,
+                "end_year": 2019,
+                "occupation": "IT",
+                "seniority": "Junior",
+                "industry": "IT",
+                "employer_name": "Binance",
+                "employer_size": "20000",
+                "country": "Singapore"
+            },
+            {
+                "start_year": 2020,
+                "end_year": null,
+                "occupation": "IT",
+                "seniority": "Senior",
+                "industry": "IT",
+                "employer_name": "Binance",
+                "employer_size": "20000",
+                "country": "Singapore"
+            }
+        ],
+        "investments": [
+            {
+                "asset_type": "Property - Testing",
+                "country": "Singapore",
+                "year_acquired": 2020,
+                "price_paid": 60000.0,
+                "current_declared_value": 7000.0,
+                "payment_method": "cash",
+                "income_produced": 9000.0
+            }
+        ],
+        "claims": {
+            "declared_net_worth": 500000.0,
+            "expected_aum": 3000.0,
+            "asset_composition": {
+                "property": 0.2,
+                "listed_equities": 0.2,
+                "private_business": 0.2,
+                "cash": 0.4
+            },
+            "wealth_countries": [
+                "Singapore",
+                "United Kingdom"
+            ],
+            "pep_status": "None"
+        },
+        "sow_declaration": "I received 5000 per month, I should get 500000 in 20 years for my professional hard work and investment",
+        "reviews": []
+    }
+]
