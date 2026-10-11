@@ -248,8 +248,19 @@ def read_amount(text, label, problems, allow_zero=True, blank_zero=False):
  
  
 def build_record(values: dict, client_ref: str, old: dict | None = None):
-    """Turn the form text into a record. Returns (record, problems)."""
+    """Turn the form text into a record. Returns (record, problems, field_errors).
+
+    field_errors maps HTML input name -> short inline message for the form UI.
+    For list items the key is  prefix.N.field  (0-based N).
+    """
     problems = []
+    field_errors = {}
+
+    def _p(msg, field=None, short=None):
+        problems.append(msg)
+        if field:
+            field_errors[field] = short or msg
+
     record = dict(old) if old else {}
     record["client_ref"] = client_ref
  
@@ -258,34 +269,43 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
     for key, label in [("name", "Full name"), ("nationality", "Nationality"),
                        ("country_of_residence", "Country of residence")]:
         if not client[key]:
-            problems.append(f"{label} is required.")
+            _p(f"{label} is required.", f"client.{key}", "Required.")
     record["name"] = client["name"]
     record["nationality"] = client["nationality"]
  
     try:
         datetime.date.fromisoformat(client["current_date"])
     except ValueError:
-        problems.append("Assessment date must be a real date.")
+        _p("Assessment date must be a real date.", "client.current_date", "Must be a real date.")
     record["current_date"] = client["current_date"]
  
     if client["age"].isdigit() and 18 <= int(client["age"]) <= 120:
         age = int(client["age"])
     else:
-        problems.append("Age must be a whole number between 18 and 120.")
+        _p("Age must be a whole number between 18 and 120.", "client.age", "Must be 18“120.")
         age = 0
  
     # ---- career history ----
     jobs = []
     for number, row in enumerate(values["jobs"], start=1):
         label = f"Job {number}"
+        i = number - 1
         for key, text in [("occupation", "job title"), ("seniority", "seniority"),
                           ("industry", "industry"), ("employer_name", "employer"),
                           ("employer_size", "employer size"), ("country", "country")]:
             if not row[key]:
-                problems.append(f"{label}: {text} is required.")
+                _p(f"{label}: {text} is required.", f"jobs.{i}.{key}", "Required.")
+        n = len(problems)
+        sy = read_year(row["start_year"], f"{label}: start year", problems)
+        if len(problems) > n:
+            field_errors[f"jobs.{i}.start_year"] = "Must be a year like 2015."
+        n = len(problems)
+        ey = read_year(row["end_year"], f"{label}: end year", problems, blank_ok=True)
+        if len(problems) > n:
+            field_errors[f"jobs.{i}.end_year"] = "Must be a year like 2020."
         jobs.append({
-            "start_year": read_year(row["start_year"], f"{label}: start year", problems),
-            "end_year": read_year(row["end_year"], f"{label}: end year", problems, blank_ok=True),
+            "start_year": sy,
+            "end_year": ey,
             "occupation": row["occupation"],
             "seniority": row["seniority"],
             "industry": row["industry"],
@@ -294,7 +314,7 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
             "country": row["country"],
         })
     if not jobs:
-        problems.append("Add at least one job (the current job has no end year).")
+        _p("Add at least one job (the current job has no end year).")
     jobs.sort(key=lambda job: job["start_year"])
     record["career_history"] = jobs
  
@@ -313,58 +333,84 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
     investments = []
     for number, row in enumerate(values["assets"], start=1):
         label = f"Asset {number}"
+        i = number - 1
         for key, text in [("asset_type", "name"), ("country", "country")]:
             if not row[key]:
-                problems.append(f"{label}: {text} is required.")
+                _p(f"{label}: {text} is required.", f"assets.{i}.{key}", "Required.")
         if row["payment_method"] not in PAYMENT_OPTIONS:
-            problems.append(f"{label}: choose how it was paid for.")
+            _p(f"{label}: choose how it was paid for.", f"assets.{i}.payment_method", "Choose one.")
+        n = len(problems)
+        yr  = read_year(row["year_acquired"], f"{label}: year bought", problems)
+        if len(problems) > n:
+            field_errors[f"assets.{i}.year_acquired"] = "Must be a year like 2010."
+        n = len(problems)
+        pp  = read_amount(row["price_paid"], f"{label}: price paid", problems, allow_zero=False)
+        if len(problems) > n:
+            field_errors[f"assets.{i}.price_paid"] = "Must be above zero."
+        n = len(problems)
+        cdv = read_amount(row["current_declared_value"], f"{label}: declared value", problems)
+        if len(problems) > n:
+            field_errors[f"assets.{i}.current_declared_value"] = "Must be a number."
+        n = len(problems)
+        inc = read_amount(row["income_produced"], f"{label}: income", problems, blank_zero=True)
+        if len(problems) > n:
+            field_errors[f"assets.{i}.income_produced"] = "Must be a number."
         investments.append({
             "asset_type": row["asset_type"],
             "country": row["country"],
-            "year_acquired": read_year(row["year_acquired"], f"{label}: year bought", problems),
-            "price_paid": read_amount(row["price_paid"], f"{label}: price paid", problems,
-                                      allow_zero=False),
-            "current_declared_value": read_amount(row["current_declared_value"],
-                                                  f"{label}: declared value", problems),
+            "year_acquired": yr,
+            "price_paid": pp,
+            "current_declared_value": cdv,
             "payment_method": row["payment_method"],
-            "income_produced": read_amount(row["income_produced"], f"{label}: income",
-                                           problems, blank_zero=True),
+            "income_produced": inc,
         })
     record["investments"] = investments
  
     # ---- claims ----
     claims = dict(record.get("claims") or {})
     form_claims = values["claims"]
+    n = len(problems)
     claims["declared_net_worth"] = read_amount(form_claims["declared_net_worth"],
                                                "Declared net worth", problems, allow_zero=False)
+    if len(problems) > n:
+        field_errors["claims.declared_net_worth"] = "Must be above zero."
+    n = len(problems)
     claims["expected_aum"] = read_amount(form_claims["expected_aum"],
                                          "Expected assets to be managed", problems,
                                          allow_zero=False)
+    if len(problems) > n:
+        field_errors["claims.expected_aum"] = "Must be above zero."
     if not form_claims["pep_status"]:
-        problems.append("PEP status is required.")
+        _p("PEP status is required.", "claims.pep_status", "Required.")
     claims["pep_status"] = form_claims["pep_status"]
- 
+
     countries = [c.strip() for c in form_claims["wealth_countries"].split(",") if c.strip()]
     if not countries:
-        problems.append("Enter at least one country the wealth came from.")
+        _p("Enter at least one country the wealth came from.",
+           "claims.wealth_countries", "Enter at least one country.")
     claims["wealth_countries"] = countries
- 
+
     split = {}
     for key, label, kind in COMPOSITION_FIELDS:
+        n = len(problems)
         split[key] = read_amount(values["composition"][key], label.replace(" (%)", ""), problems)
+        if len(problems) > n:
+            field_errors[f"composition.{key}"] = "Must be a number."
     if not 95 <= sum(split.values()) <= 105:
-        problems.append(f"The wealth split adds up to {trim(sum(split.values()))}%, it must be 100%.")
+        _p(f"The wealth split adds up to {trim(sum(split.values()))}%, it must be 100%.")
     claims["asset_composition"] = {key: value / 100 for key, value in split.items()}
     record["claims"] = claims
- 
+
     # ---- declaration ----
     record["sow_declaration"] = values["sow"]["sow_declaration"]
-    if len(record["sow_declaration"]) < 50:
-        problems.append("The source of wealth declaration must be at least 50 characters.")
- 
+    sow_len = len(record["sow_declaration"])
+    if sow_len < 50:
+        _p("The source of wealth declaration must be at least 50 characters.",
+           "sow.sow_declaration", f"Too short ({sow_len}/50 characters minimum).")
+
     record.setdefault("reviews", [])
     record.setdefault("supporting_documents", [])
-    return record, problems
+    return record, problems, field_errors
  
  
 def check_record(record: dict) -> list:
@@ -577,15 +623,16 @@ def find():
 def new_client():
     if request.method == "POST":
         values = values_from_form(request.form)
-        record, problems = build_record(values, generate_client_id())
+        record, problems, field_errors = build_record(values, generate_client_id())
         if not problems:
             problems = check_record(record)
+            field_errors = {}
         if not problems:
             if save_case_record(record):
                 flash("Client saved.")
                 return redirect(url_for("view_client", client_ref=record["client_ref"]))
             problems = ["The client could not be saved. Check the database connection."]
-        return show_form("New client", values, problems)
+        return show_form("New client", values, problems, field_errors)
  
     return show_form("New client", values_from_record({"current_date": today()}), [])
  
@@ -627,15 +674,16 @@ def edit_client(client_ref):
  
     if request.method == "POST":
         values = values_from_form(request.form)
-        record, problems = build_record(values, client_ref, old)
+        record, problems, field_errors = build_record(values, client_ref, old)
         if not problems:
             problems = check_record(record)
+            field_errors = {}
         if not problems:
             if save_case_record(record):
                 flash("Changes saved.")
                 return redirect(url_for("view_client", client_ref=client_ref))
             problems = ["The changes could not be saved. Check the database connection."]
-        return show_form(f"Edit {client_ref}", values, problems)
+        return show_form(f"Edit {client_ref}", values, problems, field_errors)
  
     return show_form(f"Edit {client_ref}", values_from_record(old), [])
  
@@ -1012,6 +1060,33 @@ FORM = """{% extends "base.html" %}
   </div>
 </form>
  
+<script>
+(function () {
+  var fe = {{ field_errors | tojson }};
+  Object.keys(fe).forEach(function (key) {
+    var msg = fe[key];
+    var parts = key.split(".");
+    var input;
+    if (parts.length === 3 && /^\\d+$/.test(parts[1])) {
+      var name = parts[0] + "." + parts[2];
+      var idx  = parseInt(parts[1], 10);
+      var all  = document.querySelectorAll('[name="' + name + '"]');
+      input = all[idx] || null;
+    } else {
+      input = document.querySelector('[name="' + key + '"]');
+    }
+    if (!input) return;
+    input.style.borderColor = "#e3b0b0";
+    input.style.background  = "#fff5f5";
+    var lbl = input.closest("label");
+    if (!lbl) return;
+    var span = document.createElement("span");
+    span.style.cssText = "color:#a61b1b;font-size:.79rem;display:block;margin-top:3px";
+    span.textContent = msg;
+    lbl.appendChild(span);
+  });
+})();
+</script>
 <script>
   function addEntry(prefix) {
     var template = document.getElementById("tpl-" + prefix);
