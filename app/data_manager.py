@@ -46,11 +46,14 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Define the local data directory folder (e.g., .../data)
 DATA_DIR = os.path.join(_BASE_DIR, "data")
 
+# Subfolder for local JSON database files
+LOCAL_DB_DIR = os.path.join(DATA_DIR, "local database")
+
 # Set the path for saving client profiles locally
-LOCAL_CASES_JSON = os.path.join(DATA_DIR, "sow_cases.json")
+LOCAL_CASES_JSON = os.path.join(LOCAL_DB_DIR, "sow_cases.json")
 
 # Set the path for saving AI assessment results locally
-LOCAL_ASSESSMENTS_JSON = os.path.join(DATA_DIR, "ai_assessments.json")
+LOCAL_ASSESSMENTS_JSON = os.path.join(LOCAL_DB_DIR, "ai_assessments.json")
 
 # Define MongoDB database and collection names
 DB_NAME = "sow_risk_db"
@@ -59,8 +62,8 @@ ASSESSMENT_COLLECTION_NAME = "ai_assessments"
 
 
 def _ensure_data_dir():
-    # Make sure the data directory exists on disk before reading or writing
-    os.makedirs(DATA_DIR, exist_ok=True)
+    # Make sure the local database directory exists on disk before reading or writing
+    os.makedirs(LOCAL_DB_DIR, exist_ok=True)
 
 
 # ==============================================================================

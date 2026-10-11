@@ -12,11 +12,11 @@
             "employer_size": "10000",
             "country_of_residence": "Singapore",
             "age": 34,
-            "career_start_year": 2017
+            "career_start_year": 2016
         },
         "career_history": [
             {
-                "start_year": 2017,
+                "start_year": 2016,
                 "end_year": 2019,
                 "occupation": "IT",
                 "seniority": "Junior",
@@ -63,7 +63,8 @@
             "pep_status": "None"
         },
         "sow_declaration": "I received 5000 per month, I should get 500000 in 20 years for my professional hard work and investment",
-        "reviews": []
+        "reviews": [],
+        "supporting_documents": []
     },
     {
         "client_ref": "CL-4AB0C3DF",
