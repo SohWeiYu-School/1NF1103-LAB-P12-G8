@@ -107,27 +107,27 @@ def calculate_composition(client_data, ai_data):
     print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
     print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
 
+    prop_failed     = difference_property  > LIMITS["composition"]
+    listed_failed   = difference_listed    > LIMITS["composition"]
+    business_failed = difference_business  > LIMITS["composition"]
+    cash_failed     = difference_cash      > LIMITS["composition"]
+
     print("\n--- Composition Result ---")
+    print("Property: FAIL" if prop_failed else "Property: PASS")
+    print("Listed Equities: FAIL" if listed_failed else "Listed Equities: PASS")
+    print("Private Business: FAIL" if business_failed else "Private Business: PASS")
+    print("Cash: FAIL" if cash_failed else "Cash: PASS")
 
-    if difference_property <= LIMITS["composition"]:
-        print("Property: PASS")
-    else:
-        print("Property: FAIL")
-
-    if difference_listed <= LIMITS["composition"]:
-        print("Listed Equities: PASS")
-    else:
-        print("Listed Equities: FAIL")
-
-    if difference_business <= LIMITS["composition"]:
-        print("Private Business: PASS")
-    else:
-        print("Private Business: FAIL")
-
-    if difference_cash <= LIMITS["composition"]:
-        print("Cash: PASS")
-    else:
-        print("Cash: FAIL")
+    return [
+        {"rule_id": "COMPOSITION_PROPERTY",  "failed": prop_failed,
+         "detail": f"Property: declared {declared_property}%, expected {expected_property}%, diff {difference_property}%"},
+        {"rule_id": "COMPOSITION_EQUITIES",  "failed": listed_failed,
+         "detail": f"Listed equities: declared {declared_listed}%, expected {expected_listed}%, diff {difference_listed}%"},
+        {"rule_id": "COMPOSITION_BUSINESS",  "failed": business_failed,
+         "detail": f"Private business: declared {declared_business}%, expected {expected_business}%, diff {difference_business}%"},
+        {"rule_id": "COMPOSITION_CASH",      "failed": cash_failed,
+         "detail": f"Cash: declared {declared_cash}%, expected {expected_cash}%, diff {difference_cash}%"},
+    ]
 
 #=============================================================================#
 def calculate_velocity(client_data, ai_data):
@@ -188,38 +188,36 @@ def run_benchmark(client_data: dict):
         print("\n[Benchmark] AI call failed.")
         return None
 
+    findings = []
+
     # 1. TOTAL WEALTH CHECK
     result1 = calculate_total_wealth(client_data, ai_data)
+    tw_failed = result1 > LIMITS["total_wealth"]
 
     print("\n--- Total Wealth Check ---")
     print("Declared Net Worth:", client_data["declared_net_worth"])
     print("Expected Wealth:", ai_data["expected_wealth"])
     print("Ratio:", round(result1, 2))
+    print("Result: FAIL" if tw_failed else "Result: PASS")
 
-    if result1 <= LIMITS["total_wealth"]:
-        print("Result: PASS")
-    else:
-        print("Result: FAIL")
+    findings.append({"rule_id": "TOTAL_WEALTH", "failed": tw_failed,
+                     "detail": f"Declared {client_data['declared_net_worth']:,}, expected {ai_data['expected_wealth']:,}, ratio {round(result1, 2)}"})
 
     # 2. LIQUIDITY CHECK
     result2 = calculate_liquidity(client_data, ai_data)
+    liq_failed = result2 > LIMITS["liquidity"]
 
     print("\n--- Liquidity Check ---")
-    print(
-        "Declared Liquidity:",
-        client_data["listed_equities"] + client_data["cash"], "%"
-    )
+    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
     print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
     print("Ratio:", round(result2, 2))
+    print("Result: FAIL" if liq_failed else "Result: PASS")
 
-    if result2 <= LIMITS["liquidity"]:
-        print("Result: PASS")
-    else:
-        print("Result: FAIL")
+    findings.append({"rule_id": "LIQUIDITY", "failed": liq_failed,
+                     "detail": f"Declared {client_data['listed_equities'] + client_data['cash']}%, expected {ai_data['expected_liquidity']}%, ratio {round(result2, 2)}"})
 
     # 3. ASSET COMPOSITION CHECK
-    
-    calculate_composition(client_data, ai_data)
+    findings += calculate_composition(client_data, ai_data)
 
     # 4. VELOCITY CHECK
     print("\n--- Velocity Check ---")
