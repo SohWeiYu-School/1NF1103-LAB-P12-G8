@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create runtime directories and assign ownership before switching to non-root user
-RUN mkdir -p /app/data/runtime/cache /app/logs \
+RUN mkdir -p /app/data/cache /app/data/"local database" /app/logs \
     && useradd --create-home --shell /bin/sh appuser \
     && chown -R appuser:appuser /app/data /app/logs
 
