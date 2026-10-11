@@ -100,23 +100,10 @@ def calculate_composition(client_data, ai_data):
 
     difference_cash = abs(declared_cash - expected_cash)
 
-    print("\n--- Asset Composition Check ---")
-    print("Category           Declared    Expected    Difference")
-    print("Property              ", declared_property, "%       ", expected_property, "%        ", difference_property, "%")
-    print("Listed Equities       ", declared_listed, "%       ", expected_listed, "%        ", difference_listed, "%")
-    print("Private Business      ", declared_business, "%       ", expected_business, "%        ", difference_business, "%")
-    print("Cash                  ", declared_cash, "%       ", expected_cash, "%        ", difference_cash, "%")
-
     prop_failed     = difference_property  > LIMITS["composition"]
     listed_failed   = difference_listed    > LIMITS["composition"]
     business_failed = difference_business  > LIMITS["composition"]
     cash_failed     = difference_cash      > LIMITS["composition"]
-
-    print("\n--- Composition Result ---")
-    print("Property: FAIL" if prop_failed else "Property: PASS")
-    print("Listed Equities: FAIL" if listed_failed else "Listed Equities: PASS")
-    print("Private Business: FAIL" if business_failed else "Private Business: PASS")
-    print("Cash: FAIL" if cash_failed else "Cash: PASS")
 
     return [
         {"rule_id": "COMPOSITION_PROPERTY",  "failed": prop_failed,
@@ -185,7 +172,6 @@ def run_benchmark(client_data: dict):
     ai_data = get_ai_data(client_data)
 
     if ai_data is None:
-        print("\n[Benchmark] AI call failed.")
         return None
 
     findings = []
@@ -193,26 +179,12 @@ def run_benchmark(client_data: dict):
     # 1. TOTAL WEALTH CHECK
     result1 = calculate_total_wealth(client_data, ai_data)
     tw_failed = result1 > LIMITS["total_wealth"]
-
-    print("\n--- Total Wealth Check ---")
-    print("Declared Net Worth:", client_data["declared_net_worth"])
-    print("Expected Wealth:", ai_data["expected_wealth"])
-    print("Ratio:", round(result1, 2))
-    print("Result: FAIL" if tw_failed else "Result: PASS")
-
     findings.append({"rule_id": "TOTAL_WEALTH", "failed": tw_failed,
                      "detail": f"Declared {client_data['declared_net_worth']:,}, expected {ai_data['expected_wealth']:,}, ratio {round(result1, 2)}"})
 
     # 2. LIQUIDITY CHECK
     result2 = calculate_liquidity(client_data, ai_data)
     liq_failed = result2 > LIMITS["liquidity"]
-
-    print("\n--- Liquidity Check ---")
-    print("Declared Liquidity:", client_data["listed_equities"] + client_data["cash"], "%")
-    print("Expected Liquidity:", ai_data["expected_liquidity"], "%")
-    print("Ratio:", round(result2, 2))
-    print("Result: FAIL" if liq_failed else "Result: PASS")
-
     findings.append({"rule_id": "LIQUIDITY", "failed": liq_failed,
                      "detail": f"Declared {client_data['listed_equities'] + client_data['cash']}%, expected {ai_data['expected_liquidity']}%, ratio {round(result2, 2)}"})
 
@@ -220,8 +192,6 @@ def run_benchmark(client_data: dict):
     findings += calculate_composition(client_data, ai_data)
 
     # 4. VELOCITY CHECK
-    print("\n--- Velocity Check ---")
-
     jump = client_data.get("biggest_wealth_jump")
     years = client_data.get("wealth_jump_years")
     expected_velocity = ai_data.get("expected_velocity")
@@ -236,56 +206,25 @@ def run_benchmark(client_data: dict):
         actual_velocity = jump / years
         result3 = actual_velocity / expected_velocity
         vel_failed = result3 > LIMITS["velocity"]
-
-        print("Actual Velocity:", round(actual_velocity, 2))
-        print("Expected Velocity:", expected_velocity)
-        print("Ratio:", round(result3, 2))
-        print("Result: FAIL" if vel_failed else "Result: PASS")
-
         findings.append({"rule_id": "VELOCITY", "failed": vel_failed,
                          "detail": f"Actual velocity {round(actual_velocity, 2)}, expected {expected_velocity}, ratio {round(result3, 2)}"})
     else:
-        print("Result: SKIPPED - Missing or invalid wealth timeline data")
         findings.append({"rule_id": "VELOCITY", "failed": False,
                          "detail": "Skipped — missing or invalid wealth timeline data"})
 
     # 5. COUNTERPARTIES CHECK
-    print("\n--- Counterparties Check ---")
-
     declared_counterparties = client_data.get("declared_counterparties", [])
     expected_counterparties = ai_data.get("expected_counterparties", [])
-
-    unknown_counterparties = calculate_counterparties(
-        declared_counterparties,
-        expected_counterparties
-    )
+    unknown_counterparties = calculate_counterparties(declared_counterparties, expected_counterparties)
     cp_failed = len(unknown_counterparties) > LIMITS["counterparties"]
-
-    print("Declared Counterparties:", declared_counterparties)
-    print("Expected Counterparties:", expected_counterparties)
-    print("Unknown Counterparties:", unknown_counterparties)
-    print("Result: FAIL" if cp_failed else "Result: PASS")
-
     findings.append({"rule_id": "COUNTERPARTIES", "failed": cp_failed,
                      "detail": f"Unknown counterparties: {unknown_counterparties or 'none'}"})
 
     # 6. JURISDICTION CHECK
-    print("\n--- Jurisdiction Check ---")
-
     declared_countries = client_data.get("declared_countries", [])
     expected_countries = ai_data.get("expected_jurisdiction", [])
-
-    unknown_countries = calculate_jurisdiction(
-        declared_countries,
-        expected_countries
-    )
+    unknown_countries = calculate_jurisdiction(declared_countries, expected_countries)
     jur_failed = len(unknown_countries) > LIMITS["jurisdiction"]
-
-    print("Declared Countries:", declared_countries)
-    print("Expected Countries:", expected_countries)
-    print("Unknown Countries:", unknown_countries)
-    print("Result: FAIL" if jur_failed else "Result: PASS")
-
     findings.append({"rule_id": "JURISDICTION", "failed": jur_failed,
                      "detail": f"Unknown countries: {unknown_countries or 'none'}"})
 
