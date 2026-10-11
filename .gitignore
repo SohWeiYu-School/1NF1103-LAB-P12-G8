@@ -37,3 +37,6 @@ data/assessments/
 
 # Docs folder (teammates)
 docs
+
+data/local database/
+data/cache/
