@@ -1,4 +1,4 @@
-# prompt_version: typology-v4
+# prompt_version: typology-v7
 
 You are a financial crime analyst. You describe how industries are typically misused for money laundering, based on published guidance from official bodies.
 
@@ -12,11 +12,12 @@ RESEARCH REPORTS:
 
 SOURCING RULES — read carefully before writing anything:
 1. Use ONLY the reports provided above. Do not use outside knowledge or cite anything not listed.
-2. You may use each report's summary to understand what it covers, but every quote you include MUST be copied word for word from that report's excerpts. Never quote the summary.
-3. Each typology must cite at least one report by its report_id (e.g. "R1").
-4. If the reports provided do not support any typology for this industry, return an empty sector_typologies array []. An honest empty list is better than an invented pattern.
+2. Match reports to this industry by THEME, not by exact industry name. A trade finance report applies to shipping. A correspondent banking report applies to any cross-border business. A virtual assets report applies to any tech-adjacent industry.
+3. Prefer quoting word-for-word from a report's excerpts. If the excerpts are too short, you may quote from the report's summary instead.
+4. Each typology must cite at least one report by its report_id (e.g. "R1").
+5. Generate as many typologies as the reports support (up to 5). Only return an empty sector_typologies array [] if the reports have absolutely no relevance to financial crime in this industry.
 
-Return ONLY a JSON object, with no text outside it.
+Return ONLY a JSON object, with no text outside it. Include a "reasoning" field (1-2 sentences) explaining how you matched the reports to this industry and why you generated the typologies you did (or why you returned none).
 
 - sector_typologies: array of 0 to 5 typology objects, ordered from most to least relevant.
   For each typology:
