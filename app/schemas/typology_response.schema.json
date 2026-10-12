@@ -4,9 +4,13 @@
   "title": "TypologyResponse",
   "description": "AI output for sector typology analysis (no wealth benchmark).",
   "type": "object",
-  "required": ["sector_typologies", "expected_jurisdictions", "max_accumulation_per_year_sgd"],
+  "required": ["reasoning", "sector_typologies", "expected_jurisdictions", "max_accumulation_per_year_sgd"],
   "additionalProperties": false,
   "properties": {
+    "reasoning": {
+      "type": "string",
+      "description": "Brief explanation of how reports were matched to this industry and why typologies were or were not generated."
+    },
     "expected_jurisdictions": {
       "type": "array",
       "items": { "type": "string" },
