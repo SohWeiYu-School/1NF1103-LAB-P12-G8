@@ -480,7 +480,7 @@ def _crime_scan_input(record):
 
 def _run_crime_scan(case_input):
     policy = common.policy()
-    research, _ = ai_manager.get_research(case_input)
+    research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
         clean_research, _ = logic_manager.verify_research(research, policy)
@@ -533,7 +533,7 @@ def _run_assessment_job(job_id, client_ref, record):
         policy = common.policy()
 
         step(1)
-        research, _ = ai_manager.get_research(case_input)
+        research, _ = ai_manager.get_ai_research(case_input)
 
         step(2)
         clean_research = None
