@@ -94,7 +94,7 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     if research is not None:
         io_manager.show_research_output(research)
 
-    # Step 2: Verify research
+    # Step 2: Verify research (TODO: CHECK)
     if research is not None:
         clean_research, verify_warnings = logic_manager.verify_research(research, policy)
         for w in verify_warnings:
@@ -102,9 +102,9 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     else:
         clean_research = None
 
-    # Step 3: Typologies
+    # Step 3: Typologies (TODO: CHECK)
     io_manager.show_message("Calling AI for sector typologies...")
-    typology_response, typ_warnings = ai_manager.get_typologies(case_input)
+    typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
     for w in typ_warnings:
         io_manager.show_error(w)
 

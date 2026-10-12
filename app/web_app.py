@@ -484,7 +484,7 @@ def _run_crime_scan(case_input):
     clean_research = None
     if research is not None:
         clean_research, _ = logic_manager.verify_research(research, policy)
-    typology_response, _ = ai_manager.get_typologies(case_input)
+    typology_response, _ = ai_manager.get_typologies(case_input, research)
     if typology_response is not None and clean_research is not None:
         verified_typs, _ = logic_manager.verify_typology_sources(
             typology_response.get("sector_typologies", []), clean_research, policy,
@@ -542,7 +542,7 @@ def _run_assessment_job(job_id, client_ref, record):
         time.sleep(4)
 
         step(3)
-        typology_response, _ = ai_manager.get_typologies(case_input)
+        typology_response, _ = ai_manager.get_typologies(case_input, research)
 
         step(4)
         if typology_response is not None and clean_research is not None:
