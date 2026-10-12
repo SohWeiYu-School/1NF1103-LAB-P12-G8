@@ -202,7 +202,199 @@ def get_ai_data(client_data):
             cache_write(key, data, "benchmark")
         return data
     return None
-    
+
+# ---------------------------------------------------------------------------
+# Research AI Function
+# ---------------------------------------------------------------------------
+
+# Single entry point for research AI — main.py calls only this
+def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
+    """Orchestrate the full research AI flow for a given case input.
+
+    Internally: build payload → cache check → OpenAI web search →
+    JSON parse → trim + validate → post-process → return.
+
+    Returns (research_dict | None, warnings).
+    """
+    warnings: list[str] = []
+
+    # Step 1: Build payload (enforce allowlist — industry + country only)
+    payload = build_research_payload(case_input)
+
+    # Step 2: Load policy + build prompt
+    policy = load_policy()
+    domains = policy.get("trusted_sources", [])
+    max_reports = policy.get("research_max_reports")
+    max_excerpts = policy.get("research_max_excerpts_per_report")
+
+    template = load_prompt("research.txt")
+    prompt = (
+        template
+        .replace("{payload_json}", json.dumps(payload, indent=2))
+        .replace("{trusted_sources}", ", ".join(domains))
+        .replace("{max_reports}", str(max_reports))
+        .replace("{max_excerpts}", str(max_excerpts))
+    )
+    schema = load_schema("research_response.schema.json")
+
+    mdl = os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4.1-mini")
+
+    # Step 3: Cache check
+    key, cached = cache_check("research", payload, extract_prompt_version(prompt), mdl)
+    if cached is not None:
+        return cached, warnings
+
+    # Step 4: API call + parse + validate + post-process (no retry — web search is expensive)
+    # Uses OpenAI Responses API with json_schema — Structured Outputs works alongside web_search
+    last_error = ""
+    error_type = "api"
+
+    for attempt in range(1):
+        attempt_warnings: list[str] = []
+
+        text, response = _openai_search_response(
+            prompt, mdl, schema=schema, domains=domains,
+        )
+        if text is None:
+            error_type = "api"
+            last_error = "API call failed"
+            logger.warning("get_ai_research attempt %d: API call failed", attempt + 1)
+            continue
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            error_type = "json"
+            last_error = repr(exc)
+            logger.warning("get_ai_research attempt %d JSON parse error: %s", attempt + 1, last_error)
+            continue
+
+        data, trim_warnings = trim_reports(data, max_reports, max_excerpts)
+        attempt_warnings.extend(trim_warnings)
+
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            error_type = "schema"
+            last_error = err
+            logger.warning("get_ai_research attempt %d schema validation failed: %s", attempt + 1, last_error)
+            continue
+
+        data, pp_warnings = research_post_process(data, response, key, "research", mdl)
+        warnings.extend(attempt_warnings)
+        warnings.extend(pp_warnings)
+        return data, warnings
+
+    logger.error("get_ai_research exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
+    return None, [_user_warning("research", error_type)]
+
+# Building the research payload function to be called by get_ai_research
+def build_research_payload(case_input: dict) -> dict:
+    """Extract only RESEARCH_ALLOWED_FIELDS from case_input."""
+    payload = {k: case_input[k] for k in RESEARCH_ALLOWED_FIELDS if k in case_input}
+    if "country" not in payload:
+        payload["country"] = case_input.get("country_of_residence", "Singapore")
+    return payload
+
+# Post-processing step unique to research AI responses (web search sources, report IDs, excerpts)
+def research_post_process(
+    data: dict,
+    response,
+    key: str,
+    kind: str,
+    mdl: str,
+) -> tuple[dict, list[str]]:
+    """Enrich and cache a validated research AI response.
+
+    Extracts web search sources, assigns report IDs, strips excess excerpts,
+    stamps retrieved_at and model, writes to cache, and adds _cache_path.
+
+    Returns (enriched_data, warnings).
+    """
+    warnings: list[str] = []
+    api_sources = extract_api_sources(response) if response is not None else []
+    if not api_sources:
+        warnings.append("Research: web search returned no sources — results may not be grounded.")
+    data = add_report_ids(data)
+    data = strip_excerpts(data)
+    data["api_sources"] = api_sources
+    data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
+    data["model"] = mdl
+    cache_write(key, data, kind)
+    data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
+    return data, warnings
+
+# Caps the number of reports and excerpts to policy limits. Called by get_ai_research before schema validation.
+def trim_reports(data: dict, max_reports: int, max_excerpts: int) -> tuple[dict, list[str]]:
+    """Trim reports and excerpts to policy limits. Coerce year strings to int."""
+    warnings: list[str] = []
+    reports = data.get("reports", [])
+
+    if len(reports) > max_reports:
+        warning = (
+            f"AI returned {len(reports)} reports; "
+            f"kept first {max_reports} per policy."
+        )
+        logger.warning(warning)
+        warnings.append(warning)
+        reports = reports[:max_reports]
+
+    for r in reports:
+        excerpts = r.get("excerpts", [])
+        if len(excerpts) > max_excerpts:
+            r["excerpts"] = excerpts[:max_excerpts]
+        if isinstance(r.get("year"), str):
+            try:
+                r["year"] = int(r["year"])
+            except (ValueError, TypeError):
+                pass
+
+    return {**data, "reports": reports}, warnings
+
+# Assigns R1, R2, IDs to each report. Called by research_post_process after validation.
+def add_report_ids(data: dict) -> dict:
+    """Add report_id R1, R2, ... to each report. Done by code, not the AI."""
+    for i, r in enumerate(data.get("reports", []), 1):
+        r["report_id"] = f"R{i}"
+    return data
+
+# Pulls web search source URLs from the raw OpenAI response object. Called by research_post_process.
+def extract_api_sources(response) -> list[dict]:
+    """Extract URL citations from Responses API annotations.
+
+    Returns a de-duplicated list of {url, title} dicts.
+    """
+    seen: set[str] = set()
+    sources: list[dict] = []
+
+    for item in response.output:
+        # Primary: web_search_call.action.sources
+        if item.type == "web_search_call":
+            action = getattr(item, "action", None)
+            for src in getattr(action, "sources", None) or []:
+                url = getattr(src, "url", None)
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append({"url": url, "title": url})
+        # Secondary: url_citation annotations on the text block
+        if item.type == "message":
+            for block in item.content:
+                if block.type != "output_text":
+                    continue
+                for ann in getattr(block, "annotations", []):
+                    if ann.type == "url_citation" and ann.url not in seen:
+                        seen.add(ann.url)
+                        sources.append({"url": ann.url, "title": ann.title})
+    logger.debug("extract_api_sources: found %d sources", len(sources))
+    return sources
+
+# Removes quote characters the AI wraps around excerpts. Called by research_post_process.
+def strip_excerpts(data: dict) -> dict:
+    """Strip leading/trailing quote marks and extra whitespace from every excerpt."""
+    quote_chars = '"\u201c\u201d\u2018\u2019\''
+    for r in data.get("reports", []):
+        r["excerpts"] = [e.strip(quote_chars).strip() for e in r.get("excerpts", [])]
+    return data
+
 
 # ---------------------------------------------------------------------------
 # Typologies Section
