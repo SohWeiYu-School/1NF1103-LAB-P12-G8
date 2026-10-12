@@ -185,7 +185,7 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     if unreadable:
         io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
         return None
-    return logic_manager.run_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
 
 
 # ---------------------------------------------------------------------------
