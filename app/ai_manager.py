@@ -11,7 +11,7 @@ The sections run in this order for a new client:
          get_typologies     up to 5 ways his industry is commonly abused
          get_declaration    free-text declaration -> structured sources (crime-scan format)
     2. Benchmark          (teammates)
-         get_ai_data        single expected values (wealth, liquidity, composition, ...)
+         get_ai_benchmark        single expected values (wealth, liquidity, composition, ...)
     3. Forecasting        (runs after the benchmark)
          run_onboarding_forecast   Step 0 + Calls 1-4: declaration, markets, earnings,
                                    honest type + crime categories, future events
@@ -40,8 +40,8 @@ from openai import OpenAI
 
 from app import common
 from app.utilities import (
-    cache_check, cache_dir, cache_key, cache_read, cache_write,
-    client, extract_json, extract_prompt_version,
+    cache_check, cache_dir, cache_write,
+    client, extract_prompt_version,
     load_policy, load_prompt, load_schema,
     model,
 )
@@ -142,79 +142,58 @@ def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
 # Benchmark Section
 # ---------------------------------------------------------------------------
 
-# Generate a prompt using the client's information
-def generate_prompt(client_data):
+# Single entry point for benchmark AI — main.py passes this as a callback to logic_manager
+def get_ai_benchmark(client_data: dict) -> dict | None:
+    """Orchestrate the full benchmark AI flow for a given client data dict.
 
-    # Read the prompt from the text file
-    with open("app/prompts/benchmark.txt", "r") as file:
-        prompt = file.read()
+    Internally: cache check → OpenAI chat completion → JSON parse → validate → cache → return.
 
-    # Replace {client_data} with the actual client information
-    prompt = prompt.replace("{client_data}", str(client_data))
-
-    return prompt
-
-# Send the prompt to OpenAI
-def call_openai(prompt):
-
-    # Send the prompt to the AI model
-    try:
-        response = client().responses.create(
-            model="gpt-4.1-nano",
-            input=prompt
-        )
-        
-        # Return the AI's response
-        return response.output_text
-
-    except Exception as error:
-        handle_ai_failure(error)
-        return None
-
-# Handles AI request errors
-def handle_ai_failure(error):
-
-    #Handle AI request failure
-    print("AI request failed.")
-    print("Error:", error)
-
-    return None
-
-# Converts the AI response into Python data
-def parse_ai_response(response):
-
-    # Remove Markdown code block formatting
-    response = response.replace("```json", "")
-    response = response.replace("```", "")
-
-    # Remove unnecessary spaces
-    response = response.strip()
-
-    # Convert the JSON response into a Python dictionary
-    data = json.loads(response)
-
-    return data
-
-#Get the AI result, to be used in logic
-def get_ai_data(client_data):
-    template = load_prompt("benchmark.txt")
-    prompt_version = extract_prompt_version(template)
+    Returns the benchmark dict, or None if the call fails.
+    """
     mdl = "gpt-4.1-nano"
 
-    key = cache_key("benchmark", client_data, prompt_version, mdl)
-    cached = cache_read(key, "benchmark")
+    # Step 1: Build payload (enforce allowlist — no declared figures sent to AI)
+    payload = build_benchmark_payload(client_data)
+
+    # Step 2: Load prompt + schema
+    template = load_prompt("benchmark.txt")
+    prompt = template.replace("{client_data}", str(payload))
+    schema = load_schema("benchmark.schema.json")
+
+    # Step 3: Cache check
+    key, cached = cache_check("benchmark", payload, extract_prompt_version(template), mdl)
     if cached is not None:
         return cached
 
-    prompt = generate_prompt(client_data)
-    result = call_openai(prompt)
+    # Step 3: API call + parse + validate + cache (retry once)
+    for attempt in range(2):
+        text = _openai_completion_response(prompt, mdl, schema=schema)
+        if text is None:
+            logger.warning("get_ai_benchmark attempt %d: API call failed", attempt + 1)
+            continue
 
-    if result is not None:
-        data = parse_ai_response(result)
-        if data is not None:
-            cache_write(key, data, "benchmark")
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            logger.warning("get_ai_benchmark attempt %d JSON parse error: %s", attempt + 1, repr(exc))
+            continue
+
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            logger.warning("get_ai_benchmark attempt %d schema validation failed: %s", attempt + 1, err)
+            continue
+
+        cache_write(key, data, "benchmark")
         return data
+
+    logger.error("get_ai_benchmark exhausted all retries")
     return None
+
+# Strips client_data to only benchmark_allowed_fields from policy.json (CLAUDE.md §5 — no declared figures)
+def build_benchmark_payload(client_data: dict) -> dict:
+    """Extract only benchmark_allowed_fields from client_data (per policy.json)."""
+    allowed = load_policy().get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
+    return {k: client_data[k] for k in allowed if k in client_data}
 
 # ---------------------------------------------------------------------------
 # Research AI Function
@@ -1619,5 +1598,5 @@ if __name__ == "__main__":
     "industry": "Information Technology"
 }
 
-    ai_data = get_ai_data(client_data)
+    ai_data = get_ai_benchmark(client_data)
     print(json.dumps(ai_data, indent=4))
