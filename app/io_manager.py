@@ -358,17 +358,40 @@ def get_claims() -> dict:
         except (TypeError, ValueError):
             return 0.0
 
+    asset_composition = {
+        "property":         _pct_to_fraction(input("Property (%): ").strip()),
+        "listed_equities":  _pct_to_fraction(input("Listed Equities (%): ").strip()),
+        "private_business": _pct_to_fraction(input("Private Business (%): ").strip()),
+        "cash":             _pct_to_fraction(input("Cash (%): ").strip()),
+    }
+
+    print("\n=== Wealth Velocity ===")
+    jump_str = input("Biggest single-period wealth increase in SGD (leave blank if unknown): ").strip()
+    try:
+        biggest_wealth_jump = float(jump_str) if jump_str else None
+    except ValueError:
+        biggest_wealth_jump = None
+    wealth_jump_years = None
+    if biggest_wealth_jump is not None:
+        yrs_str = input("Over how many years did this increase occur?: ").strip()
+        try:
+            wealth_jump_years = float(yrs_str) if yrs_str else None
+        except ValueError:
+            wealth_jump_years = None
+
+    print("\n=== Counterparties ===")
+    cp_str = input("Known counterparties — banks, brokers, firms (comma-separated, leave blank if none): ").strip()
+    declared_counterparties = [c.strip() for c in cp_str.split(",") if c.strip()]
+
     return {
-        "declared_net_worth": declared_net_worth,
-        "expected_aum":       expected_aum,
-        "pep_status":         pep_status,
-        "wealth_countries":   [c.strip() for c in wealth_countries.split(",") if c.strip()],
-        "asset_composition": {
-            "property":         _pct_to_fraction(input("Property (%): ").strip()),
-            "listed_equities":  _pct_to_fraction(input("Listed Equities (%): ").strip()),
-            "private_business": _pct_to_fraction(input("Private Business (%): ").strip()),
-            "cash":             _pct_to_fraction(input("Cash (%): ").strip()),
-        },
+        "declared_net_worth":      declared_net_worth,
+        "expected_aum":            expected_aum,
+        "pep_status":              pep_status,
+        "wealth_countries":        [c.strip() for c in wealth_countries.split(",") if c.strip()],
+        "asset_composition":       asset_composition,
+        "biggest_wealth_jump":     biggest_wealth_jump,
+        "wealth_jump_years":       wealth_jump_years,
+        "declared_counterparties": declared_counterparties,
     }
 
 
