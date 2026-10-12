@@ -55,23 +55,36 @@ logger = logging.getLogger(__name__)
 # Shared Functions
 # ---------------------------------------------------------------------------
 
-#Purely to call openAI chat completion API
-def _openai_completion_response(prompt: str, model: str) -> str | None:
-      """
-      Raw OpenAI Chat Completions API call.
-      Returns the response text, or None if the call fails.
-      """
-      try:
-          response = client().chat.completions.create(
-              model=model,
-              temperature=0,
-              response_format={"type": "json_object"},
-              messages=[{"role": "user", "content": prompt}],
-          )
-          return response.choices[0].message.content
-      except Exception as exc:
-          logger.warning("_openai_chat_response failed: %s", repr(exc))
-          return None
+#Purely to call openAI chat completion API. Pass schema to enforce json_schema structured output; omit for basic json_object mode.
+def _openai_completion_response(prompt: str, model: str, schema: dict | None = None) -> str | None:
+    """
+    Raw OpenAI Chat Completions API call.
+    If schema is provided, uses json_schema (Structured Outputs) to enforce the response shape.
+    Otherwise falls back to json_object mode.
+    Returns the response text, or None if the call fails.
+    """
+    try:
+        if schema:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "response",
+                    "schema": schema,
+                    "strict": False,
+                },
+            }
+        else:
+            response_format = {"type": "json_object"}
+        response = client().chat.completions.create(
+            model=model,
+            temperature=0,
+            response_format=response_format,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content
+    except Exception as exc:
+        logger.warning("_openai_completion_response failed: %s", repr(exc))
+        return None
 
 #Purely to call OpenAI Responses API with web search + strict JSON schema output (json_schema works with web_search, json_object does not)
 def _openai_search_response(
@@ -285,12 +298,13 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
         return data, warnings
 
     logger.error("get_ai_research exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, [_user_warning("research", error_type)]
+    return None, ["Research AI call failed. This case needs manual review. Details: logs/app.log"]
 
 # Building the research payload function to be called by get_ai_research
 def build_research_payload(case_input: dict) -> dict:
-    """Extract only RESEARCH_ALLOWED_FIELDS from case_input."""
-    payload = {k: case_input[k] for k in RESEARCH_ALLOWED_FIELDS if k in case_input}
+    """Extract only research_allowed_fields from case_input (per policy.json)."""
+    allowed = load_policy().get("research_allowed_fields", ["industry", "country"])
+    payload = {k: case_input[k] for k in allowed if k in case_input}
     if "country" not in payload:
         payload["country"] = case_input.get("country_of_residence", "Singapore")
     return payload
@@ -395,192 +409,37 @@ def strip_excerpts(data: dict) -> dict:
         r["excerpts"] = [e.strip(quote_chars).strip() for e in r.get("excerpts", [])]
     return data
 
-
 # ---------------------------------------------------------------------------
 # Typologies Section
 # ---------------------------------------------------------------------------
 
-BENCHMARK_ALLOWED_FIELDS = ["occupation", "industry", "age", "career_start_year", "country"]
-RESEARCH_ALLOWED_FIELDS = ["industry", "country"]
-_TYPOLOGY_REPORT_FIELDS = ["report_id", "organisation", "title", "year", "summary", "excerpts"]
-
-# Must match policy.json "typology_max_patterns"
-_TYPOLOGY_MAX_PATTERNS = 5
-
-# User-facing one-line messages per error type (full detail goes to log)
-_USER_MESSAGES = {
-    "no_key": "No OpenAI API key found. Add OPENAI_API_KEY to .env.",
-    "api":    "Could not reach OpenAI. Check your internet or API key.",
-    "json":   "The AI's answer was not valid JSON.",
-    "schema": "The AI's answer did not match the expected format.",
-}
-
-# Display name for each call kind shown to the user
-_KIND_DISPLAY = {
-    "typology":    "Sector Crime Scan",
-    "declaration": "Declaration reading",
-    "research":    "Research",
-}
-
-
-def _user_warning(kind: str, error_type: str) -> str:
-    """Build the single short line shown to the user when an AI call fails."""
-    display = _KIND_DISPLAY.get(kind, kind.capitalize())
-    msg = _USER_MESSAGES.get(error_type, "An unexpected error occurred.")
-    return f"{display}: {msg} This case needs manual review. Details: logs/app.log"
-
-# Trim AI response to 5 typologies
-def _trim_typologies(data: dict) -> tuple[dict, list[str]]:
-    """Trim sector_typologies to _TYPOLOGY_MAX_PATTERNS before schema validation."""
-    typologies = data.get("sector_typologies", [])
-    if len(typologies) <= _TYPOLOGY_MAX_PATTERNS:
-        return data, []
-    trimmed = {**data, "sector_typologies": typologies[:_TYPOLOGY_MAX_PATTERNS]}
-    warning = (
-        f"AI returned {len(typologies)} typologies; "
-        f"kept first {_TYPOLOGY_MAX_PATTERNS} per policy."
-    )
-    logger.warning(warning)
-    return trimmed, [warning]
-
-
-def _call_ai(
-    kind: str,
-    payload: dict,
-    prompt: str,
-    schema: dict,
-    transform=None,
-) -> tuple[dict | None, list[str]]:
-    """Call OpenAI with caching and a single retry on failure.
-
-    Returns (result_dict, warnings). Never raises.
-
-    Error handling:
-    - Cache hit      → return immediately, no API call.
-    - No API key     → (None, [one-line warning]).
-    - API/network    → retry once; two failures → (None, [one-line warning]).
-    - Bad JSON       → retry once; two failures → (None, [one-line warning]).
-    - Schema invalid → retry once; two failures → (None, [one-line warning]).
-
-    Full error detail is logged to logs/app.log only; never shown on screen.
-
-    transform: optional (dict) -> (dict, list[str]) called after JSON parse and
-               before schema validation (e.g. to trim oversized arrays).
-
-    The returned dict includes "model" and "_cache_path" metadata keys.
-    """
-    warnings: list[str] = []
-    prompt_version = extract_prompt_version(prompt)
-    mdl = model()
-
-    key = cache_key(kind, payload, prompt_version, mdl)
-    cached = cache_read(key, kind)
-    if cached is not None:
-        logger.debug("Cache hit for key %.12s", key)
-        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
-        return cached, warnings
-
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
-    if not api_key:
-        logger.warning("_call_ai (%s): no API key configured", kind)
-        return None, [_user_warning(kind, "no_key")]
-
-    last_error = ""
-    error_type = "api"
-
-    for attempt in range(2):
-        attempt_warnings: list[str] = []
-
-        # ── Step 1: network call ──────────────────────────────────────────
-        try:
-            response = client().chat.completions.create(
-                model=mdl,
-                temperature=0,
-                response_format={"type": "json_object"},
-                messages=[{"role": "user", "content": prompt}],
-            )
-        except Exception as exc:
-            error_type = "api"
-            last_error = repr(exc)
-            logger.warning(
-                "_call_ai (%s) attempt %d API error: %s", kind, attempt + 1, last_error
-            )
-            continue
-
-        # ── Step 2: JSON parse ────────────────────────────────────────────
-        raw_content = response.choices[0].message.content
-        try:
-            data = json.loads(raw_content)
-        except json.JSONDecodeError as exc:
-            error_type = "json"
-            last_error = repr(exc)
-            logger.warning(
-                "_call_ai (%s) attempt %d JSON parse error: %s | raw: %.2000s",
-                kind, attempt + 1, last_error, raw_content,
-            )
-            continue
-
-        # ── Step 3: optional transform then schema validation ─────────────
-        try:
-            if transform is not None:
-                data, attempt_warnings = transform(data)
-            jsonschema.validate(instance=data, schema=schema)
-        except jsonschema.ValidationError as exc:
-            error_type = "schema"
-            last_error = exc.message
-            logger.warning(
-                "_call_ai (%s) attempt %d schema validation failed: %s",
-                kind, attempt + 1, last_error,
-            )
-            continue
-        except Exception as exc:
-            error_type = "api"
-            last_error = repr(exc)
-            logger.warning(
-                "_call_ai (%s) attempt %d unexpected error in transform/validate: %s",
-                kind, attempt + 1, last_error,
-            )
-            continue
-
-        # ── Success ───────────────────────────────────────────────────────
-        data["model"] = mdl
-        cache_write(key, data, kind)
-        data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
-        warnings.extend(attempt_warnings)
-        return data, warnings
-
-    # Both attempts exhausted
-    logger.error(
-        "_call_ai (%s) exhausted all retries. error_type=%s last_error=%s",
-        kind, error_type, last_error,
-    )
-    return None, [_user_warning(kind, error_type)]
-
-
-def _build_typology_reports(research: dict) -> list[dict]:
-    """Extract only safe fields from research reports (no URLs)."""
-    return [
-        {k: r[k] for k in _TYPOLOGY_REPORT_FIELDS if k in r}
-        for r in research.get("reports", [])
-    ]
-
-
+# Single entry point for typology AI — main.py calls only this
 def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
-    """Call AI for sector abuse typologies, grounded in the provided research reports.
+    """Orchestrate the full typology AI flow for a given case input.
+
+    Internally: build payload → cache check → OpenAI chat completion →
+    JSON parse → trim + validate → cache → return.
 
     Only BENCHMARK_ALLOWED_FIELDS are sent as the client profile.
     Reports are injected from the research result (no URLs included).
     Returns: (response_dict | None, warnings)
     """
-    profile_payload = {k: case_input[k] for k in BENCHMARK_ALLOWED_FIELDS if k in case_input}
+    warnings: list[str] = []
+
+    # Step 1: Load policy + build payload
+    policy = load_policy()
+    allowed_fields = policy.get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
+    report_fields = policy.get("typology_report_fields", ["report_id", "organisation", "title", "year", "summary", "excerpts"])
+    max_patterns = policy.get("typology_max_patterns", 5)
+
+    profile_payload = {k: case_input[k] for k in allowed_fields if k in case_input}
     if "country" not in profile_payload:
         profile_payload["country"] = case_input.get("country_of_residence", "Singapore")
 
-    reports = _build_typology_reports(research) if research is not None else []
-
-    # payload includes reports so the cache key changes when research changes
+    reports = build_typology_reports(research, report_fields) if research is not None else []
     payload = {**profile_payload, "reports": reports}
 
+    # Step 2: Load prompt + schema
     template = load_prompt("typology.txt")
     prompt = (
         template
@@ -589,21 +448,141 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     )
     schema = load_schema("typology_response.schema.json")
 
-    return _call_ai("typology", payload, prompt, schema, transform=_trim_typologies)
+    mdl = model()
 
+    # Step 3: Cache check
+    key, cached = cache_check("typology", payload, extract_prompt_version(prompt), mdl)
+    if cached is not None:
+        return cached, warnings
 
+    # Step 4: API call + parse + trim + validate + cache (retry once)
+    last_error = ""
+    error_type = "api"
+
+    for attempt in range(2):
+        attempt_warnings: list[str] = []
+
+        text = _openai_completion_response(prompt, mdl, schema=schema)
+        if text is None:
+            error_type = "api"
+            last_error = "API call failed"
+            logger.warning("get_typologies attempt %d: API call failed", attempt + 1)
+            continue
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            error_type = "json"
+            last_error = repr(exc)
+            logger.warning("get_typologies attempt %d JSON parse error: %s", attempt + 1, last_error)
+            continue
+
+        data, trim_warnings = trim_typologies(data, max_patterns)
+        attempt_warnings.extend(trim_warnings)
+
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            error_type = "schema"
+            last_error = err
+            logger.warning("get_typologies attempt %d schema validation failed: %s", attempt + 1, last_error)
+            continue
+
+        data["model"] = mdl
+        cache_write(key, data, "typology")
+        data["_cache_path"] = os.path.join(cache_dir("typology"), f"{key}.json")
+        warnings.extend(attempt_warnings)
+        return data, warnings
+
+    logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
+    return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
+
+# Trim AI response to policy max typologies. Called by get_typologies before schema validation.
+def trim_typologies(data: dict, max_patterns: int) -> tuple[dict, list[str]]:
+    """Trim sector_typologies to max_patterns (from policy.json) before schema validation."""
+    typologies = data.get("sector_typologies", [])
+    if len(typologies) <= max_patterns:
+        return data, []
+    trimmed = {**data, "sector_typologies": typologies[:max_patterns]}
+    warning = (
+        f"AI returned {len(typologies)} typologies; "
+        f"kept first {max_patterns} per policy."
+    )
+    logger.warning(warning)
+    return trimmed, [warning]
+
+# Strips research reports to safe fields only (no URLs) before passing to typology AI. Called by get_typologies.
+def build_typology_reports(research: dict, report_fields: list) -> list[dict]:
+    """Extract only safe fields from research reports (no URLs). Fields defined in policy.json."""
+    return [
+        {k: r[k] for k in report_fields if k in r}
+        for r in research.get("reports", [])
+    ]
+
+# ===========================================================================
+# Declaration Section
+# ===========================================================================
+
+# Single entry point for declaration AI — main.py calls only this
 def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
-    """Call AI to parse the free-text declaration into structured sources.
+    """Orchestrate the full declaration AI flow for a given case input.
+
+    Internally: build payload → cache check → OpenAI chat completion →
+    JSON parse → validate → cache → return.
 
     Returns: (response_dict | None, warnings)
     """
-    declaration_text = case_input.get("declaration_text", "")
+    warnings: list[str] = []
 
+    # Step 1: Build payload
+    declaration_text = case_input.get("declaration_text", "")
+    payload = {"declaration_text": declaration_text}
+
+    # Step 2: Load prompt + schema
     template = load_prompt("crime_scan_declaration.txt")
     prompt = template.replace("{declaration_text}", declaration_text)
     schema = load_schema("crime_scan_declaration.schema.json")
 
-    return _call_ai("declaration", {"declaration_text": declaration_text}, prompt, schema)
+    mdl = model()
+
+    # Step 3: Cache check
+    key, cached = cache_check("declaration", payload, extract_prompt_version(prompt), mdl)
+    if cached is not None:
+        return cached, warnings
+
+    # Step 4: API call + parse + validate + cache (retry once)
+    last_error = ""
+    error_type = "api"
+
+    for attempt in range(2):
+        text = _openai_completion_response(prompt, mdl)
+        if text is None:
+            error_type = "api"
+            last_error = "API call failed"
+            logger.warning("get_declaration attempt %d: API call failed", attempt + 1)
+            continue
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            error_type = "json"
+            last_error = repr(exc)
+            logger.warning("get_declaration attempt %d JSON parse error: %s", attempt + 1, last_error)
+            continue
+
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            error_type = "schema"
+            last_error = err
+            logger.warning("get_declaration attempt %d schema validation failed: %s", attempt + 1, last_error)
+            continue
+
+        data["model"] = mdl
+        cache_write(key, data, "declaration")
+        data["_cache_path"] = os.path.join(cache_dir("declaration"), f"{key}.json")
+        return data, warnings
+
+    logger.error("get_declaration exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
+    return None, ["Declaration AI call failed. This case needs manual review. Details: logs/app.log"]
 
 # ===========================================================================
 # Forecasting Section (runs after the benchmark)
