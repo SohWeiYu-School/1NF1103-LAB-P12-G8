@@ -88,7 +88,7 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
 
     # Step 1: Research
     io_manager.show_message("\nSearching trusted sources for typology reports...")
-    research, res_warnings = ai_manager.get_research(case_input)
+    research, res_warnings = ai_manager.get_ai_research(case_input)
     for w in res_warnings:
         io_manager.show_error(w)
     if research is not None:
