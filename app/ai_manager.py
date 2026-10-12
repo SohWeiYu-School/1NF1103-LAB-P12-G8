@@ -40,15 +40,90 @@ from openai import OpenAI
 
 from app import common
 from app.utilities import (
-    cache_dir, cache_key, cache_read, cache_write,
+    cache_check, cache_dir, cache_key, cache_read, cache_write,
     client, extract_json, extract_prompt_version,
     load_policy, load_prompt, load_schema,
-    model, research_model,
+    model,
 )
+
 
 load_dotenv()  # loads your secret/environment variables from the .env file
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Shared Functions
+# ---------------------------------------------------------------------------
+
+#Purely to call openAI chat completion API
+def _openai_completion_response(prompt: str, model: str) -> str | None:
+      """
+      Raw OpenAI Chat Completions API call.
+      Returns the response text, or None if the call fails.
+      """
+      try:
+          response = client().chat.completions.create(
+              model=model,
+              temperature=0,
+              response_format={"type": "json_object"},
+              messages=[{"role": "user", "content": prompt}],
+          )
+          return response.choices[0].message.content
+      except Exception as exc:
+          logger.warning("_openai_chat_response failed: %s", repr(exc))
+          return None
+
+#Purely to call OpenAI Responses API with web search + strict JSON schema output (json_schema works with web_search, json_object does not)
+def _openai_search_response(
+    prompt: str,
+    model: str,
+    schema: dict,
+    domains: list | None = None,
+) -> tuple[str | None, object | None]:
+    """
+    OpenAI Responses API call with web_search tool and json_schema structured output.
+    Uses json_schema (Structured Outputs) — NOT json_object — which works alongside web_search.
+    Returns (json_text, response_object), or (None, None) if the call fails.
+    """
+    try:
+        tools = [{"type": "web_search"}]
+        if domains:
+            tools = [{"type": "web_search", "filters": {"allowed_domains": domains}}]
+        response = client().responses.create(
+            model=model,
+            temperature=0,
+            input=prompt,
+            tools=tools,
+            tool_choice="required",
+            include=["web_search_call.action.sources"],
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "research_response",
+                    "schema": schema,
+                    "strict": True,
+                }
+            },
+        )
+        return response.output_text, response
+    except Exception as exc:
+        logger.warning("_openai_search_response failed: %s", repr(exc))
+        return None, None
+
+#Shared function that accepts (AI reponse & Schema) checking if the AI output matches the actaul schema
+def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
+    """Validate an AI response dict against a JSON schema.
+
+    Returns (True, None) on success, (False, error_message) on failure.
+    Callers use the error_message to log/retry; they decide what to do next.
+    """
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+        return True, None
+    except jsonschema.ValidationError as exc:
+        return False, exc.message
+    except Exception as exc:
+        return False, repr(exc)
 
 # ---------------------------------------------------------------------------
 # Benchmark Section
