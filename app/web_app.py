@@ -480,11 +480,11 @@ def _crime_scan_input(record):
 
 def _run_crime_scan(case_input):
     policy = common.policy()
-    research, _ = ai_manager.get_research(case_input)
+    research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
         clean_research, _ = logic_manager.verify_research(research, policy)
-    typology_response, _ = ai_manager.get_typologies(case_input)
+    typology_response, _ = ai_manager.get_typologies(case_input, research)
     if typology_response is not None and clean_research is not None:
         verified_typs, _ = logic_manager.verify_typology_sources(
             typology_response.get("sector_typologies", []), clean_research, policy,
@@ -518,7 +518,7 @@ def _run_benchmark(record, case_input):
     if any(benchmark_input[k] is None for k in
            ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
         return None
-    return logic_manager.run_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
 
 
 def _run_assessment_job(job_id, client_ref, record):
@@ -533,7 +533,7 @@ def _run_assessment_job(job_id, client_ref, record):
         policy = common.policy()
 
         step(1)
-        research, _ = ai_manager.get_research(case_input)
+        research, _ = ai_manager.get_ai_research(case_input)
 
         step(2)
         clean_research = None
@@ -542,7 +542,7 @@ def _run_assessment_job(job_id, client_ref, record):
         time.sleep(4)
 
         step(3)
-        typology_response, _ = ai_manager.get_typologies(case_input)
+        typology_response, _ = ai_manager.get_typologies(case_input, research)
 
         step(4)
         if typology_response is not None and clean_research is not None:

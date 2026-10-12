@@ -88,13 +88,13 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
 
     # Step 1: Research
     io_manager.show_message("\nSearching trusted sources for typology reports...")
-    research, res_warnings = ai_manager.get_research(case_input)
+    research, res_warnings = ai_manager.get_ai_research(case_input)
     for w in res_warnings:
         io_manager.show_error(w)
     if research is not None:
         io_manager.show_research_output(research)
 
-    # Step 2: Verify research
+    # Step 2: Verify research (TODO: CHECK)
     if research is not None:
         clean_research, verify_warnings = logic_manager.verify_research(research, policy)
         for w in verify_warnings:
@@ -102,9 +102,9 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     else:
         clean_research = None
 
-    # Step 3: Typologies
+    # Step 3: Typologies (TODO: CHECK)
     io_manager.show_message("Calling AI for sector typologies...")
-    typology_response, typ_warnings = ai_manager.get_typologies(case_input)
+    typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
     for w in typ_warnings:
         io_manager.show_error(w)
 
@@ -185,7 +185,7 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     if unreadable:
         io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
         return None
-    return logic_manager.run_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
 
 
 # ---------------------------------------------------------------------------

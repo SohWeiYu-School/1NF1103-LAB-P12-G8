@@ -108,6 +108,20 @@ def cache_read(key: str, kind: str | None = None) -> dict | None:
     return None
 
 
+def cache_check(kind: str, payload: dict, prompt_version: str, mdl: str) -> tuple[str, dict | None]:
+    """Compute cache key and return (key, cached_data) on hit or (key, None) on miss.
+
+    cached_data includes _cache_path so the caller does not need to reconstruct it.
+    The returned key should be passed to cache_write() on a successful API call.
+    """
+    key = cache_key(kind, payload, prompt_version, mdl)
+    cached = cache_read(key, kind)
+    if cached is not None:
+        cached["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
+        return key, cached
+    return key, None
+
+
 def cache_write(key: str, data: dict, kind: str | None = None) -> None:
     """Write data to cache atomically (temp file + os.replace)."""
     directory = cache_dir(kind)

@@ -34,7 +34,6 @@ import logging
 import re
 
 from app import common
-from app.ai_manager import get_ai_data
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -165,11 +164,11 @@ def calculate_jurisdiction(declared, expected):
     return unknown
 
 
-def run_benchmark(client_data: dict):
+def run_benchmark(client_data: dict, ai_data_fn):
     """Run all six benchmark checks for a client."""
 
     # Ask AI for the expected benchmark values
-    ai_data = get_ai_data(client_data)
+    ai_data = ai_data_fn(client_data)
 
     if ai_data is None:
         return None
