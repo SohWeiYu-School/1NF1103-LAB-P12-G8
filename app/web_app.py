@@ -127,6 +127,9 @@ CLAIM_FIELDS = [
     ("expected_aum", "Expected assets to be managed by the bank (SGD)", "money"),
     ("pep_status", "PEP status", "pep"),
     ("wealth_countries", "Countries the wealth came from (comma separated)", "countries"),
+    ("biggest_wealth_jump", "Biggest single-period wealth increase in SGD (leave blank if unknown)", "text"),
+    ("wealth_jump_years", "Over how many years did this increase occur (leave blank if unknown)", "text"),
+    ("declared_counterparties", "Known counterparties — banks, brokers, firms (comma separated, leave blank if none)", "text"),
 ]
 SOW_FIELDS = [
     ("sow_declaration", "Declaration (at least 50 characters)", "textarea"),
@@ -390,6 +393,16 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
            "claims.wealth_countries", "Enter at least one country.")
     claims["wealth_countries"] = countries
 
+    jump_str = form_claims.get("biggest_wealth_jump", "").strip()
+    claims["biggest_wealth_jump"] = _number(jump_str) if jump_str else None
+    yrs_str = form_claims.get("wealth_jump_years", "").strip()
+    try:
+        claims["wealth_jump_years"] = float(yrs_str) if yrs_str else None
+    except ValueError:
+        claims["wealth_jump_years"] = None
+    cp_str = form_claims.get("declared_counterparties", "").strip()
+    claims["declared_counterparties"] = [c.strip() for c in cp_str.split(",") if c.strip()]
+
     split = {}
     for key, label, kind in COMPOSITION_FIELDS:
         n = len(problems)
@@ -497,9 +510,9 @@ def _run_benchmark(record, case_input):
         "cash":                    _whole_number((comp.get("cash") or 0) * nw),
         "property":                _whole_number((comp.get("property") or 0) * nw),
         "private_business":        _whole_number((comp.get("private_business") or 0) * nw),
-        "biggest_wealth_jump":     None,
-        "wealth_jump_years":       0.0,
-        "declared_counterparties": [],
+        "biggest_wealth_jump":     claims.get("biggest_wealth_jump"),
+        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
+        "declared_counterparties": claims.get("declared_counterparties", []),
         "declared_countries":      claims.get("wealth_countries", []),
     }
     if any(benchmark_input[k] is None for k in

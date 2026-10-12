@@ -174,10 +174,10 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
         "cash":                    _comp_pct(comp.get("cash")),
         "property":                _comp_pct(comp.get("property")),
         "private_business":        _comp_pct(comp.get("private_business")),
-        "biggest_wealth_jump":     None,
-        "wealth_jump_years":       0.0,
-        "declared_counterparties": [],
-        "declared_countries":      [],
+        "biggest_wealth_jump":     float(claims["biggest_wealth_jump"]) if claims.get("biggest_wealth_jump") is not None else None,
+        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
+        "declared_counterparties": claims.get("declared_counterparties", []),
+        "declared_countries":      claims.get("wealth_countries", []),
     }
 
     unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
