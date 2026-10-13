@@ -581,7 +581,6 @@ def _run_assessment_job(job_id, client_ref, record):
         if run["ok"]:
             save_forecast(client_ref, run["forecast"])
             forecast_assessment = logic_manager.assess_onboarding(record, run["forecast"])
-            save_forecast_assessment(client_ref, "onboarding", forecast_assessment)
             show_onboarding(forecast_assessment)
 
         step(10)
