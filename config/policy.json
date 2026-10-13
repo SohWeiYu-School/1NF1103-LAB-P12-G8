@@ -170,5 +170,5 @@
   },
   "max_documents": 6,
   "source_max_age_years": 10,
-  "gemini_unsupported_schema_keys": ["$schema", "$id", "title", "additionalProperties"]
+  "gemini_unsupported_schema_keys": ["$schema", "$id", "title", "additionalProperties", "required"]
 }

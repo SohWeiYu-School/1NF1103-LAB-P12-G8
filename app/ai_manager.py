@@ -56,6 +56,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Shared Functions
 # ---------------------------------------------------------------------------
+# Single entry point for all web search AI calls — tries OpenAI first, falls back to Gemini if OpenAI fails.
+# Gemini grounding requires a paid API key; domain filtering is OpenAI-only.
+def _ai_search_pipeline(
+    prompt: str,
+    schema: dict,
+    domains: list | None = None,
+) -> tuple[str | None, object | None]:
+    research_model = os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4.1-mini")
+    text, response = _openai_search_response(prompt, research_model, schema, domains)
+    if text is not None:
+        logger.info("_ai_search_pipeline: OpenAI search succeeded")
+        return text, response
+    logger.warning("_ai_search_pipeline: OpenAI search failed, falling back to Gemini")
+    gemini_search_model = os.getenv("GEMINI_SEARCH_MODEL", "gemini-3.8-flash")
+    # TODO: test Gemini search grounding end-to-end once Google grounding service is stable
+    return _gemini_search_response(prompt, gemini_search_model, schema, domains)
+
 # Single entry point for all chat completion AI calls — tries OpenAI first, falls back to Gemini if OpenAI fails
 def _ai_chat_completion_pipeline(prompt: str, schema: dict | None = None) -> str | None:
     result = _openai_completion_response(prompt, model(), schema)
@@ -63,7 +80,7 @@ def _ai_chat_completion_pipeline(prompt: str, schema: dict | None = None) -> str
         logger.info("_ai_chat_completion_pipeline: OpenAI completion succeeded")
         return result
     logger.warning("_ai_chat_completion_pipeline: OpenAI failed, falling back to Gemini")
-    gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     return _gemini_completion_response(prompt, gemini_model, schema)
 
 #Purely to call openAI chat completion API. Pass schema to enforce json_schema structured output; omit for basic json_object mode.
@@ -119,6 +136,11 @@ def _convert_schema_for_gemini(node, unsupported: set | None = None):
             if non_null:
                 result["type"] = non_null[0]
                 result["nullable"] = True
+            continue
+        # properties keys are field names (e.g. "title", "url") — never filter them
+        if k == "properties" and isinstance(v, dict):
+            result["properties"] = {name: _convert_schema_for_gemini(schema, unsupported)
+                                    for name, schema in v.items()}
             continue
         result[k] = _convert_schema_for_gemini(v, unsupported)
     return result
@@ -187,6 +209,45 @@ def _openai_search_response(
         return response.output_text, response
     except Exception as exc:
         logger.warning("_openai_search_response failed: %s", repr(exc))
+        return None, None
+
+# Purely to call Google Gemini API with Google Search grounding + structured JSON output.
+# Domain filtering is not supported by Gemini — the domains param is accepted for API symmetry but ignored.
+def _gemini_search_response(
+    prompt: str,
+    model: str,
+    schema: dict,
+    domains: list | None = None,
+) -> tuple[str | None, object | None]:
+    """
+    Raw Google Gemini API call with Google Search grounding.
+    Passes schema as response_schema to enforce structured output.
+    Domain filtering is not supported by Gemini — domains param is ignored.
+    Returns (json_text, response_object), or (None, None) if the call fails.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning("_gemini_search_response: GEMINI_API_KEY not set")
+        return None, None
+    if domains:
+        logger.warning("_gemini_search_response: domain filtering not supported by Gemini — searching all sources")
+    try:
+        gemini_client = google_genai.Client(api_key=api_key)
+        gemini_schema = _convert_schema_for_gemini(schema)
+        config = google_types.GenerateContentConfig(
+            temperature=0,
+            tools=[google_types.Tool(google_search=google_types.GoogleSearch())],
+            response_mime_type="application/json",
+            response_schema=gemini_schema,
+        )
+        response = gemini_client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config,
+        )
+        return response.text, response
+    except Exception as exc:
+        logger.warning("_gemini_search_response failed: %s", repr(exc))
         return None, None
 
 #Shared function that accepts (AI reponse & Schema) checking if the AI output matches the actaul schema
@@ -269,7 +330,7 @@ def build_benchmark_payload(client_data: dict) -> dict:
 def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
     """Orchestrate the full research AI flow for a given case input.
 
-    Internally: build payload → cache check → OpenAI web search →
+    Internally: build payload → cache check → search pipeline (OpenAI first, Gemini fallback) →
     JSON parse → trim + validate → post-process → return.
 
     Returns (research_dict | None, warnings).
@@ -303,16 +364,14 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
         return cached, warnings
 
     # Step 4: API call + parse + validate + post-process (no retry — web search is expensive)
-    # Uses OpenAI Responses API with json_schema — Structured Outputs works alongside web_search
+    # Uses _ai_search_pipeline: OpenAI Responses API first, Gemini grounding as fallback
     last_error = ""
     error_type = "api"
 
     for attempt in range(1):
         attempt_warnings: list[str] = []
 
-        text, response = _openai_search_response(
-            prompt, mdl, schema=schema, domains=domains,
-        )
+        text, response = _ai_search_pipeline(prompt, schema=schema, domains=domains)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
@@ -1278,7 +1337,7 @@ def _build_request(instructions: str, user_text: str, schema: dict,
         request["temperature"] = FORECAST_TEMPERATURE      # some models reject this; dropped on a 400
     return request
 
-
+# TODO: Implement the AI pipeline
 def call_ai(client: AIClient, call_name: str, prompt_name: str, values: dict, user_data: dict,
             schema_name: str, check: CheckFunction | None = None,
             cached_raw: str | None = None, web_search: bool = False) -> dict:
