@@ -168,11 +168,8 @@ def calculate_jurisdiction(declared, expected):
     return unknown
 
 
-def run_benchmark(client_data: dict, ai_data_fn):
+def run_benchmark(client_data: dict, ai_data: dict):
     """Run all six benchmark checks for a client."""
-
-    # Ask AI for the expected benchmark values
-    ai_data = ai_data_fn(client_data)
 
     if ai_data is None:
         return None
