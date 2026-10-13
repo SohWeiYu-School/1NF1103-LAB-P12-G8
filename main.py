@@ -132,12 +132,13 @@ def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None,
             io_manager.show_error(w)
 
     # Steps 7-8: Match typologies and display result
+    crime_result = None
     if typology_response is not None and declaration is not None:
         io_manager.show_ai_output(case_input, typology_response, declaration)
         crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
         io_manager.show_crime_scan_result(crime_result, typology_response, research)
 
-    return research, typology_response, declaration
+    return research, typology_response, declaration, crime_result
 
 
 # ---------------------------------------------------------------------------
@@ -188,12 +189,12 @@ def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None
 # 4. Forecasting
 # ---------------------------------------------------------------------------
 
-def assess_case(case: dict, client: ai_manager.AIClient) -> tuple[dict | None, dict | None]:
+def run_forecast(case: dict) -> tuple[dict | None, dict | None]:
     """Forecast and decide one case. Returns (forecast, onboarding assessment)."""
     ref = case["client_ref"]
     cache = data_manager.load_raw_replies(ref)
     io_manager.show(f"\nForecasting {ref} ({len(cache)} saved AI replies found)...")
-    run = ai_manager.run_onboarding_forecast(client, case, cache)
+    run = ai_manager.run_onboarding_forecast(case, cache)
     data_manager.save_raw_replies(ref, run["results"])
     io_manager.show_ai_progress(run["results"])
     if not run["ok"]:
@@ -207,12 +208,12 @@ def assess_case(case: dict, client: ai_manager.AIClient) -> tuple[dict | None, d
     return run["forecast"], assessment
 
 
-def review_case(case: dict, review: dict, client: ai_manager.AIClient,
+def review_case(case: dict, review: dict,
                 forecast: dict, onboarding: dict) -> dict | None:
     """Read a review's notes with the AI and decide against the saved forecast."""
     ref = case["client_ref"]
     review = {"client_ref": ref, **review}
-    result = ai_manager.read_review_notes(client, review, forecast, data_manager.load_raw_replies(ref))
+    result = ai_manager.read_review_notes(review, forecast, data_manager.load_raw_replies(ref))
     data_manager.save_raw_replies(ref, {result["call"]: result})
     io_manager.show_ai_progress({result["call"]: result})
     if not result["ok"]:
@@ -229,7 +230,7 @@ def review_case(case: dict, review: dict, client: ai_manager.AIClient,
 # The whole flow for a client from the form: crime scan -> benchmark -> forecasting
 # ---------------------------------------------------------------------------
 
-def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> None:
+def assess_client_record(client_record: dict) -> None:
     ref = client_record["client_ref"]
 
     # Crime scan
@@ -238,7 +239,7 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
     except KeyError as missing:
         io_manager.show_error(f"Crime scan and benchmark skipped: the client record has no {missing}.")
         case_input = None
-    research = typology_response = declaration = ai_data = None
+    research = typology_response = declaration = ai_data = crime_result = None
     if case_input is not None:
         research, typology_response, declaration = run_crime_scan_pipeline(case_input)
         # Benchmark
@@ -246,19 +247,30 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
         if ai_data is not None:
             io_manager.show_benchmark_result(ai_data)
 
-    # Save AI results to ai_assessments collection
+    # Forecasting
+    case = io_manager.case_from_client_record(client_record)
+    if case is None:
+        return
+    data_manager.save_case(case)
+    _, forecast_assessment = assess_case(case, client)
+
+    # Save one combined record (crime scan + benchmark + forecast)
     assessment = {
-        "client_ref":   ref,
-        "assessed_at":  datetime.now(timezone.utc).isoformat(),
+        "client_ref":  ref,
+        "kind":        "onboarding",
+        "assessed_at": datetime.now(timezone.utc).isoformat(),
         "crime_scan": {
             "research":    research,
             "typologies":  typology_response,
             "declaration": declaration,
         },
-        "benchmark": ai_data,
+        "crime_result": crime_result,
+        "benchmark":    ai_data,
+        "forecast":     forecast_assessment,
+        "assessment":   forecast_assessment,
     }
     if data_manager.save_assessment(assessment):
-        io_manager.show_message("\nAI results saved to database.")
+        io_manager.show_message("\nAssessment saved.")
     else:
         io_manager.show_error("Could not reach the database; the crime scan and benchmark were not saved.")
 
@@ -266,8 +278,10 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
     case = io_manager.case_from_client_record(client_record)
     if case is None:
         return
-    data_manager.save_case(case)
+    client_record["forecasting_case"] = case
+    data_manager.save_case_record(client_record)
     assess_case(case, client)
+    io_manager.show_error("Could not reach the database; the assessment was not saved.")
 
 
 # ---------------------------------------------------------------------------
@@ -279,7 +293,7 @@ def is_forecasting_case(case: dict | None) -> bool:
     return isinstance(case, dict) and "career_history" in case and "client_ref" in case
 
 
-def run_case_file(path: str, client: ai_manager.AIClient) -> bool:
+def run_case_file(path: str) -> bool:
     """Forecast a case file and run every review stored in it."""
     case = data_manager.load_case(path)
     if case is not None and not is_forecasting_case(case):
@@ -290,11 +304,13 @@ def run_case_file(path: str, client: ai_manager.AIClient) -> bool:
     if problems:
         io_manager.show_case_problems(path, problems)
         return False
-    forecast, onboarding = assess_case(case, client)
+    forecast, onboarding = run_forecast(case)
     if forecast is None:
         return False
+    if not data_manager.save_forecast_assessment(case["client_ref"], "onboarding", onboarding):
+        io_manager.show_error("Could not reach the database; the decision was not saved.")
     for review in case.get("reviews", []):
-        if review_case(case, review, client, forecast, onboarding) is None:
+        if review_case(case, review, forecast, onboarding) is None:
             return False
     return True
 
@@ -348,7 +364,7 @@ def list_assessments() -> None:
             io_manager.show_review(chosen["assessment"])
 
 
-def run_menu(client: ai_manager.AIClient) -> None:
+def run_menu() -> None:
     records = data_manager.load_all_assessments()   # load everything saved on startup
     io_manager.show_message(f"{len(records)} saved assessment(s) loaded.")
     while True:
@@ -359,7 +375,7 @@ def run_menu(client: ai_manager.AIClient) -> None:
                 upload_fn=data_manager.upload_supporting_document,
             )
             if client_record is not None:
-                assess_client_record(client_record, client)
+                assess_client_record(client_record)
 
         elif choice == "2":
             io_manager.find_existing_client(
@@ -377,7 +393,7 @@ def run_menu(client: ai_manager.AIClient) -> None:
             if client_record is None:
                 io_manager.show_error(f"No client found with reference {ref} (or the database can't be reached).")
                 continue
-            assess_client_record(client_record, client)
+            assess_client_record(client_record)
 
         elif choice == "4":
             ref = io_manager.ask_client_ref()
@@ -387,7 +403,7 @@ def run_menu(client: ai_manager.AIClient) -> None:
             if not (case and forecast and onboarding):
                 io_manager.show_error(f"{ref} hasn't been assessed yet. Use option 3 first.")
                 continue
-            review_case(case, io_manager.collect_review(case), client, forecast, onboarding)
+            review_case(case, io_manager.collect_review(case), forecast, onboarding)
 
         elif choice == "5":
             list_assessments()
@@ -419,8 +435,7 @@ def main(arguments: list[str]) -> int:
         for problem in problems:
             io_manager.show_error(problem)
         return 1
-    client = ai_manager.init_client()
-    if client is None:
+    if not ai_manager.has_api_key():
         io_manager.show_error("No OPENAI_API_KEY set: only saved AI replies can be used.")
 
     if "--crime-scan-sample" in arguments:
@@ -430,16 +445,16 @@ def main(arguments: list[str]) -> int:
         io_manager.show(f"Demo mode: {use_recorded_replies()} recorded AI replies loaded from tests/golden.")
     if "--all-samples" in arguments:
         paths = data_manager.list_sample_cases()
-        results = [run_case_file(path, client) for path in paths]
+        results = [run_case_file(path) for path in paths]
         return 0 if paths and all(results) else 1
     if "--case" in arguments:
         position = arguments.index("--case")
         if position + 1 >= len(arguments):
             io_manager.show_error("--case needs a file path")
             return 1
-        return 0 if run_case_file(arguments[position + 1], client) else 1
+        return 0 if run_case_file(arguments[position + 1]) else 1
 
-    run_menu(client)
+    run_menu()
     return 0
 
 
