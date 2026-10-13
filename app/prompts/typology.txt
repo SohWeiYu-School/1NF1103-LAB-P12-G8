@@ -1,4 +1,4 @@
-# prompt_version: typology-v7
+# prompt_version: typology-v8
 
 You are a financial crime analyst. You describe how industries are typically misused for money laundering, based on published guidance from official bodies.
 
@@ -30,9 +30,9 @@ Return ONLY a JSON object, with no text outside it. Include a "reasoning" field 
         - quote: a short passage copied WORD FOR WORD from that report's excerpts field
     - indicators: array of 2 to 5 objects. At least one object must have its weight set to "core". Each object has:
         - indicator: MUST be exactly one of these five strings — no other values are valid:
-            "offshore_entity_present"
+            "gift_or_inheritance_unnamed"
             "counterparty_unnamed"
-            "rapid_accumulation"
+            "source_contradicts_occupation"
             "unvalued_source_present"
             "related_party_transaction"
         - weight: MUST be exactly "core" or "supporting". Use "core" if the pattern requires this indicator; "supporting" if it is corroborating evidence.
