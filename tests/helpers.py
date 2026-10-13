@@ -14,6 +14,7 @@ Tests that need saved replies are skipped, with a message, until the case has be
 
 import json
 import os
+from unittest.mock import patch
 
 import pytest
 
@@ -63,13 +64,15 @@ def run_from_saved(case_id: str) -> dict:
     """
     case = load_case(case_id)
     replies = saved_replies(case_id)
-    run = ai_manager.run_onboarding_forecast(None, case, replies)
+    with patch("app.ai_manager.has_api_key", return_value=False):   # saved replies only, never the API
+        run = ai_manager.run_onboarding_forecast(case, replies)
     assert run["ok"], (f"the saved replies for {case_id} are incomplete (stopped at {run['failed_step']}) - "
                        f"run the system on {case_id} again so it finishes")
     review = first_review(case)
     review_data = None
     if review is not None:
-        result = ai_manager.read_review_notes(None, review, run["forecast"], replies)
+        with patch("app.ai_manager.has_api_key", return_value=False):
+            result = ai_manager.read_review_notes(review, run["forecast"], replies)
         review_data = result["data"] if result["ok"] else None
     return {"case": case, "forecast": run["forecast"], "review": review, "review_data": review_data}
 
