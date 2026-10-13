@@ -5,7 +5,7 @@ The sections run in this order for a new client:
 
     1. Benchmark          run_benchmark: declared figures vs the AI's single expected
                           values (total wealth, liquidity, composition) -> PASS / FAIL
-    2. Sector Crime Scan  decide_outcome, build_document_requests, assess_case
+    2. Sector Crime Scan  decide_outcome, build_document_requests, assess_typology_case
     3. Forecasting        (runs after the benchmark)
        Onboarding (assess_onboarding):
          Types: T1 is the honest person; T2+ are standard crime categories (trade-based money
@@ -51,6 +51,10 @@ LIMITS = {
     "counterparties": 1,
     "jurisdiction": 1
 }
+
+# ---------------------------------------------------------------------------
+# Benchmark Section
+# ---------------------------------------------------------------------------
 
 
 def calculate_total_wealth(client_data, ai_data):
@@ -231,35 +235,10 @@ def run_benchmark(client_data: dict, ai_data_fn):
 
     
 # ---------------------------------------------------------------------------
-# Sector Crime Scan Section
+# Crime Scan Section — Research & Source Verification
 # ---------------------------------------------------------------------------
 
-def _normalise_text(text: str) -> str:
-    """Lowercase, collapse whitespace, unify quote marks and dashes for substring matching."""
-    text = text.lower()
-    for ch in '\u201c\u201d':   # " "  → "
-        text = text.replace(ch, '"')
-    for ch in '\u2018\u2019':   # ' '  → '
-        text = text.replace(ch, "'")
-    text = text.replace('\u2013', '-').replace('\u2014', '-')   # en/em dash → -
-    return re.sub(r'\s+', ' ', text).strip()
-
-
-def _domain_is_trusted(url: str, trusted_domains: list[str]) -> bool:
-    """Return True if the URL's domain matches or is a subdomain of a trusted domain."""
-    netloc = urlparse(url).netloc.lower()
-    for td in trusted_domains:
-        if netloc == td or netloc.endswith("." + td):
-            return True
-    return False
-
-
-def _split_org_names(org_string: str) -> set[str]:
-    """Split 'FATF and Egmont Group' into {'fatf', 'egmont group'}."""
-    s = org_string.replace(" and ", ",").replace("&", ",").replace("/", ",")
-    return {p.strip().lower() for p in s.split(",") if p.strip()}
-
-
+# Filter AI research reports: keep only grounded, trusted-domain, non-duplicate URLs.
 def verify_research(research: dict, policy: dict) -> tuple[dict, list[str]]:
     """Filter research reports by grounding, domain trust, and uniqueness.
 
@@ -313,6 +292,7 @@ def verify_research(research: dict, policy: dict) -> tuple[dict, list[str]]:
     return clean_research, warnings
 
 
+# Drop typology quotes not found verbatim in cited reports; drop typologies with nothing left.
 def verify_typology_sources(
     typologies: list[dict],
     clean_research: dict,
@@ -415,8 +395,229 @@ def verify_typology_sources(
     return cleaned, warnings
 
 
+# Normalise text for quote matching — lowercase, collapse whitespace, unify smart quotes and dashes.
+def _normalise_text(text: str) -> str:
+    """Lowercase, collapse whitespace, unify quote marks and dashes for substring matching."""
+    text = text.lower()
+    for ch in '\u201c\u201d':   # " "  → "
+        text = text.replace(ch, '"')
+    for ch in '\u2018\u2019':   # ' '  → '
+        text = text.replace(ch, "'")
+    text = text.replace('\u2013', '-').replace('\u2014', '-')   # en/em dash → -
+    return re.sub(r'\s+', ' ', text).strip()
+
+
+# Check if a URL's domain is in the trusted sources list (including subdomains).
+def _domain_is_trusted(url: str, trusted_domains: list[str]) -> bool:
+    """Return True if the URL's domain matches or is a subdomain of a trusted domain."""
+    netloc = urlparse(url).netloc.lower()
+    for td in trusted_domains:
+        if netloc == td or netloc.endswith("." + td):
+            return True
+    return False
+
+
+# Split a combined organisation string into individual names for corroboration checks.
+def _split_org_names(org_string: str) -> set[str]:
+    """Split 'FATF and Egmont Group' into {'fatf', 'egmont group'}."""
+    s = org_string.replace(" and ", ",").replace("&", ",").replace("/", ",")
+    return {p.strip().lower() for p in s.split(",") if p.strip()}
+
+
 # ---------------------------------------------------------------------------
-# Country normalisation helpers
+# # Crime Scan Section — Typologies Check
+# ---------------------------------------------------------------------------
+
+_RELATED_PARTY_KEYWORDS = [
+    "associate", "family", "relative", "friend",
+    "brother", "sister", "spouse", "wife", "husband",
+    "son", "daughter", "parent", "mother", "father",
+    "partner", "in-law",
+]
+
+# Orchestrate the full crime scan: normalise case → match typologies → count breaches.
+def assess_typology_case(
+    case_input: dict,
+    typology_response: dict | None,
+    declaration: dict | None,
+    policy: dict,
+) -> dict:
+    """Run the full Sector Crime Scan assessment for a single case.
+
+    Returns a dict with keys: outcome, findings, documents, match_results.
+    """
+
+    # If either AI call failed entirely (returned None), skip assessment
+    if typology_response is None or declaration is None:
+        return {"breach_count": 0, "match_count": 0, "match_results": []}
+
+    # Normalise the client record so country fields and int fields are clean
+    clean_case, _ = prepare_case_for_matching(case_input)
+    typologies = typology_response.get("sector_typologies", [])
+
+    # Run all 5 indicators against each typology and collect match results
+    match_results = match_typologies(typologies, declaration, clean_case, policy)
+
+    # Count full breaches (critical/high/medium) and all matches including partial/weak
+    breach_count = sum(1 for mr in match_results if mr["breached"])
+    match_count = sum(1 for mr in match_results if mr["category"] != "no_match")
+    return {"breach_count": breach_count, "match_count": match_count, "match_results": match_results}
+
+
+# Fire if any gift or inheritance source has no named counterparty (anonymous gift/bequest).
+def _check_gift_or_inheritance_unnamed(declaration: dict) -> bool:
+    """True if any gift or inheritance source has no counterparty named."""
+    gift_types = {"inheritance", "gift"}
+    return any(
+        s.get("source_type") in gift_types and s.get("counterparty") is None
+        for s in declaration.get("sources", [])
+    )
+
+
+# Fire if too many declaration sources have no named counterparty (policy threshold).
+def _check_counterparty_unnamed(declaration: dict, policy: dict) -> bool:
+    """True if the count of null-counterparty sources meets or exceeds the policy limit."""
+    limit = policy.get("thresholds", {}).get("unknown_counterparty_limit", 1)
+    count = sum(1 for s in declaration.get("sources", []) if s.get("counterparty") is None)
+    return count >= limit
+
+
+# Fire if any declared source was flagged by the declaration AI as mismatching the occupation.
+def _check_source_contradicts_occupation(declaration: dict) -> bool:
+    """True if the AI marked any source as inconsistent with the client's occupation."""
+    return any(s.get("occupation_mismatch") is True for s in declaration.get("sources", []))
+
+
+# Fire if any declared wealth source has no SGD amount attached.
+def _check_unvalued_source(declaration: dict) -> bool:
+    """True if any declaration source has amount_sgd = null."""
+    return any(s.get("amount_sgd") is None for s in declaration.get("sources", []))
+
+
+# Fire if any counterparty name contains a related-party keyword (family, associate, etc.).
+def _check_related_party(declaration: dict) -> bool:
+    """True if any counterparty contains a related-party keyword."""
+    for src in declaration.get("sources", []):
+        cp = src.get("counterparty")
+        if cp and any(kw in cp.lower() for kw in _RELATED_PARTY_KEYWORDS):
+            return True
+    return False
+
+
+# Map fired indicator counts to a severity category.
+def _categorise_match(core_fired: list, core: list, supporting_fired: list) -> str:
+    all_core = len(core_fired) == len(core) and len(core) > 0
+    n_sup = len(supporting_fired)
+    if all_core:
+        if n_sup >= 2:
+            return "critical"
+        if n_sup == 1:
+            return "high"
+        return "medium"
+    if n_sup >= 2:
+        return "partial"
+    if n_sup >= 1:
+        return "weak_signal"
+    return "no_match"
+
+
+# Run all 5 indicators against the client; a typology breaches when every core indicator fires.
+def match_typologies(
+    typologies: list[dict],
+    declaration: dict,
+    clean_case: dict,
+    policy: dict,
+) -> list[dict]:
+    """Match each typology's indicators against client data. Pure function.
+
+    A typology breaches when ALL its core indicators fire.
+    Returns a list of match result dicts, one per typology.
+    """
+    indicator_results = {
+        "gift_or_inheritance_unnamed":    _check_gift_or_inheritance_unnamed(declaration),
+        "counterparty_unnamed":           _check_counterparty_unnamed(declaration, policy),
+        "source_contradicts_occupation":  _check_source_contradicts_occupation(declaration),
+        "unvalued_source_present":        _check_unvalued_source(declaration),
+        "related_party_transaction":      _check_related_party(declaration),
+    }
+
+    matches: list[dict] = []
+    for typ in typologies:
+        indicators = typ.get("indicators", [])
+        core = [i["indicator"] for i in indicators if i.get("weight") == "core"]
+        supporting = [i["indicator"] for i in indicators if i.get("weight") == "supporting"]
+        core_fired = [i for i in core if indicator_results.get(i, False)]
+        supporting_fired = [i for i in supporting if indicator_results.get(i, False)]
+        breached = len(core_fired) == len(core) and len(core) > 0
+        category = _categorise_match(core_fired, core, supporting_fired)
+
+        matches.append({
+            "typology_id": typ.get("typology_id", ""),
+            "name": typ.get("name", ""),
+            "source_ids": typ.get("source_ids", []),
+            "breached": breached,
+            "category": category,
+            "core_indicators": core,
+            "core_fired": core_fired,
+            "supporting_indicators": supporting,
+            "supporting_fired": supporting_fired,
+            "typical_documents": typ.get("typical_documents", []),
+        })
+    return matches
+
+
+# Count breached dimensions and map to an escalation outcome (PASSED → SERIOUS_RISK).
+def decide_outcome(findings: list[dict], policy: dict) -> str:
+    """Count breached dimensions and return the escalation outcome."""
+    thresholds = policy.get("thresholds", {})
+    counts_as_breach = thresholds.get("typology_full_match_counts_as_breach", True)
+    outcome_rules = policy.get("outcome_rules", {})
+    serious = outcome_rules.get("serious_risk_min_breaches", 4)
+    risky = outcome_rules.get("risky_min_breaches", 2)
+    manual = outcome_rules.get("manual_review_min_breaches", 1)
+
+    breach_count = 0
+    for f in findings:
+        if f.get("dimension") != "typology":
+            breach_count += 1
+        elif f.get("rule_id") == "TYP-01" and counts_as_breach:
+            breach_count += 1
+        # TYP-02 never counts as a breach on its own
+
+    if breach_count >= serious:
+        return "SERIOUS_RISK"
+    if breach_count >= risky:
+        return "RISKY"
+    if breach_count >= manual:
+        return "MANUAL_REVIEW"
+    return "PASSED"
+
+
+# Build a deduplicated list of required documents; non-typology findings take priority.
+def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
+    """Collect document requests from findings, typology docs ranked last."""
+    documents: list[str] = []
+
+    # Non-typology findings first (higher priority)
+    for f in findings:
+        if f.get("dimension") == "typology":
+            continue
+        for doc in f.get("documents", []):
+            if doc not in documents:
+                documents.append(doc)
+
+    # TYP-01 typology documents appended last (lower priority)
+    for f in findings:
+        if f.get("rule_id") == "TYP-01":
+            for doc in f.get("documents", []):
+                if doc not in documents:
+                    documents.append(doc)
+
+    return documents
+
+
+# ---------------------------------------------------------------------------
+# # Crime Scan Section — data normalisation helpers
 # ---------------------------------------------------------------------------
 
 _COUNTRY_TO_ISO = {
@@ -482,6 +683,7 @@ _COUNTRY_TO_ISO = {
 }
 
 
+# Convert a country name or short code to ISO 3166-1 alpha-2, with a warning if unrecognised.
 def _to_iso(value, warnings: list) -> str | None:
     """Convert a country name or code to ISO 3166-1 alpha-2. Pure, no I/O.
 
@@ -507,6 +709,7 @@ def _to_iso(value, warnings: list) -> str | None:
     return stripped
 
 
+# Safely cast a value to int, returning default if None or conversion fails.
 def _safe_int(value, default=None):
     """Convert value to int if possible. Returns default on None or failure. Pure."""
     if value is None:
@@ -523,6 +726,7 @@ def _safe_int(value, default=None):
     return default
 
 
+# Normalise a client record (ISO codes, int fields, all_jurisdictions) ready for typology matching.
 def prepare_case_for_matching(record: dict) -> tuple[dict, list[str]]:
     """Normalize a client record for typology matching. Pure function.
 
@@ -599,6 +803,7 @@ def prepare_case_for_matching(record: dict) -> tuple[dict, list[str]]:
     return out, warnings
 
 
+# Convert jurisdiction strings in a parsed AI declaration to ISO-2 codes.
 def normalize_declaration_jurisdictions(declaration: dict) -> tuple[dict, list[str]]:
     """Post-process AI declaration output to ensure jurisdiction fields are ISO-2.
 
@@ -636,189 +841,6 @@ def normalize_declaration_jurisdictions(declaration: dict) -> tuple[dict, list[s
             new_src["jurisdiction"] = None
         sources.append(new_src)
     return {**declaration, "sources": sources}, warnings
-
-
-# ---------------------------------------------------------------------------
-# Typology indicator checks (pure, no I/O)
-# ---------------------------------------------------------------------------
-
-_RELATED_PARTY_KEYWORDS = [
-    "associate", "family", "relative", "friend",
-    "brother", "sister", "spouse", "wife", "husband",
-    "son", "daughter", "parent", "mother", "father",
-    "partner", "in-law",
-]
-
-
-def _check_offshore_entity(
-    declaration: dict,
-    expected_jurisdictions: list[str],
-    all_jurisdictions: list[str],
-) -> bool:
-    """True if any declared source or known case jurisdiction is outside expected list."""
-    if not expected_jurisdictions:
-        return False
-    for src in declaration.get("sources", []):
-        j = src.get("jurisdiction")
-        if j and j not in expected_jurisdictions:
-            return True
-    return any(j not in expected_jurisdictions for j in all_jurisdictions)
-
-
-def _check_counterparty_unnamed(declaration: dict, policy: dict) -> bool:
-    """True if the count of null-counterparty sources meets or exceeds the policy limit."""
-    limit = policy.get("thresholds", {}).get("unknown_counterparty_limit", 1)
-    count = sum(1 for s in declaration.get("sources", []) if s.get("counterparty") is None)
-    return count >= limit
-
-
-def _check_rapid_accumulation(clean_case: dict, max_accumulation: float) -> bool:
-    """True if declared_net_worth / career_years exceeds max_accumulation."""
-    nw = clean_case.get("declared_net_worth_sgd")
-    start = clean_case.get("career_start_year")
-    ref = clean_case.get("reference_year")
-    if nw is None or start is None or ref is None:
-        return False
-    years = ref - start
-    if years <= 0:
-        return False
-    return (nw / years) > max_accumulation
-
-
-def _check_unvalued_source(declaration: dict) -> bool:
-    """True if any declaration source has amount_sgd = null."""
-    return any(s.get("amount_sgd") is None for s in declaration.get("sources", []))
-
-
-def _check_related_party(declaration: dict) -> bool:
-    """True if any counterparty contains a related-party keyword."""
-    for src in declaration.get("sources", []):
-        cp = src.get("counterparty")
-        if cp and any(kw in cp.lower() for kw in _RELATED_PARTY_KEYWORDS):
-            return True
-    return False
-
-
-def match_typologies(
-    typologies: list[dict],
-    declaration: dict,
-    clean_case: dict,
-    expected_jurisdictions: list[str],
-    max_accumulation: float,
-    policy: dict,
-) -> list[dict]:
-    """Match each typology's indicators against client data. Pure function.
-
-    A typology breaches when ALL its core indicators fire.
-    Returns a list of match result dicts, one per typology.
-    """
-    indicator_results = {
-        "offshore_entity_present": _check_offshore_entity(
-            declaration, expected_jurisdictions,
-            clean_case.get("all_jurisdictions", []),
-        ),
-        "counterparty_unnamed": _check_counterparty_unnamed(declaration, policy),
-        "rapid_accumulation": _check_rapid_accumulation(clean_case, max_accumulation),
-        "unvalued_source_present": _check_unvalued_source(declaration),
-        "related_party_transaction": _check_related_party(declaration),
-    }
-
-    matches: list[dict] = []
-    for typ in typologies:
-        indicators = typ.get("indicators", [])
-        core = [i["indicator"] for i in indicators if i.get("weight") == "core"]
-        supporting = [i["indicator"] for i in indicators if i.get("weight") == "supporting"]
-        core_fired = [i for i in core if indicator_results.get(i, False)]
-        supporting_fired = [i for i in supporting if indicator_results.get(i, False)]
-        breached = len(core_fired) == len(core) and len(core) > 0
-
-        matches.append({
-            "typology_id": typ.get("typology_id", ""),
-            "name": typ.get("name", ""),
-            "breached": breached,
-            "core_indicators": core,
-            "core_fired": core_fired,
-            "supporting_indicators": supporting,
-            "supporting_fired": supporting_fired,
-            "typical_documents": typ.get("typical_documents", []),
-        })
-    return matches
-
-
-def decide_outcome(findings: list[dict], policy: dict) -> str:
-    """Count breached dimensions and return the escalation outcome."""
-    thresholds = policy.get("thresholds", {})
-    counts_as_breach = thresholds.get("typology_full_match_counts_as_breach", True)
-    outcome_rules = policy.get("outcome_rules", {})
-    serious = outcome_rules.get("serious_risk_min_breaches", 4)
-    risky = outcome_rules.get("risky_min_breaches", 2)
-    manual = outcome_rules.get("manual_review_min_breaches", 1)
-
-    breach_count = 0
-    for f in findings:
-        if f.get("dimension") != "typology":
-            breach_count += 1
-        elif f.get("rule_id") == "TYP-01" and counts_as_breach:
-            breach_count += 1
-        # TYP-02 never counts as a breach on its own
-
-    if breach_count >= serious:
-        return "SERIOUS_RISK"
-    if breach_count >= risky:
-        return "RISKY"
-    if breach_count >= manual:
-        return "MANUAL_REVIEW"
-    return "PASSED"
-
-
-def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
-    """Collect document requests from findings, typology docs ranked last."""
-    documents: list[str] = []
-
-    # Non-typology findings first (higher priority)
-    for f in findings:
-        if f.get("dimension") == "typology":
-            continue
-        for doc in f.get("documents", []):
-            if doc not in documents:
-                documents.append(doc)
-
-    # TYP-01 typology documents appended last (lower priority)
-    for f in findings:
-        if f.get("rule_id") == "TYP-01":
-            for doc in f.get("documents", []):
-                if doc not in documents:
-                    documents.append(doc)
-
-    return documents
-
-
-def assess_case(
-    case_input: dict,
-    typology_response: dict | None,
-    declaration: dict | None,
-    policy: dict,
-) -> dict:
-    """Run the full Sector Crime Scan assessment for a single case.
-
-    Returns a dict with keys: outcome, findings, documents, match_results.
-    """
-    if typology_response is None or declaration is None:
-        return {"breach_count": 0, "match_results": []}
-
-    clean_case, _ = prepare_case_for_matching(case_input)
-    typologies = typology_response.get("sector_typologies", [])
-    expected_jur = typology_response.get("expected_jurisdictions", [])
-    max_accum = typology_response.get("max_accumulation_per_year_sgd", 0)
-
-    match_results = match_typologies(
-        typologies, declaration, clean_case,
-        expected_jur, max_accum, policy,
-    )
-
-    breach_count = sum(1 for mr in match_results if mr["breached"])
-    return {"breach_count": breach_count, "match_results": match_results}
-
 
 # ===========================================================================
 # Forecasting Section (runs after the benchmark)
