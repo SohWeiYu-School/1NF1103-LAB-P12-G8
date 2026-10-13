@@ -98,9 +98,9 @@
                 "indicator": {
                   "type": "string",
                   "enum": [
-                    "offshore_entity_present",
+                    "gift_or_inheritance_unnamed",
                     "counterparty_unnamed",
-                    "rapid_accumulation",
+                    "source_contradicts_occupation",
                     "unvalued_source_present",
                     "related_party_transaction"
                   ]

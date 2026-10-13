@@ -20,7 +20,8 @@
           "end_year",
           "jurisdiction",
           "counterparty",
-          "evidence_sentence"
+          "evidence_sentence",
+          "occupation_mismatch"
         ],
         "additionalProperties": false,
         "properties": {
@@ -64,6 +65,10 @@
           "evidence_sentence": {
             "type": "string",
             "description": "Verbatim sentence from the declaration that supports this source."
+          },
+          "occupation_mismatch": {
+            "type": "boolean",
+            "description": "True if this source type is implausible given the client's stated occupation and industry."
           }
         }
       }
