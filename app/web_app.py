@@ -41,7 +41,7 @@ from flask import (Flask, abort, flash, jsonify, redirect, render_template,
 from jinja2 import DictLoader
 from werkzeug.utils import secure_filename
 
-from app import ai_manager, logic_manager, common
+from app import ai_manager, logic_manager, utilities
 from app.data_manager import (
     save_case_record,
     load_all_records,
@@ -651,7 +651,7 @@ def _crime_scan_input(record):
 
 
 def _run_crime_scan(case_input):
-    policy = common.policy()
+    policy = utilities.policy()
     research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
@@ -703,7 +703,7 @@ def _run_assessment_job(job_id, client_ref, record):
 
     try:
         case_input = _crime_scan_input(record)
-        policy = common.policy()
+        policy = utilities.policy()
 
         step(1)
         research, _ = ai_manager.get_ai_research(case_input)

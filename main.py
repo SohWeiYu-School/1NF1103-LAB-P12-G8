@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 _BASE = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(_BASE, ".env"))  # read .env before ai_manager reads its settings
 
-from app import ai_manager, common, data_manager, io_manager, logic_manager  # noqa: E402
+from app import ai_manager, data_manager, io_manager, logic_manager, utilities  # noqa: E402
 
 SAMPLE_CLIENT_PATH = os.path.join(_BASE, "data", "sample", "case_daniel_tan.json")
 SAMPLE_BENCHMARK_PATH = os.path.join(_BASE, "data", "sample", "case_benchmark.json")

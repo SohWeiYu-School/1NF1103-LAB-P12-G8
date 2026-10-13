@@ -34,7 +34,7 @@ import datetime
 import logging
 import re
 
-from app import common
+from app import utilities
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -904,15 +904,15 @@ def same_country(name: str, policy: dict) -> str:
 
 def category_name(code: str) -> str:
     """'TRADE_BASED_ML' -> its readable name from the vocabulary file."""
-    return common.vocabulary().get("crime_categories", {}).get(code, code)
+    return utilities.vocabulary().get("crime_categories", {}).get(code, code)
 
 
 def enabled_by_text(person_type: dict, record: dict) -> str:
     """What makes this type possible for him, in words: the job, asset or declared source."""
-    if person_type["type_id"] == common.BASELINE_TYPE:
+    if person_type["type_id"] == utilities.BASELINE_TYPE:
         return "everything he declared"
     parts = []
-    jobs = common.career_positions(record)
+    jobs = utilities.career_positions(record)
     assets = record.get("investments", [])
     job_index = person_type.get("enabled_by_position_index")
     asset_index = person_type.get("enabled_by_asset_index")
@@ -948,7 +948,7 @@ def market_history(forecast: dict) -> dict:
 
 def market_outlook(forecast: dict) -> dict:
     """{market_id: {year: {scenario: {low, typical, high}}}}"""
-    return {market_id: {row["year"]: {s: row[s] for s in common.SCENARIOS} for row in series["outlook"]}
+    return {market_id: {row["year"]: {s: row[s] for s in utilities.SCENARIOS} for row in series["outlook"]}
             for market_id, series in forecast["markets"]["series"].items()}
 
 
@@ -956,8 +956,8 @@ def scenario_chances(forecast: dict) -> dict:
     """{year: {scenario: share}} with the shares adding up to exactly 1."""
     chances = {}
     for row in forecast["markets"]["scenario_chances"]:
-        total = sum(row[s] for s in common.SCENARIOS) or 1
-        chances[row["year"]] = {s: row[s] / total for s in common.SCENARIOS}
+        total = sum(row[s] for s in utilities.SCENARIOS) or 1
+        chances[row["year"]] = {s: row[s] / total for s in utilities.SCENARIOS}
     return chances
 
 
@@ -1026,7 +1026,7 @@ def asset_path(asset: dict, model: dict, history: dict, outlook: dict, end_year:
     future_yield = model["future_income_yield_pct"][scenario]
 
     results = {}
-    for level in common.RANGE_KEYS:      # one path using all the low inputs, one typical, one high
+    for level in utilities.RANGE_KEYS:      # one path using all the low inputs, one typical, one high
         value = float(asset["price_paid"])
         values, incomes = {}, {}
         for year in range(bought, last_year + 1):
@@ -1041,14 +1041,14 @@ def asset_path(asset: dict, model: dict, history: dict, outlook: dict, end_year:
         results[level] = (values, incomes)
 
     years = range(bought, last_year + 1)
-    return {"values": {y: sorted_band([results[level][0][y] for level in common.RANGE_KEYS]) for y in years},
-            "income": {y: sorted_band([results[level][1][y] for level in common.RANGE_KEYS]) for y in years}}
+    return {"values": {y: sorted_band([results[level][0][y] for level in utilities.RANGE_KEYS]) for y in years},
+            "income": {y: sorted_band([results[level][1][y] for level in utilities.RANGE_KEYS]) for y in years}}
 
 
 def all_asset_paths(record: dict, forecast: dict, last_year: int, scenario: str,
                     shocks: dict | None = None) -> list[dict]:
     history, outlook = market_history(forecast), market_outlook(forecast)
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     models = sorted(forecast["earnings"]["assets"], key=lambda a: a["asset_index"])
     return [asset_path(asset, model, history, outlook, end, last_year, scenario, shocks)
             for asset, model in zip(record.get("investments", []), models)]
@@ -1090,7 +1090,7 @@ def honest_wealth(record: dict, savings_rows: list[dict], paths: list[dict], yea
 
 def type_wealth_now(record: dict, forecast: dict, savings_rows: list[dict], paths: list[dict]) -> dict:
     """{type_id: wealth band today} = honest wealth + that type's extra money so far."""
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     honest = honest_wealth(record, savings_rows, paths, end)
     return {type_id: add_bands(honest, extra_money_up_to(behaviour, end))
             for type_id, behaviour in forecast["types"]["behaviour"].items()}
@@ -1163,7 +1163,7 @@ def check_affordability(record: dict, savings_rows: list[dict], paths: list[dict
 
 def check_jurisdictions(record: dict, forecast: dict, policy: dict) -> dict:
     """Countries he named with nothing behind them, and linked countries on a risk list."""
-    behind = {same_country(job.get("country", ""), policy) for job in common.career_positions(record)}
+    behind = {same_country(job.get("country", ""), policy) for job in utilities.career_positions(record)}
     behind |= {same_country(asset.get("country", ""), policy) for asset in record.get("investments", [])}
     behind |= {same_country(source["country"], policy) for source in forecast["declaration"]["claimed_sources"]}
     named = {same_country(country, policy) for country in record.get("claims", {}).get("wealth_countries", [])}
@@ -1205,7 +1205,7 @@ def fit_for_type(type_id: str, wealth_now: dict, affordability: list[dict], asse
     lower = wealth["cautious"] * (1 - tolerance)
     # Anyone can have spent money, so the as-declared type has no lower limit. A dishonest
     # type that brought in extra money would leave him at least this rich.
-    net_worth_fits = declared <= upper and (type_id == common.BASELINE_TYPE or declared >= lower)
+    net_worth_fits = declared <= upper and (type_id == utilities.BASELINE_TYPE or declared >= lower)
     affordable = sum(1 for row in affordability if row["affordable"])
     affordable_share = affordable / len(affordability) if affordability else 1.0
     assets_share = (sum(1 for check in asset_checks if not check["failed"]) / len(asset_checks)
@@ -1220,8 +1220,8 @@ def fit_for_type(type_id: str, wealth_now: dict, affordability: list[dict], asse
 
 def decide_onboarding(fits: dict, t1_affordability_breach: bool, other_failures: list[str]) -> str:
     """The onboarding rule. fits = {type_id: fit result}."""
-    t1 = fits[common.BASELINE_TYPE]
-    others_fit = [t for t, result in fits.items() if t != common.BASELINE_TYPE and result["fits"]]
+    t1 = fits[utilities.BASELINE_TYPE]
+    others_fit = [t for t, result in fits.items() if t != utilities.BASELINE_TYPE and result["fits"]]
     if not t1["fits"] and others_fit:
         return SERIOUS_RISK          # only a dishonest version explains him
     if not t1["fits"]:
@@ -1245,7 +1245,7 @@ def stable_outcome(outcome: str, outcomes_when_shifted: dict) -> tuple[str, bool
 def evaluate(record: dict, forecast: dict, savings_rows: list[dict], paths: list[dict],
              policy: dict, scale: float = 1.0) -> dict:
     """Run every onboarding check with all money forecasts multiplied by `scale`."""
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     declared = record["claims"]["declared_net_worth"]
     behaviours = forecast["types"]["behaviour"]
     wealth_now = type_wealth_now(record, forecast, savings_rows, paths)
@@ -1260,7 +1260,7 @@ def evaluate(record: dict, forecast: dict, savings_rows: list[dict], paths: list
 
     jurisdiction = check_jurisdictions(record, forecast, policy)
     sources = check_declared_sources(forecast, policy)
-    t1_breach = not all(row["affordable"] for row in affordability[common.BASELINE_TYPE])
+    t1_breach = not all(row["affordable"] for row in affordability[utilities.BASELINE_TYPE])
     other_failures = [c["rule_id"] for c in asset_checks + [jurisdiction] + sources if c["failed"]]
     outcome = decide_onboarding(fits, t1_breach, other_failures)
     return {"outcome": outcome, "fits": fits, "affordability": affordability,
@@ -1278,8 +1278,8 @@ def forward_paths(record: dict, forecast: dict, savings_rows: list[dict], scenar
     Wealth of every type for the current year and each forecast year in one scenario.
     event_changes = {type_id: (year, extra money change)} adds an event reaction.
     """
-    _, end = common.career_years(record)
-    years = common.future_years(record)
+    _, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     paths = all_asset_paths(record, forecast, years[-1], scenario, shocks)
     future_pay = {row["year"]: row for row in forecast["earnings"]["future_pay"]["yearly"]}
 
@@ -1312,20 +1312,20 @@ def forward_paths(record: dict, forecast: dict, savings_rows: list[dict], scenar
 def expected_paths(record: dict, forecast: dict, savings_rows: list[dict]) -> dict:
     """Each type's wealth path weighted by the AI's chance of each scenario."""
     chances = scenario_chances(forecast)
-    by_scenario = {s: forward_paths(record, forecast, savings_rows, s) for s in common.SCENARIOS}
+    by_scenario = {s: forward_paths(record, forecast, savings_rows, s) for s in utilities.SCENARIOS}
     expected = {}
     for type_id in forecast["types"]["behaviour"]:
         expected[type_id] = {}
         for year in by_scenario["steady"][type_id]:
             weights = chances.get(year, {"steady": 1.0, "boom": 0.0, "downturn": 0.0})
             expected[type_id][year] = band(*(sum(weights[s] * by_scenario[s][type_id][year][b]
-                                                 for s in common.SCENARIOS) for b in BANDS))
+                                                 for s in utilities.SCENARIOS) for b in BANDS))
     return expected
 
 
 def event_impacts(record: dict, forecast: dict, savings_rows: list[dict]) -> list[dict]:
     """For each event and type: change in 2030 wealth if it happens, and weighted by its chance."""
-    last_year = common.future_years(record)[-1]
+    last_year = utilities.future_years(record)[-1]
     without = forward_paths(record, forecast, savings_rows, "steady")
     rows = []
     for event in forecast["events"]["events"]:
@@ -1347,10 +1347,10 @@ def event_impacts(record: dict, forecast: dict, savings_rows: list[dict]) -> lis
 
 def divergence_years(paths: dict) -> list[dict]:
     """First forecast year each type's range stops overlapping the as-declared type's range."""
-    baseline = paths[common.BASELINE_TYPE]
+    baseline = paths[utilities.BASELINE_TYPE]
     rows = []
     for type_id, points in paths.items():
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             continue
         first = None
         for year in sorted(points)[1:]:
@@ -1366,7 +1366,7 @@ def monitoring_ranges(forecast: dict, year: int, policy: dict) -> dict:
     """What normal account activity looks like next year, from the as-declared type's signals."""
     tolerance = policy["tolerance"]["signal_amount"]
     ranges = {}
-    for signal in forecast["types"]["behaviour"][common.BASELINE_TYPE]["signals"]:
+    for signal in forecast["types"]["behaviour"][utilities.BASELINE_TYPE]["signals"]:
         if not signal["first_year"] <= year <= signal["last_year"]:
             continue
         code = signal["signal_code"]
@@ -1395,7 +1395,7 @@ def rank_documents(forecast: dict, candidates: list[str]) -> list[dict]:
 
 def document_request(failures: list[dict], forecast: dict, candidates: list[str], policy: dict) -> list[dict]:
     """Documents for failed checks first, then the ones that rule out the most types."""
-    names = common.vocabulary().get("document_codes", {})
+    names = utilities.vocabulary().get("document_codes", {})
     lookup = policy.get("breach_documents", {})
     request, seen = [], set()
 
@@ -1439,9 +1439,9 @@ def data_quality(forecast: dict) -> dict:
 
 def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) -> dict:
     """Measure the client against the forecasts and decide. No AI involved."""
-    policy = policy or common.policy()
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    policy = policy or utilities.policy()
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     savings_rows = career_savings(forecast, start, end)
     paths = all_asset_paths(record, forecast, end, "steady")
 
@@ -1469,9 +1469,9 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
                            "score": round(fit["fit_score"] / total_fit, 3)})
 
     # Reasons in plain words
-    t1 = main["fits"][common.BASELINE_TYPE]
+    t1 = main["fits"][utilities.BASELINE_TYPE]
     declared = record["claims"]["declared_net_worth"]
-    others_fit = [t for t, f in main["fits"].items() if t != common.BASELINE_TYPE and f["fits"]]
+    others_fit = [t for t, f in main["fits"].items() if t != utilities.BASELINE_TYPE and f["fits"]]
     reasons = [f"Declared net worth {declared:,.0f}; the honest version explains "
                f"{t1['wealth_now']['cautious']:,.0f} to {t1['wealth_now']['optimistic']:,.0f}."]
     if not t1["fits"]:
@@ -1481,7 +1481,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
             f"{t} {category_name(names[t]['category'])} via {enabled_by_text(names[t], record)} "
             f"({forecast['types']['behaviour'][t]['route_open_from']}-"
             f"{forecast['types']['behaviour'][t]['route_open_to']})" for t in others_fit) + ".")
-    for row in main["affordability"][common.BASELINE_TYPE]:
+    for row in main["affordability"][utilities.BASELINE_TYPE]:
         if not row["affordable"]:
             reasons.append(f"{row['year']}: he needed {row['needed']:,.0f} in cash but the honest "
                            f"version had at most {row['available']['optimistic']:,.0f}.")
@@ -1493,10 +1493,10 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     # Documents: for the failed checks, then to tell the fitting types apart
     affordability_failures = [{"rule_id": "AFFORDABILITY", "payment_method": row["payment_method"],
                                "detail": f"{row['year']} purchase of asset {row['asset_index']}"}
-                              for row in main["affordability"][common.BASELINE_TYPE] if not row["affordable"]]
+                              for row in main["affordability"][utilities.BASELINE_TYPE] if not row["affordable"]]
     if not t1["fits"]:
         affordability_failures.insert(0, {"rule_id": "NET_WORTH", "detail": reasons[0]})
-    candidates = [common.BASELINE_TYPE] + others_fit
+    candidates = [utilities.BASELINE_TYPE] + others_fit
     if len(candidates) == 1 and outcome != PASSED:
         candidates = [t for t, b in forecast["types"]["behaviour"].items() if b["route_open_to"] >= end]
     documents = []
@@ -1507,7 +1507,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     expected = expected_paths(record, forecast, savings_rows)
     divergence = divergence_years(expected)
     watch_dates = sorted(
-        [{"date": f"{d['distinguishable_from']}-01-01", "what": f"{common.BASELINE_TYPE} and {d['type_id']} "
+        [{"date": f"{d['distinguishable_from']}-01-01", "what": f"{utilities.BASELINE_TYPE} and {d['type_id']} "
           "can be told apart"} for d in divergence if d["distinguishable_from"]]
         + [{"date": f"{e['year']}-01-01", "what": f"{e['event_id']} {e['name']} could happen"}
            for e in forecast["events"]["events"]],
@@ -1527,7 +1527,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
         "stability": stability,
         "declared_net_worth": declared,
         "types": type_table,
-        "affordability": main["affordability"][common.BASELINE_TYPE],
+        "affordability": main["affordability"][utilities.BASELINE_TYPE],
         "asset_checks": main["asset_checks"],
         "jurisdiction": main["jurisdiction"],
         "declared_sources": main["sources"],
@@ -1555,16 +1555,16 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
 def detect_scenario(market_moves: list[dict], forecast: dict, year: int) -> str:
     """The scenario whose forecast is closest to what the markets actually did."""
     outlook = market_outlook(forecast)
-    chances = scenario_chances(forecast).get(year, {s: 1 / 3 for s in common.SCENARIOS})
+    chances = scenario_chances(forecast).get(year, {s: 1 / 3 for s in utilities.SCENARIOS})
     distance = {}
-    for scenario in common.SCENARIOS:
+    for scenario in utilities.SCENARIOS:
         gaps = [abs(move["change_pct"] - outlook[move["market_id"]][year][scenario]["typical"])
                 for move in market_moves
                 if move["change_pct"] is not None and year in outlook.get(move["market_id"], {})]
         distance[scenario] = sum(gaps) / len(gaps) if gaps else None
-    known = [s for s in common.SCENARIOS if distance[s] is not None]
+    known = [s for s in utilities.SCENARIOS if distance[s] is not None]
     if not known:
-        return max(common.SCENARIOS, key=lambda s: chances[s])
+        return max(utilities.SCENARIOS, key=lambda s: chances[s])
     # closest first; a tie goes to the scenario the AI thought more likely
     return min(known, key=lambda s: (distance[s], -chances[s]))
 
@@ -1674,9 +1674,9 @@ def decide_review(a: bool, b: bool, c: bool, d: bool) -> str:
 def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
                   onboarding: dict, policy: dict | None = None) -> dict:
     """Compare what actually happened with each type's forecast and decide."""
-    policy = policy or common.policy()
-    start, onboarding_year = common.career_years(record)
-    year = common.current_year(review)
+    policy = policy or utilities.policy()
+    start, onboarding_year = utilities.career_years(record)
+    year = utilities.current_year(review)
     market_moves = review_data["market_moves"]
     scenario = detect_scenario(market_moves, forecast, year)
 
@@ -1691,7 +1691,7 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
 
     # Payments outside the normal ranges, or from a country with no link to him
     ranges = onboarding["monitoring_ranges"]
-    linked = {same_country(job.get("country", ""), policy) for job in common.career_positions(record)}
+    linked = {same_country(job.get("country", ""), policy) for job in utilities.career_positions(record)}
     linked |= {same_country(a.get("country", ""), policy) for a in record.get("investments", [])}
     linked |= {same_country(c, policy) for c in record["claims"]["wealth_countries"]}
     unusual = []
@@ -1714,12 +1714,12 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
     total = sum(raw_scores.values())
     scores = {t: round(v / total, 3) if total else round(1 / len(raw_scores), 3) for t, v in raw_scores.items()}
 
-    t1_growth = growth[common.BASELINE_TYPE]
+    t1_growth = growth[utilities.BASELINE_TYPE]
     tolerance = policy["tolerance"]["review_growth"]
     a = not (t1_growth["cautious"] - abs(t1_growth["cautious"]) * tolerance <= actual_growth
              <= t1_growth["optimistic"] + abs(t1_growth["optimistic"]) * tolerance)
-    leader = max(scores, key=lambda t: (scores[t], t == common.BASELINE_TYPE))
-    b = leader != common.BASELINE_TYPE and scores[leader] > scores[common.BASELINE_TYPE]
+    leader = max(scores, key=lambda t: (scores[t], t == utilities.BASELINE_TYPE))
+    b = leader != utilities.BASELINE_TYPE and scores[leader] > scores[utilities.BASELINE_TYPE]
     c = bool(counter_hits)
     d = bool(unusual)
     outcome = decide_review(a, b, c, d)
@@ -1730,16 +1730,16 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
                    f"grows {t1_growth['cautious']:,.0f} to {t1_growth['optimistic']:,.0f}."},
         {"rule_id": "B_OTHER_TYPE_LEADS", "failed": b,
          "detail": f"Highest running score: {leader} ({scores[leader]:.0%}); honest: "
-                   f"{scores[common.BASELINE_TYPE]:.0%}."},
+                   f"{scores[utilities.BASELINE_TYPE]:.0%}."},
         {"rule_id": "C_INCOME_AGAINST_MARKET", "failed": c,
          "detail": "; ".join(f"{h['signal_code']} {h['received']:,.0f} (forecast up to {h['ceiling']:,.0f}) "
                              f"while {', '.join(h['markets_fell'])} fell" for h in counter_hits) or "none"},
         {"rule_id": "D_UNUSUAL_PAYMENTS", "failed": d, "detail": "; ".join(unusual) or "none"},
     ]
-    candidates = [t for t in scores if scores[t] >= scores[common.BASELINE_TYPE]]
+    candidates = [t for t in scores if scores[t] >= scores[utilities.BASELINE_TYPE]]
     documents = []
     if outcome != PASSED and len(candidates) > 1:
-        names = common.vocabulary().get("document_codes", {})
+        names = utilities.vocabulary().get("document_codes", {})
         for document in rank_documents(forecast, candidates)[:policy["max_documents"]]:
             documents.append({"document_code": document["document_code"],
                               "document": names.get(document["document_code"], ""),

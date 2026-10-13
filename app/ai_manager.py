@@ -9,7 +9,7 @@ from typing import Any, Callable
 import jsonschema
 from dotenv import load_dotenv
 
-from app import common
+from app import utilities
 from app.utilities import (
     build_instructions,
     cache_check, cache_dir, cache_write,
@@ -651,7 +651,7 @@ def client_facts(record: dict, include_declaration: bool = False) -> dict:
         "current_date": record.get("current_date"),
         "career": record.get("career", {}),
         "career_history": [{"position_index": i, **job}
-                           for i, job in enumerate(common.career_positions(record))],
+                           for i, job in enumerate(utilities.career_positions(record))],
         "assets": [{"asset_index": i, **asset} for i, asset in enumerate(record.get("investments", []))],
         "countries_named_by_client": claims.get("wealth_countries", []),
         "pep_status": claims.get("pep_status"),
@@ -671,7 +671,7 @@ def range_errors(value: Any, where: str = "") -> list[str]:
     """Every {low, typical, high} range must be in order."""
     errors = []
     if isinstance(value, dict):
-        if set(value) == set(common.RANGE_KEYS):
+        if set(value) == set(utilities.RANGE_KEYS):
             if not value["low"] <= value["typical"] <= value["high"]:
                 errors.append(f"{where or '<root>'}: range out of order {value}")
             return errors
@@ -688,8 +688,8 @@ def sort_ranges(value: Any) -> Any:
     The model sometimes labels a negative range back to front; the three numbers are kept,
     only relabelled, so nothing is invented. Same reply in, same result out."""
     if isinstance(value, dict):
-        if set(value) == set(common.RANGE_KEYS):
-            numbers = [value[k] for k in common.RANGE_KEYS]
+        if set(value) == set(utilities.RANGE_KEYS):
+            numbers = [value[k] for k in utilities.RANGE_KEYS]
             if all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in numbers):
                 value["low"], value["typical"], value["high"] = sorted(numbers)
             return value
@@ -868,13 +868,13 @@ def repair_person_types(data: dict, record: dict, source_records: list[dict]) ->
     years can't overlap its enabler at all is left for check_person_types to reject.
     Same reply in, same repair out, so saved replies give identical results.
     """
-    start, end = common.career_years(record)
-    last_forecast_year = common.future_years(record)[-1]
-    jobs = common.career_positions(record)
+    start, end = utilities.career_years(record)
+    last_forecast_year = utilities.future_years(record)[-1]
+    jobs = utilities.career_positions(record)
     assets = record.get("investments", [])
     sources = {s["source_id"]: s for s in source_records}
     for person_type in data.get("person_types", []):
-        if person_type.get("type_id") == common.BASELINE_TYPE:
+        if person_type.get("type_id") == utilities.BASELINE_TYPE:
             person_type["open_from"], person_type["open_to"] = start, last_forecast_year
             if not person_type.get("rule_out_documents"):
                 # the documents that test the declared story as a whole (policy: NET_WORTH)
@@ -888,7 +888,7 @@ def repair_person_types(data: dict, record: dict, source_records: list[dict]) ->
         job_index = person_type.get("enabled_by_position_index")
         if isinstance(job_index, int) and 0 <= job_index < len(jobs):
             job = jobs[job_index]
-            job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+            job_last = last_forecast_year if not job.get("end_year") else utilities.position_end(job, end)
             windows.append((int(job["start_year"]), job_last))
         asset_index = person_type.get("enabled_by_asset_index")
         if isinstance(asset_index, int) and 0 <= asset_index < len(assets):
@@ -922,15 +922,15 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
     """
     types = data["person_types"]
     ids = [t["type_id"] for t in types]
-    start, end = common.career_years(record)
-    last_forecast_year = common.future_years(record)[-1]
-    jobs = common.career_positions(record)
+    start, end = utilities.career_years(record)
+    last_forecast_year = utilities.future_years(record)[-1]
+    jobs = utilities.career_positions(record)
     sources = {s["source_id"]: s for s in source_records}
     assets = record.get("investments", [])
     errors = []
 
-    if not ids or ids[0] != common.BASELINE_TYPE:
-        errors.append(f"the first type must be {common.BASELINE_TYPE} (wealth exactly as declared)")
+    if not ids or ids[0] != utilities.BASELINE_TYPE:
+        errors.append(f"the first type must be {utilities.BASELINE_TYPE} (wealth exactly as declared)")
     if len(ids) < 2:
         errors.append("at least one crime type besides the honest one is required")
     settings = forecast_settings()
@@ -943,9 +943,9 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
     honest_category = settings["honest_category"]
     categories = [t["category"] for t in types]
     if types and categories[0] != honest_category:
-        errors.append(f"{common.BASELINE_TYPE} must use category {honest_category}")
+        errors.append(f"{utilities.BASELINE_TYPE} must use category {honest_category}")
     if honest_category in categories[1:]:
-        errors.append(f"only {common.BASELINE_TYPE} may use category {honest_category}")
+        errors.append(f"only {utilities.BASELINE_TYPE} may use category {honest_category}")
     crime_categories = categories[1:]
     if len(crime_categories) != len(set(crime_categories)):
         errors.append("each crime category may appear only once")
@@ -958,9 +958,9 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
                           f"open_from <= open_to (got {first}-{last})")
         for document in person_type["rule_out_documents"]:
             errors += _unknown_ids(f"{type_id} also_rules_out", document["also_rules_out"], set(ids))
-        if type_id != common.BASELINE_TYPE and not person_type["rule_out_documents"]:
+        if type_id != utilities.BASELINE_TYPE and not person_type["rule_out_documents"]:
             errors.append(f"{type_id}: list at least one document that would prove this type wrong")
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             # The honest type covers his whole career and every forecast year.
             if (first, last) != (start, last_forecast_year):
                 errors.append(f"{type_id}: open_from/open_to must be {start}-{last_forecast_year}")
@@ -979,7 +979,7 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
                 job = jobs[job_index]
                 job_first = int(job["start_year"])
                 # A job he still holds can carry the crime into the forecast years; a past job can't.
-                job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+                job_last = last_forecast_year if not job.get("end_year") else utilities.position_end(job, end)
                 if not job_first <= first <= job_last:
                     errors.append(f"{type_id}: open_from {first} must fall while job {job_index} was held "
                                   f"({job_first}-{job_last})")
@@ -1066,7 +1066,7 @@ def check_type_behaviour(data: dict, type_id: str, start: int, end: int,
             errors.append(f"{signal['signal_code']}: amount_per_year is 0; give the money this activity "
                           f"would really show in his account each year (in SGD)")
     salary_signal = forecast_settings()["honest_required_signal"]
-    if type_id == common.BASELINE_TYPE and salary_signal not in {s["signal_code"] for s in data["signals"]}:
+    if type_id == utilities.BASELINE_TYPE and salary_signal not in {s["signal_code"] for s in data["signals"]}:
         errors.append(f"the honest type must include his regular salary ({salary_signal}) among its signals")
     return errors
 
@@ -1234,7 +1234,7 @@ def _types_brief(types: dict) -> list[dict]:
 def _crime_categories() -> list[dict]:
     """The fixed list of crime categories the AI must choose from (config vocabulary)."""
     return [{"category": code, "description": text}
-            for code, text in common.vocabulary().get("crime_categories", {}).items()]
+            for code, text in utilities.vocabulary().get("crime_categories", {}).items()]
 
 
 # ---- The pipeline: Step 0 + Calls 1-4 ----
@@ -1243,7 +1243,7 @@ def _crime_categories() -> list[dict]:
 
 def read_declaration(record: dict, cache: dict, results: dict) -> dict | None:
     """Step 0: free-text declaration -> structured list of claimed sources."""
-    jobs, assets = len(common.career_positions(record)), len(record.get("investments", []))
+    jobs, assets = len(utilities.career_positions(record)), len(record.get("investments", []))
     result = run_forecasting("step0_declaration", "declaration", {},
                              client_facts(record, include_declaration=True), "declaration",
                              lambda data: check_declaration(data, jobs, assets), cache.get("step0_declaration"))
@@ -1254,8 +1254,8 @@ def read_declaration(record: dict, cache: dict, results: dict) -> dict | None:
 def forecast_markets(record: dict, declaration: dict,
                      cache: dict, results: dict) -> dict | None:
     """Call 1: choose the markets, then recall and forecast each one."""
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
               "last_forecast_year": years[-1]}
     web_search = forecast_settings()["web_search"]
@@ -1291,16 +1291,16 @@ def forecast_markets(record: dict, declaration: dict,
 def forecast_earnings(record: dict, markets: dict,
                       cache: dict, results: dict) -> dict | None:
     """Call 2: expected pay for every job, future pay, and how each asset behaves."""
-    _, end = common.career_years(record)
-    years = common.future_years(record)
+    _, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     market_ids = set(markets["series"])
     claimed_figure_keys = set(forecast_settings()["claimed_figure_keys"])
     earnings = {"positions": [], "assets": []}
     earlier_pay = []
 
     # 2a. Past pay, one request per job (each one sees the pay from the jobs before it)
-    for index, job in enumerate(common.career_positions(record)):
-        first, last = int(job["start_year"]), common.position_end(job, end)
+    for index, job in enumerate(utilities.career_positions(record)):
+        first, last = int(job["start_year"]), utilities.position_end(job, end)
         name = f"call2_earnings.position.{index}"
         piece = run_forecasting(name, "position_pay",
                                 {"position_index": index, "first_year": first, "last_year": last},
@@ -1355,10 +1355,10 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
     The types are T1 (honest) plus the standard crime categories his jobs, assets and
     declared sources make possible, each tied to what enables it.
     """
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
-              "last_forecast_year": years[-1], "baseline_type": common.BASELINE_TYPE,
+              "last_forecast_year": years[-1], "baseline_type": utilities.BASELINE_TYPE,
               "honest_category": forecast_settings()["honest_category"],
               "max_crime_types": forecast_settings()["max_crime_types"]}
     claimed_sources = declaration["claimed_sources"]
@@ -1383,7 +1383,7 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
     types = {"person_types": listing["data"]["person_types"], "behaviour": {}}
     for person_type in types["person_types"]:
         type_id = person_type["type_id"]
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             baseline_note = "This is the as-declared type, so its extra money is 0 every year."
         else:
             baseline_note = ("Give only the money this crime ADDS on top of his declared sources, and "
@@ -1412,7 +1412,7 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
 def forecast_events(record: dict, markets: dict, types: dict,
                     cache: dict, results: dict) -> dict | None:
     """Call 4: specific future events, then how each type would react to them."""
-    years = common.future_years(record)
+    years = utilities.future_years(record)
     settings = forecast_settings()
 
     # 4a. The list of future events
