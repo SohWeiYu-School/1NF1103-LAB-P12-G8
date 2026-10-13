@@ -63,8 +63,6 @@ from app.io_manager import generate_client_id, validate_case, _number, show_crim
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
 
-_client = ai_manager.init_client()
-
 ASSESS_STEPS = [
     "Fetching sector research reports",
     "Verifying research sources",
@@ -576,7 +574,7 @@ def _run_assessment_job(job_id, client_ref, record):
         step(9)
         forecast_assessment = None
         cache = load_raw_replies(client_ref)
-        run = ai_manager.run_onboarding_forecast(_client, record, cache)
+        run = ai_manager.run_onboarding_forecast(record, cache)
         save_raw_replies(client_ref, run["results"])
         if run["ok"]:
             save_forecast(client_ref, run["forecast"])
@@ -778,7 +776,7 @@ def assess_client(client_ref):
     record = get_record(client_ref)
     if record is None:
         abort(404)
-    if _client is None:
+    if not ai_manager.has_api_key():
         flash("No API key configured — assessment cannot run.")
         return redirect(url_for("view_client", client_ref=client_ref))
 
@@ -838,7 +836,7 @@ def review_client(client_ref):
     record = get_record(client_ref)
     if record is None:
         abort(404)
-    if _client is None:
+    if not ai_manager.has_api_key():
         flash("No API key configured — review cannot run.")
         return redirect(url_for("view_client", client_ref=client_ref))
 
