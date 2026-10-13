@@ -41,7 +41,7 @@ from flask import (Flask, abort, flash, jsonify, redirect, render_template,
 from jinja2 import DictLoader
 from werkzeug.utils import secure_filename
 
-from app import ai_manager, logic_manager, common
+from app import ai_manager, logic_manager, utilities
 from app.data_manager import (
     save_case_record,
     load_all_records,
@@ -629,13 +629,6 @@ def show_form(heading: str, values: dict, problems: list, field_errors: dict = N
 # Assessment helpers
 # ============================================================================
 
-def _whole_number(value):
-    try:
-        return int(float(str(value).replace(",", "").replace("%", "").strip()))
-    except (TypeError, ValueError):
-        return None
-
-
 def _crime_scan_input(record):
     career = record.get("career") or {}
     return {
@@ -651,7 +644,7 @@ def _crime_scan_input(record):
 
 
 def _run_crime_scan(case_input):
-    policy = common.policy()
+    policy = utilities.policy()
     research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
@@ -677,11 +670,11 @@ def _run_benchmark(record, case_input):
     nw     = claims.get("declared_net_worth") or 0
     benchmark_input = {
         **case_input,
-        "declared_net_worth":      _whole_number(nw),
-        "listed_equities":         _whole_number((comp.get("listed_equities") or 0) * nw),
-        "cash":                    _whole_number((comp.get("cash") or 0) * nw),
-        "property":                _whole_number((comp.get("property") or 0) * nw),
-        "private_business":        _whole_number((comp.get("private_business") or 0) * nw),
+        "declared_net_worth":      utilities.whole_number(nw),
+        "listed_equities":         utilities.whole_number((comp.get("listed_equities") or 0) * nw),
+        "cash":                    utilities.whole_number((comp.get("cash") or 0) * nw),
+        "property":                utilities.whole_number((comp.get("property") or 0) * nw),
+        "private_business":        utilities.whole_number((comp.get("private_business") or 0) * nw),
         "biggest_wealth_jump":     claims.get("biggest_wealth_jump"),
         "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
         "declared_counterparties": claims.get("declared_counterparties", []),
@@ -703,7 +696,7 @@ def _run_assessment_job(job_id, client_ref, record):
 
     try:
         case_input = _crime_scan_input(record)
-        policy = common.policy()
+        policy = utilities.policy()
 
         step(1)
         research, _ = ai_manager.get_ai_research(case_input)

@@ -37,6 +37,8 @@ from gridfs import GridFS
 from datetime import datetime, timezone
 import shutil
 
+from app import utilities
+
 # Load environment variables automatically from .env file
 load_dotenv()
 
@@ -44,11 +46,8 @@ load_dotenv()
 # PATHS & DATABASE SETTINGS
 # ==============================================================================
 
-# Find the absolute root directory path of the project
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 # Define the local data directory folder (e.g., .../data)
-DATA_DIR = os.path.join(_BASE_DIR, "data")
+DATA_DIR = os.path.join(utilities.ROOT_DIR, "data")
 
 # Subfolder for local JSON database files
 LOCAL_DB_DIR = os.path.join(DATA_DIR, "local database")
@@ -237,7 +236,7 @@ def _upload_local_documents(record: dict, db) -> int:
         path = doc.get("file_path")
         if doc.get("file_id") or not path:
             continue
-        full = os.path.join(_BASE_DIR, path)
+        full = os.path.join(utilities.ROOT_DIR, path)
         if not os.path.exists(full):
             continue
         with open(full, "rb") as f:
@@ -420,14 +419,14 @@ def upload_supporting_document(file_path: str):
         shutil.copy2(file_path, dest)
     except OSError:
         return None
-    return os.path.relpath(dest, _BASE_DIR).replace("\\", "/")   # forward slashes so it works on any OS
+    return os.path.relpath(dest, utilities.ROOT_DIR).replace("\\", "/")   # forward slashes so it works on any OS
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
     """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
     if not file_id:
         return False
-    local = os.path.join(_BASE_DIR, file_id)
+    local = os.path.join(utilities.ROOT_DIR, file_id)
     if os.path.exists(local):
         try:
             shutil.copy2(local, output_path)
@@ -498,13 +497,7 @@ def save_case(case: dict) -> bool:
 
 def load_case(path: str) -> dict | None:
     # Read a sample case file from a given file path
-    if not os.path.exists(path): 
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f: 
-            return json.load(f)
-    except Exception: 
-        return None
+    return load_json(path)
 
 def load_json(path: str, default=None):
     # Read any JSON file from disk; return default if missing or unreadable
@@ -513,7 +506,7 @@ def load_json(path: str, default=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (ValueError, OSError):
         return default
 
 
