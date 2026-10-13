@@ -95,8 +95,6 @@ def test_the_ai_gets_the_same_inputs_from_both():
 
 def test_forecasting_case_uses_the_saved_values_without_asking():
     def no_questions(question):
-        if question.startswith("Assessment date"):
-            return ""
         raise AssertionError(f"asked: {question}")
 
     for record in (cli_record(expected_reply()), web_record(expected_reply())):
@@ -123,3 +121,16 @@ def test_old_command_line_records_are_upgraded_when_loaded():
 
     assert asset == {"asset_type": "Property - Condo", "price_paid": 900000,
                      "current_declared_value": 1500000, "income_produced": 36000}
+
+
+def test_assessment_is_always_dated_today():
+    import datetime
+    today = datetime.date.today().isoformat()
+
+    case = io_manager.case_from_client_record(cli_record(expected_reply()),
+                                              lambda question: (_ for _ in ()).throw(AssertionError(question)))
+    assert case["current_date"] == today                       # command line: not asked
+
+    assert web_record(expected_reply())["current_date"] == today   # web form: no date box
+    page = web_app.app.test_client().get("/client/new").get_data(as_text=True)
+    assert 'name="client.current_date"' not in page

@@ -1787,13 +1787,9 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
     show(f"Preparing {record.get('client_ref')} for the forecasting assessment")
     show(LINE)
 
-    today = datetime.date.today().isoformat()
-    answer = ask(f"Assessment date (YYYY-MM-DD, blank for today {today}): ").strip()
-    current_date = answer if answer else today
-    try:
-        datetime.date.fromisoformat(current_date)
-    except ValueError:
-        current_date = ask_date("Assessment date", ask)
+    # The assessment is always dated today - the web app does the same (web_app.assess_client).
+    current_date = datetime.date.today().isoformat()
+    show(f"Assessment date: {current_date} (today)")
     this_year = int(current_date[:4])
 
     age  = int(_number_or_ask(career.get("age"), "Age", ask, allow_zero=False))

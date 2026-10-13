@@ -103,7 +103,6 @@ CLIENT_FIELDS = [
     ("nationality", "Nationality", "text"),
     ("country_of_residence", "Country of residence", "text"),
     ("age", "Age", "int"),
-    ("current_date", "Assessment date", "date"),
 ]
 JOB_FIELDS = [
     ("start_year", "Start year", "int"),
@@ -284,11 +283,8 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
     record["name"] = client["name"]
     record["nationality"] = client["nationality"]
  
-    try:
-        datetime.date.fromisoformat(client["current_date"])
-    except ValueError:
-        _p("Assessment date must be a real date.", "client.current_date", "Must be a real date.")
-    record["current_date"] = client["current_date"]
+    # The assessment date is always today - not typed in (the command line does the same).
+    record["current_date"] = today()
  
     if client["age"].isdigit() and 18 <= int(client["age"]) <= 120:
         age = int(client["age"])
@@ -457,7 +453,6 @@ def extracted_to_values(extracted: dict, current_date: str = "") -> dict:
     if not extracted.get("jobs"):
         record["career_history"] = []      # the command line's empty "current job" is only there to be asked for
     values = values_from_record(record)
-    values["client"]["current_date"] = ""  # never overwrite the officer's assessment date
     for prefix, title, fields, kind in SECTIONS:
         if kind == "list":
             values[prefix] = [row for row in values[prefix] if any(row.values())]
@@ -565,15 +560,11 @@ def autofill_form(heading: str, form, files):
     extracted, warnings = ai_manager.extract_client_details(read)
     filled, notes = [], list(warnings)
     if extracted is not None:
-        found = extracted_to_values(extracted, values["client"].get("current_date", ""))
+        found = extracted_to_values(extracted, today())
         values, filled = fill_blanks(values, found)
         notes += extracted.get("notes") or []
         # the same second-look checks the command line shows after reading documents
-        date = values["client"].get("current_date") or today()
-        try:
-            datetime.date.fromisoformat(date)
-        except ValueError:
-            date = today()
+        date = today()
         record, _ = logic_manager.record_from_documents(extracted, "", date)
         notes += logic_manager.check_document_record(logic_manager.finish_document_record(record), date)
     if extracted is not None and filled:
@@ -930,6 +921,8 @@ def assess_client(client_ref):
         flash("No API key configured — assessment cannot run.")
         return redirect(url_for("view_client", client_ref=client_ref))
 
+    # every assessment is dated today, however long ago the client was saved (same as the command line)
+    record = {**record, "current_date": today()}
     job_id = uuid.uuid4().hex
     _assessment_jobs[job_id] = {
         "status":     "running",
