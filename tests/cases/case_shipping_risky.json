@@ -52,7 +52,7 @@
         "description": "Shipping can be used to move funds through over-invoicing. The surplus accumulates in offshore entities.",
         "typical_documents": ["invoices", "bills of lading"],
         "indicators": [
-          {"indicator": "offshore_entity_present", "weight": "core"},
+          {"indicator": "source_contradicts_occupation", "weight": "core"},
           {"indicator": "counterparty_unnamed", "weight": "supporting"}
         ]
       }
@@ -68,7 +68,8 @@
         "end_year": null,
         "jurisdiction": "SG",
         "counterparty": "Maersk",
-        "evidence_sentence": "Twenty years of employment in shipping and freight logistics."
+        "evidence_sentence": "Twenty years of employment in shipping and freight logistics.",
+        "occupation_mismatch": false
       },
       {
         "source_type": "investment",
@@ -78,7 +79,8 @@
         "end_year": 2021,
         "jurisdiction": "CY",
         "counterparty": null,
-        "evidence_sentence": "Investment held in a Cyprus-registered vehicle, counterparty not disclosed."
+        "evidence_sentence": "Investment held in a Cyprus-registered vehicle, counterparty not disclosed.",
+        "occupation_mismatch": true
       },
       {
         "source_type": "property",
@@ -88,7 +90,8 @@
         "end_year": 2016,
         "jurisdiction": "SG",
         "counterparty": "a friend",
-        "evidence_sentence": "Property acquired from a friend at below-market valuation."
+        "evidence_sentence": "Property acquired from a friend at below-market valuation.",
+        "occupation_mismatch": false
       }
     ]
   },

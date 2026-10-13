@@ -132,7 +132,7 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     # Steps 7-8: Match typologies and display result
     if typology_response is not None and declaration is not None:
         io_manager.show_ai_output(case_input, typology_response, declaration)
-        crime_result = logic_manager.assess_case(case_input, typology_response, declaration, policy)
+        crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
         io_manager.show_crime_scan_result(crime_result, typology_response, research)
 
     return research, typology_response, declaration

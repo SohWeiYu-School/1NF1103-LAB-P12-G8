@@ -514,11 +514,19 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
 
     # Step 1: Build payload
     declaration_text = case_input.get("declaration_text", "")
-    payload = {"declaration_text": declaration_text}
+    career = case_input.get("career", {})
+    occupation  = career.get("occupation", case_input.get("occupation", "Unknown"))
+    industry    = career.get("industry",   case_input.get("industry",   "Unknown"))
+    career_profile = f"Occupation: {occupation}. Industry: {industry}."
+    payload = {"declaration_text": declaration_text, "career_profile": career_profile}
 
     # Step 2: Load prompt + schema
     template = load_prompt("crime_scan_declaration.txt")
-    prompt = template.replace("{declaration_text}", declaration_text)
+    prompt = (
+        template
+        .replace("{declaration_text}", declaration_text)
+        .replace("{career_profile}", career_profile)
+    )
     schema = load_schema("crime_scan_declaration.schema.json")
 
     mdl = model()

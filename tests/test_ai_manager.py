@@ -86,7 +86,7 @@ def _valid_typology(typology_id: str = "test_typology") -> dict:
             }
         ],
         "indicators": [
-            {"indicator": "offshore_entity_present", "weight": "core"},
+            {"indicator": "source_contradicts_occupation", "weight": "core"},
             {"indicator": "counterparty_unnamed", "weight": "supporting"},
         ],
         "typical_documents": ["Bank statements", "Invoices"],
@@ -238,7 +238,7 @@ def test_extra_risk_level_field_fails_schema():
 def test_no_core_indicator_fails_schema():
     t = _valid_typology()
     t["indicators"] = [
-        {"indicator": "offshore_entity_present", "weight": "supporting"},
+        {"indicator": "source_contradicts_occupation", "weight": "supporting"},
         {"indicator": "counterparty_unnamed", "weight": "supporting"},
     ]
     with pytest.raises(jsonschema.ValidationError):

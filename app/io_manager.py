@@ -79,104 +79,109 @@ def show_crime_scan_result(result: dict, typology_response: dict | None = None, 
     """Print a professional typology matching summary for the crime scan."""
     match_results = result.get("match_results", [])
     breach_count  = result.get("breach_count", 0)
+    match_count   = result.get("match_count", breach_count)
     total         = len(match_results)
-    not_matched   = total - breach_count
+    not_matched   = total - match_count
 
-    W = 68
+    _CATEGORY_LABEL = {
+        "critical":   "CRITICAL",
+        "high":       "HIGH",
+        "medium":     "MEDIUM",
+        "partial":    "PARTIAL",
+        "weak_signal":"WEAK",
+        "no_match":   "PASS",
+    }
+
+    W = 80
     print("\n" + "═" * W)
     print("  SECTOR CRIME SCAN — TYPOLOGY MATCHING")
     print("═" * W)
 
-    # --- Research Reports section ---
+    # --- Section 1: Research Reports ---
     reports = (research or {}).get("reports", [])
+    print(f"\n  RESEARCH REPORTS ({len(reports)})")
+    print("  " + "─" * (W - 2))
     if reports:
-        print(f"\n  Research Reports Retrieved: {len(reports)}\n")
         for r in reports:
-            rid  = r.get("report_id", "?")
-            org  = r.get("organisation", "Unknown")
-            year = r.get("year", "")
+            rid   = r.get("report_id", "?")
+            org   = r.get("organisation", "Unknown")
+            year  = r.get("year", "")
             title = r.get("title", "")
-            url  = r.get("url", "")
             year_str = f" ({year})" if year else ""
-            print(f"  [{rid}] {org}{year_str}")
-            print(f"       {title}")
-            if url:
-                print(f"       {url}")
-        print()
+            print(f"  [{rid}]  {org}{year_str}")
+            print(f"        {title}")
+    else:
+        print("  No research reports retrieved.")
 
-    # Build lookup: typology_id → typology dict (for source_ids and source_quotes)
+    # Build lookup: typology_id → typology dict (for descriptions + source quotes)
     typ_lookup: dict = {}
     if typology_response:
         for t in typology_response.get("sector_typologies", []):
             typ_lookup[t.get("typology_id", "")] = t
 
-    # Build lookup: report_id → "Org Year" label
-    report_label: dict = {}
-    for r in reports:
-        rid  = r.get("report_id", "")
-        org  = r.get("organisation", "")
-        year = r.get("year", "")
-        if rid:
-            report_label[rid] = f"{org} {year}".strip()
-
-    # --- Typology table ---
-    print(f"  Typologies Generated: {total}\n")
+    # --- Section 2: Typologies ---
+    print(f"\n  TYPOLOGIES ({total} generated)")
+    print("  " + "─" * (W - 2))
 
     if not match_results:
         print("  No typologies returned by AI.")
     else:
-        col_name  = 38
-        col_res   = 10
-        print(f"  {'#':<4}{'Typology':<{col_name}}{'Result':<{col_res}}Indicators Fired")
-        print("  " + "─" * (W - 2))
-        for i, mr in enumerate(match_results, start=1):
-            typ_id    = mr.get("typology_id", "")
-            name      = mr.get("name", typ_id or "?")
-            breached  = mr.get("breached", False)
-            status    = "BREACH" if breached else "PASS"
-            fired     = mr.get("core_fired", []) + mr.get("supporting_fired", [])
-            fired_str = fired[0].replace("_", " ") if fired else "—"
-            print(f"  {i:<4}{name:<{col_name}}{status:<{col_res}}{fired_str}")
-            for indicator in fired[1:]:
-                print(f"  {'':<4}{'':<{col_name}}{'':<{col_res}}{indicator.replace('_', ' ')}")
+        col_ind    = 32   # indicator name column
+        col_weight = 13   # [CORE] / [SUPPORTING] column
+        col_status = 8    # FIRED / — column
 
-            # Description (breached only)
-            typ_data = typ_lookup.get(typ_id, {})
-            if breached:
+        for i, mr in enumerate(match_results, 1):
+            typ_id   = mr.get("typology_id", "")
+            name     = mr.get("name", typ_id or "?")
+            breached = mr.get("breached", False)
+            category = mr.get("category", "critical" if breached else "no_match")
+            status   = _CATEGORY_LABEL.get(category, category.upper())
+            core_inds  = mr.get("core_indicators", [])
+            core_fired = set(mr.get("core_fired", []))
+            sup_inds   = mr.get("supporting_indicators", [])
+            sup_fired  = set(mr.get("supporting_fired", []))
+            src_ids    = mr.get("source_ids", [])
+            src_str    = f"[{', '.join(src_ids)}]" if src_ids else "—"
+            all_fired  = mr.get("core_fired", []) + mr.get("supporting_fired", [])
+
+            print(f"\n  {i}.  [{status}]  {name}")
+            print(f"      Sources: {src_str}")
+            print(f"      {'Indicator':<{col_ind}}  {'Weight':<{col_weight}}  Status")
+            for ind in core_inds:
+                fired_str = "FIRED" if ind in core_fired else "—"
+                print(f"      {ind.replace('_',' '):<{col_ind}}  {'[CORE]':<{col_weight}}  {fired_str}")
+            for ind in sup_inds:
+                fired_str = "FIRED" if ind in sup_fired else "—"
+                print(f"      {ind.replace('_',' '):<{col_ind}}  {'[SUPPORTING]':<{col_weight}}  {fired_str}")
+
+            if category != "no_match":
+                fired_names = ", ".join(f.replace("_", " ") for f in all_fired)
+                print(f"      → Match ({status}): {fired_names} fired")
+
+        print("\n  " + "─" * (W - 2))
+        print(f"  Total: {total}  |  Matched: {match_count}  |  Not Matched: {not_matched}")
+
+        # --- Details: descriptions + source quotes for matched typologies ---
+        matched = [mr for mr in match_results if mr.get("category", "no_match") != "no_match"]
+        if matched:
+            print(f"\n  DETAILS")
+            print("  " + "─" * (W - 2))
+            for mr in matched:
+                typ_id   = mr.get("typology_id", "")
+                name     = mr.get("name", typ_id or "?")
+                typ_data = typ_lookup.get(typ_id, {})
+                print(f"\n  {name}")
                 desc = typ_data.get("description", "").strip()
                 if desc:
-                    indent = "        "
-                    for line in textwrap.wrap(desc, width=W - len(indent)):
-                        print(f"{indent}{line}")
-
-            # Source citations for this typology
-            src_ids  = typ_data.get("source_ids", [])
-            if src_ids:
-                labels = ", ".join(
-                    f"{sid} ({report_label[sid]})" if sid in report_label else sid
-                    for sid in src_ids
-                )
-                print(f"  {'':<4}  Sources: {labels}")
-
-            # Source quotes (only for breached typologies to keep output clean)
-            if breached:
+                    for line in textwrap.wrap(desc, width=W - 4):
+                        print(f"    {line}")
                 for sq in typ_data.get("source_quotes", []):
                     rid   = sq.get("report_id", "")
                     quote = sq.get("quote", "").strip()
                     if quote:
-                        # Wrap long quotes at ~60 chars
-                        prefix = f"  {'':<4}  [{rid}] \""
-                        suffix = "\""
-                        wrap   = W - len(prefix) - 1
-                        if len(quote) <= wrap:
-                            print(f"{prefix}{quote}{suffix}")
-                        else:
-                            print(f"{prefix}{quote[:wrap]}...")
-            print()
+                        print(f"    [{rid}] \"{quote}\"")
 
-    print("  " + "─" * (W - 2))
-    print(f"  Total: {total}  |  Matched: {breach_count}  |  Not Matched: {not_matched}")
-    print("═" * W + "\n")
+    print("\n" + "═" * W + "\n")
 
 
 def show_benchmark_result(result: dict) -> None:
