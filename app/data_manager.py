@@ -38,6 +38,8 @@ from datetime import datetime, timezone
 import shutil
 import hashlib
 
+from app import utilities
+
 # Load environment variables automatically from .env file
 load_dotenv()
 
@@ -45,11 +47,8 @@ load_dotenv()
 # PATHS & DATABASE SETTINGS
 # ==============================================================================
 
-# Find the absolute root directory path of the project
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 # Define the local data directory folder (e.g., .../data)
-DATA_DIR = os.path.join(_BASE_DIR, "data")
+DATA_DIR = os.path.join(utilities.ROOT_DIR, "data")
 
 # Subfolder for local JSON database files
 LOCAL_DB_DIR = os.path.join(DATA_DIR, "local database")
@@ -278,7 +277,7 @@ def _upload_local_documents(record: dict, db) -> int:
         path = doc.get("file_path")
         if doc.get("file_id") or not path:
             continue
-        full = os.path.join(_BASE_DIR, path)
+        full = os.path.join(utilities.ROOT_DIR, path)
         if not os.path.exists(full):
             continue
         with open(full, "rb") as f:
@@ -366,6 +365,115 @@ def sync_json_to_mongodb() -> dict:
     return stats
 
 # ==============================================================================
+# READING UPLOADED DOCUMENTS (for auto-filling the client form)
+# ==============================================================================
+
+# Longest text kept from one document, so one huge file can't crowd out the others
+MAX_DOCUMENT_CHARS = 40_000
+
+# Below this many characters a PDF is treated as scanned and sent to the AI as a file
+MIN_PDF_TEXT_CHARS = 80
+
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".webp": "image/webp", ".gif": "image/gif"}
+TEXT_TYPES = {".txt", ".csv", ".md", ".json"}
+
+
+def _pdf_text(file_path: str) -> str:
+    from pypdf import PdfReader
+    reader = PdfReader(file_path)
+    pages = [f"[Page {number}]\n{page.extract_text() or ''}"
+             for number, page in enumerate(reader.pages, start=1)]
+    return "\n\n".join(pages)
+
+
+def _docx_text(file_path: str) -> str:
+    from docx import Document
+    document = Document(file_path)
+    parts = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+    for table in document.tables:                  # tables often hold the figures
+        for row in table.rows:
+            parts.append(" | ".join(cell.text.strip() for cell in row.cells))
+    return "\n".join(parts)
+
+
+def _xlsx_text(file_path: str) -> str:
+    from openpyxl import load_workbook
+    workbook = load_workbook(file_path, read_only=True, data_only=True)
+    parts = []
+    for sheet in workbook.worksheets:
+        parts.append(f"[Sheet {sheet.title}]")
+        for row in sheet.iter_rows(values_only=True):
+            cells = ["" if cell is None else str(cell) for cell in row]
+            if any(cells):
+                parts.append(" | ".join(cells))
+    workbook.close()
+    return "\n".join(parts)
+
+
+def _base64_file(file_path: str) -> str:
+    import base64
+    with open(file_path, "rb") as handle:
+        return base64.b64encode(handle.read()).decode("ascii")
+
+
+def read_document_for_extraction(file_path: str, file_name: str | None = None) -> dict:
+    """Read one uploaded file so the AI can pull client details out of it.
+
+    Returns {"file_name", "kind", ...}:
+        kind "text"   -> "text": the document's text (PDF, Word, Excel, plain text)
+        kind "image"  -> "mime", "data_b64": a photo or scan
+        kind "pdf"    -> "data_b64": a scanned PDF with no readable text
+        kind "error"  -> "error": why it couldn't be read
+    """
+    name = file_name or os.path.basename(file_path)
+    extension = os.path.splitext(name)[1].lower()
+    try:
+        if extension in IMAGE_TYPES:
+            return {"file_name": name, "kind": "image", "mime": IMAGE_TYPES[extension],
+                    "data_b64": _base64_file(file_path)}
+        if extension == ".pdf":
+            text = _pdf_text(file_path)
+            readable = "".join(line for line in text.splitlines() if not line.startswith("[Page "))
+            if len(readable.strip()) < MIN_PDF_TEXT_CHARS:
+                return {"file_name": name, "kind": "pdf", "data_b64": _base64_file(file_path)}
+        elif extension == ".docx":
+            text = _docx_text(file_path)
+        elif extension in (".xlsx", ".xlsm"):
+            text = _xlsx_text(file_path)
+        elif extension in TEXT_TYPES:
+            with open(file_path, encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+        else:
+            return {"file_name": name, "kind": "error",
+                    "error": f"{name}: this file type can't be read (use PDF, Word, Excel, text or an image)."}
+    except Exception as exc:   # a damaged or password-protected file
+        return {"file_name": name, "kind": "error", "error": f"{name}: could not be read ({exc.__class__.__name__})."}
+
+    if not text.strip():
+        return {"file_name": name, "kind": "error", "error": f"{name}: no text was found in it."}
+    return {"file_name": name, "kind": "text", "text": text[:MAX_DOCUMENT_CHARS]}
+
+
+DOCUMENT_TYPES = {".pdf", ".docx", ".xlsx", ".xlsm"} | TEXT_TYPES | set(IMAGE_TYPES)
+
+
+def list_documents_in_folder(folder: str) -> list[str] | None:
+    """The readable documents directly inside a folder (not sub-folders), sorted by name.
+    Returns None if the folder doesn't exist. Hidden and Office temp files (~$...) are skipped."""
+    folder = os.path.expanduser(folder or "")
+    if not os.path.isdir(folder):
+        return None
+    files = []
+    for name in sorted(os.listdir(folder), key=str.lower):
+        path = os.path.join(folder, name)
+        if (os.path.isfile(path) and not name.startswith((".", "~$"))
+                and os.path.splitext(name)[1].lower() in DOCUMENT_TYPES):
+            files.append(path)
+    return files
+
+
+# ==============================================================================
 # SUPPORTING DOCUMENTS & MAIN.PY HELPERS
 # ==============================================================================
 
@@ -379,14 +487,14 @@ def upload_supporting_document(file_path: str):
         shutil.copy2(file_path, dest)
     except OSError:
         return None
-    return os.path.relpath(dest, _BASE_DIR).replace("\\", "/")   # forward slashes so it works on any OS
+    return os.path.relpath(dest, utilities.ROOT_DIR).replace("\\", "/")   # forward slashes so it works on any OS
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
     """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
     if not file_id:
         return False
-    local = os.path.join(_BASE_DIR, file_id)
+    local = os.path.join(utilities.ROOT_DIR, file_id)
     if os.path.exists(local):
         try:
             shutil.copy2(local, output_path)
@@ -457,13 +565,7 @@ def save_case(case: dict) -> bool:
 
 def load_case(path: str) -> dict | None:
     # Read a sample case file from a given file path
-    if not os.path.exists(path): 
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f: 
-            return json.load(f)
-    except Exception: 
-        return None
+    return load_json(path)
 
 def load_json(path: str, default=None):
     # Read any JSON file from disk; return default if missing or unreadable
@@ -472,7 +574,7 @@ def load_json(path: str, default=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, IOError):
+    except (ValueError, OSError):
         return default
 
 

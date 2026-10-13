@@ -29,11 +29,12 @@ give the same answer.
 Outcomes: PASSED, MANUAL_REVIEW, RISKY, SERIOUS_RISK.
 """
 
+import copy
 import datetime
 import logging
 import re
 
-from app import common
+from app import utilities
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -903,15 +904,15 @@ def same_country(name: str, policy: dict) -> str:
 
 def category_name(code: str) -> str:
     """'TRADE_BASED_ML' -> its readable name from the vocabulary file."""
-    return common.vocabulary().get("crime_categories", {}).get(code, code)
+    return utilities.vocabulary().get("crime_categories", {}).get(code, code)
 
 
 def enabled_by_text(person_type: dict, record: dict) -> str:
     """What makes this type possible for him, in words: the job, asset or declared source."""
-    if person_type["type_id"] == common.BASELINE_TYPE:
+    if person_type["type_id"] == utilities.BASELINE_TYPE:
         return "everything he declared"
     parts = []
-    jobs = common.career_positions(record)
+    jobs = utilities.career_positions(record)
     assets = record.get("investments", [])
     job_index = person_type.get("enabled_by_position_index")
     asset_index = person_type.get("enabled_by_asset_index")
@@ -947,7 +948,7 @@ def market_history(forecast: dict) -> dict:
 
 def market_outlook(forecast: dict) -> dict:
     """{market_id: {year: {scenario: {low, typical, high}}}}"""
-    return {market_id: {row["year"]: {s: row[s] for s in common.SCENARIOS} for row in series["outlook"]}
+    return {market_id: {row["year"]: {s: row[s] for s in utilities.SCENARIOS} for row in series["outlook"]}
             for market_id, series in forecast["markets"]["series"].items()}
 
 
@@ -955,8 +956,8 @@ def scenario_chances(forecast: dict) -> dict:
     """{year: {scenario: share}} with the shares adding up to exactly 1."""
     chances = {}
     for row in forecast["markets"]["scenario_chances"]:
-        total = sum(row[s] for s in common.SCENARIOS) or 1
-        chances[row["year"]] = {s: row[s] / total for s in common.SCENARIOS}
+        total = sum(row[s] for s in utilities.SCENARIOS) or 1
+        chances[row["year"]] = {s: row[s] / total for s in utilities.SCENARIOS}
     return chances
 
 
@@ -1025,7 +1026,7 @@ def asset_path(asset: dict, model: dict, history: dict, outlook: dict, end_year:
     future_yield = model["future_income_yield_pct"][scenario]
 
     results = {}
-    for level in common.RANGE_KEYS:      # one path using all the low inputs, one typical, one high
+    for level in utilities.RANGE_KEYS:      # one path using all the low inputs, one typical, one high
         value = float(asset["price_paid"])
         values, incomes = {}, {}
         for year in range(bought, last_year + 1):
@@ -1040,14 +1041,14 @@ def asset_path(asset: dict, model: dict, history: dict, outlook: dict, end_year:
         results[level] = (values, incomes)
 
     years = range(bought, last_year + 1)
-    return {"values": {y: sorted_band([results[level][0][y] for level in common.RANGE_KEYS]) for y in years},
-            "income": {y: sorted_band([results[level][1][y] for level in common.RANGE_KEYS]) for y in years}}
+    return {"values": {y: sorted_band([results[level][0][y] for level in utilities.RANGE_KEYS]) for y in years},
+            "income": {y: sorted_band([results[level][1][y] for level in utilities.RANGE_KEYS]) for y in years}}
 
 
 def all_asset_paths(record: dict, forecast: dict, last_year: int, scenario: str,
                     shocks: dict | None = None) -> list[dict]:
     history, outlook = market_history(forecast), market_outlook(forecast)
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     models = sorted(forecast["earnings"]["assets"], key=lambda a: a["asset_index"])
     return [asset_path(asset, model, history, outlook, end, last_year, scenario, shocks)
             for asset, model in zip(record.get("investments", []), models)]
@@ -1089,7 +1090,7 @@ def honest_wealth(record: dict, savings_rows: list[dict], paths: list[dict], yea
 
 def type_wealth_now(record: dict, forecast: dict, savings_rows: list[dict], paths: list[dict]) -> dict:
     """{type_id: wealth band today} = honest wealth + that type's extra money so far."""
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     honest = honest_wealth(record, savings_rows, paths, end)
     return {type_id: add_bands(honest, extra_money_up_to(behaviour, end))
             for type_id, behaviour in forecast["types"]["behaviour"].items()}
@@ -1162,7 +1163,7 @@ def check_affordability(record: dict, savings_rows: list[dict], paths: list[dict
 
 def check_jurisdictions(record: dict, forecast: dict, policy: dict) -> dict:
     """Countries he named with nothing behind them, and linked countries on a risk list."""
-    behind = {same_country(job.get("country", ""), policy) for job in common.career_positions(record)}
+    behind = {same_country(job.get("country", ""), policy) for job in utilities.career_positions(record)}
     behind |= {same_country(asset.get("country", ""), policy) for asset in record.get("investments", [])}
     behind |= {same_country(source["country"], policy) for source in forecast["declaration"]["claimed_sources"]}
     named = {same_country(country, policy) for country in record.get("claims", {}).get("wealth_countries", [])}
@@ -1204,7 +1205,7 @@ def fit_for_type(type_id: str, wealth_now: dict, affordability: list[dict], asse
     lower = wealth["cautious"] * (1 - tolerance)
     # Anyone can have spent money, so the as-declared type has no lower limit. A dishonest
     # type that brought in extra money would leave him at least this rich.
-    net_worth_fits = declared <= upper and (type_id == common.BASELINE_TYPE or declared >= lower)
+    net_worth_fits = declared <= upper and (type_id == utilities.BASELINE_TYPE or declared >= lower)
     affordable = sum(1 for row in affordability if row["affordable"])
     affordable_share = affordable / len(affordability) if affordability else 1.0
     assets_share = (sum(1 for check in asset_checks if not check["failed"]) / len(asset_checks)
@@ -1219,8 +1220,8 @@ def fit_for_type(type_id: str, wealth_now: dict, affordability: list[dict], asse
 
 def decide_onboarding(fits: dict, t1_affordability_breach: bool, other_failures: list[str]) -> str:
     """The onboarding rule. fits = {type_id: fit result}."""
-    t1 = fits[common.BASELINE_TYPE]
-    others_fit = [t for t, result in fits.items() if t != common.BASELINE_TYPE and result["fits"]]
+    t1 = fits[utilities.BASELINE_TYPE]
+    others_fit = [t for t, result in fits.items() if t != utilities.BASELINE_TYPE and result["fits"]]
     if not t1["fits"] and others_fit:
         return SERIOUS_RISK          # only a dishonest version explains him
     if not t1["fits"]:
@@ -1244,7 +1245,7 @@ def stable_outcome(outcome: str, outcomes_when_shifted: dict) -> tuple[str, bool
 def evaluate(record: dict, forecast: dict, savings_rows: list[dict], paths: list[dict],
              policy: dict, scale: float = 1.0) -> dict:
     """Run every onboarding check with all money forecasts multiplied by `scale`."""
-    _, end = common.career_years(record)
+    _, end = utilities.career_years(record)
     declared = record["claims"]["declared_net_worth"]
     behaviours = forecast["types"]["behaviour"]
     wealth_now = type_wealth_now(record, forecast, savings_rows, paths)
@@ -1259,7 +1260,7 @@ def evaluate(record: dict, forecast: dict, savings_rows: list[dict], paths: list
 
     jurisdiction = check_jurisdictions(record, forecast, policy)
     sources = check_declared_sources(forecast, policy)
-    t1_breach = not all(row["affordable"] for row in affordability[common.BASELINE_TYPE])
+    t1_breach = not all(row["affordable"] for row in affordability[utilities.BASELINE_TYPE])
     other_failures = [c["rule_id"] for c in asset_checks + [jurisdiction] + sources if c["failed"]]
     outcome = decide_onboarding(fits, t1_breach, other_failures)
     return {"outcome": outcome, "fits": fits, "affordability": affordability,
@@ -1277,8 +1278,8 @@ def forward_paths(record: dict, forecast: dict, savings_rows: list[dict], scenar
     Wealth of every type for the current year and each forecast year in one scenario.
     event_changes = {type_id: (year, extra money change)} adds an event reaction.
     """
-    _, end = common.career_years(record)
-    years = common.future_years(record)
+    _, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     paths = all_asset_paths(record, forecast, years[-1], scenario, shocks)
     future_pay = {row["year"]: row for row in forecast["earnings"]["future_pay"]["yearly"]}
 
@@ -1311,20 +1312,20 @@ def forward_paths(record: dict, forecast: dict, savings_rows: list[dict], scenar
 def expected_paths(record: dict, forecast: dict, savings_rows: list[dict]) -> dict:
     """Each type's wealth path weighted by the AI's chance of each scenario."""
     chances = scenario_chances(forecast)
-    by_scenario = {s: forward_paths(record, forecast, savings_rows, s) for s in common.SCENARIOS}
+    by_scenario = {s: forward_paths(record, forecast, savings_rows, s) for s in utilities.SCENARIOS}
     expected = {}
     for type_id in forecast["types"]["behaviour"]:
         expected[type_id] = {}
         for year in by_scenario["steady"][type_id]:
             weights = chances.get(year, {"steady": 1.0, "boom": 0.0, "downturn": 0.0})
             expected[type_id][year] = band(*(sum(weights[s] * by_scenario[s][type_id][year][b]
-                                                 for s in common.SCENARIOS) for b in BANDS))
+                                                 for s in utilities.SCENARIOS) for b in BANDS))
     return expected
 
 
 def event_impacts(record: dict, forecast: dict, savings_rows: list[dict]) -> list[dict]:
     """For each event and type: change in 2030 wealth if it happens, and weighted by its chance."""
-    last_year = common.future_years(record)[-1]
+    last_year = utilities.future_years(record)[-1]
     without = forward_paths(record, forecast, savings_rows, "steady")
     rows = []
     for event in forecast["events"]["events"]:
@@ -1346,10 +1347,10 @@ def event_impacts(record: dict, forecast: dict, savings_rows: list[dict]) -> lis
 
 def divergence_years(paths: dict) -> list[dict]:
     """First forecast year each type's range stops overlapping the as-declared type's range."""
-    baseline = paths[common.BASELINE_TYPE]
+    baseline = paths[utilities.BASELINE_TYPE]
     rows = []
     for type_id, points in paths.items():
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             continue
         first = None
         for year in sorted(points)[1:]:
@@ -1365,7 +1366,7 @@ def monitoring_ranges(forecast: dict, year: int, policy: dict) -> dict:
     """What normal account activity looks like next year, from the as-declared type's signals."""
     tolerance = policy["tolerance"]["signal_amount"]
     ranges = {}
-    for signal in forecast["types"]["behaviour"][common.BASELINE_TYPE]["signals"]:
+    for signal in forecast["types"]["behaviour"][utilities.BASELINE_TYPE]["signals"]:
         if not signal["first_year"] <= year <= signal["last_year"]:
             continue
         code = signal["signal_code"]
@@ -1394,7 +1395,7 @@ def rank_documents(forecast: dict, candidates: list[str]) -> list[dict]:
 
 def document_request(failures: list[dict], forecast: dict, candidates: list[str], policy: dict) -> list[dict]:
     """Documents for failed checks first, then the ones that rule out the most types."""
-    names = common.vocabulary().get("document_codes", {})
+    names = utilities.vocabulary().get("document_codes", {})
     lookup = policy.get("breach_documents", {})
     request, seen = [], set()
 
@@ -1438,9 +1439,9 @@ def data_quality(forecast: dict) -> dict:
 
 def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) -> dict:
     """Measure the client against the forecasts and decide. No AI involved."""
-    policy = policy or common.policy()
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    policy = policy or utilities.policy()
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     savings_rows = career_savings(forecast, start, end)
     paths = all_asset_paths(record, forecast, end, "steady")
 
@@ -1468,9 +1469,9 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
                            "score": round(fit["fit_score"] / total_fit, 3)})
 
     # Reasons in plain words
-    t1 = main["fits"][common.BASELINE_TYPE]
+    t1 = main["fits"][utilities.BASELINE_TYPE]
     declared = record["claims"]["declared_net_worth"]
-    others_fit = [t for t, f in main["fits"].items() if t != common.BASELINE_TYPE and f["fits"]]
+    others_fit = [t for t, f in main["fits"].items() if t != utilities.BASELINE_TYPE and f["fits"]]
     reasons = [f"Declared net worth {declared:,.0f}; the honest version explains "
                f"{t1['wealth_now']['cautious']:,.0f} to {t1['wealth_now']['optimistic']:,.0f}."]
     if not t1["fits"]:
@@ -1480,7 +1481,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
             f"{t} {category_name(names[t]['category'])} via {enabled_by_text(names[t], record)} "
             f"({forecast['types']['behaviour'][t]['route_open_from']}-"
             f"{forecast['types']['behaviour'][t]['route_open_to']})" for t in others_fit) + ".")
-    for row in main["affordability"][common.BASELINE_TYPE]:
+    for row in main["affordability"][utilities.BASELINE_TYPE]:
         if not row["affordable"]:
             reasons.append(f"{row['year']}: he needed {row['needed']:,.0f} in cash but the honest "
                            f"version had at most {row['available']['optimistic']:,.0f}.")
@@ -1492,10 +1493,10 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     # Documents: for the failed checks, then to tell the fitting types apart
     affordability_failures = [{"rule_id": "AFFORDABILITY", "payment_method": row["payment_method"],
                                "detail": f"{row['year']} purchase of asset {row['asset_index']}"}
-                              for row in main["affordability"][common.BASELINE_TYPE] if not row["affordable"]]
+                              for row in main["affordability"][utilities.BASELINE_TYPE] if not row["affordable"]]
     if not t1["fits"]:
         affordability_failures.insert(0, {"rule_id": "NET_WORTH", "detail": reasons[0]})
-    candidates = [common.BASELINE_TYPE] + others_fit
+    candidates = [utilities.BASELINE_TYPE] + others_fit
     if len(candidates) == 1 and outcome != PASSED:
         candidates = [t for t, b in forecast["types"]["behaviour"].items() if b["route_open_to"] >= end]
     documents = []
@@ -1506,7 +1507,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
     expected = expected_paths(record, forecast, savings_rows)
     divergence = divergence_years(expected)
     watch_dates = sorted(
-        [{"date": f"{d['distinguishable_from']}-01-01", "what": f"{common.BASELINE_TYPE} and {d['type_id']} "
+        [{"date": f"{d['distinguishable_from']}-01-01", "what": f"{utilities.BASELINE_TYPE} and {d['type_id']} "
           "can be told apart"} for d in divergence if d["distinguishable_from"]]
         + [{"date": f"{e['year']}-01-01", "what": f"{e['event_id']} {e['name']} could happen"}
            for e in forecast["events"]["events"]],
@@ -1526,7 +1527,7 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
         "stability": stability,
         "declared_net_worth": declared,
         "types": type_table,
-        "affordability": main["affordability"][common.BASELINE_TYPE],
+        "affordability": main["affordability"][utilities.BASELINE_TYPE],
         "asset_checks": main["asset_checks"],
         "jurisdiction": main["jurisdiction"],
         "declared_sources": main["sources"],
@@ -1554,16 +1555,16 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
 def detect_scenario(market_moves: list[dict], forecast: dict, year: int) -> str:
     """The scenario whose forecast is closest to what the markets actually did."""
     outlook = market_outlook(forecast)
-    chances = scenario_chances(forecast).get(year, {s: 1 / 3 for s in common.SCENARIOS})
+    chances = scenario_chances(forecast).get(year, {s: 1 / 3 for s in utilities.SCENARIOS})
     distance = {}
-    for scenario in common.SCENARIOS:
+    for scenario in utilities.SCENARIOS:
         gaps = [abs(move["change_pct"] - outlook[move["market_id"]][year][scenario]["typical"])
                 for move in market_moves
                 if move["change_pct"] is not None and year in outlook.get(move["market_id"], {})]
         distance[scenario] = sum(gaps) / len(gaps) if gaps else None
-    known = [s for s in common.SCENARIOS if distance[s] is not None]
+    known = [s for s in utilities.SCENARIOS if distance[s] is not None]
     if not known:
-        return max(common.SCENARIOS, key=lambda s: chances[s])
+        return max(utilities.SCENARIOS, key=lambda s: chances[s])
     # closest first; a tie goes to the scenario the AI thought more likely
     return min(known, key=lambda s: (distance[s], -chances[s]))
 
@@ -1673,9 +1674,9 @@ def decide_review(a: bool, b: bool, c: bool, d: bool) -> str:
 def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
                   onboarding: dict, policy: dict | None = None) -> dict:
     """Compare what actually happened with each type's forecast and decide."""
-    policy = policy or common.policy()
-    start, onboarding_year = common.career_years(record)
-    year = common.current_year(review)
+    policy = policy or utilities.policy()
+    start, onboarding_year = utilities.career_years(record)
+    year = utilities.current_year(review)
     market_moves = review_data["market_moves"]
     scenario = detect_scenario(market_moves, forecast, year)
 
@@ -1690,7 +1691,7 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
 
     # Payments outside the normal ranges, or from a country with no link to him
     ranges = onboarding["monitoring_ranges"]
-    linked = {same_country(job.get("country", ""), policy) for job in common.career_positions(record)}
+    linked = {same_country(job.get("country", ""), policy) for job in utilities.career_positions(record)}
     linked |= {same_country(a.get("country", ""), policy) for a in record.get("investments", [])}
     linked |= {same_country(c, policy) for c in record["claims"]["wealth_countries"]}
     unusual = []
@@ -1713,12 +1714,12 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
     total = sum(raw_scores.values())
     scores = {t: round(v / total, 3) if total else round(1 / len(raw_scores), 3) for t, v in raw_scores.items()}
 
-    t1_growth = growth[common.BASELINE_TYPE]
+    t1_growth = growth[utilities.BASELINE_TYPE]
     tolerance = policy["tolerance"]["review_growth"]
     a = not (t1_growth["cautious"] - abs(t1_growth["cautious"]) * tolerance <= actual_growth
              <= t1_growth["optimistic"] + abs(t1_growth["optimistic"]) * tolerance)
-    leader = max(scores, key=lambda t: (scores[t], t == common.BASELINE_TYPE))
-    b = leader != common.BASELINE_TYPE and scores[leader] > scores[common.BASELINE_TYPE]
+    leader = max(scores, key=lambda t: (scores[t], t == utilities.BASELINE_TYPE))
+    b = leader != utilities.BASELINE_TYPE and scores[leader] > scores[utilities.BASELINE_TYPE]
     c = bool(counter_hits)
     d = bool(unusual)
     outcome = decide_review(a, b, c, d)
@@ -1729,16 +1730,16 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
                    f"grows {t1_growth['cautious']:,.0f} to {t1_growth['optimistic']:,.0f}."},
         {"rule_id": "B_OTHER_TYPE_LEADS", "failed": b,
          "detail": f"Highest running score: {leader} ({scores[leader]:.0%}); honest: "
-                   f"{scores[common.BASELINE_TYPE]:.0%}."},
+                   f"{scores[utilities.BASELINE_TYPE]:.0%}."},
         {"rule_id": "C_INCOME_AGAINST_MARKET", "failed": c,
          "detail": "; ".join(f"{h['signal_code']} {h['received']:,.0f} (forecast up to {h['ceiling']:,.0f}) "
                              f"while {', '.join(h['markets_fell'])} fell" for h in counter_hits) or "none"},
         {"rule_id": "D_UNUSUAL_PAYMENTS", "failed": d, "detail": "; ".join(unusual) or "none"},
     ]
-    candidates = [t for t in scores if scores[t] >= scores[common.BASELINE_TYPE]]
+    candidates = [t for t in scores if scores[t] >= scores[utilities.BASELINE_TYPE]]
     documents = []
     if outcome != PASSED and len(candidates) > 1:
-        names = common.vocabulary().get("document_codes", {})
+        names = utilities.vocabulary().get("document_codes", {})
         for document in rank_documents(forecast, candidates)[:policy["max_documents"]]:
             documents.append({"document_code": document["document_code"],
                               "document": names.get(document["document_code"], ""),
@@ -1758,3 +1759,301 @@ def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
         "documents": documents,
         "next_review_date": add_months(review["current_date"], policy["review_interval_months"][outcome]),
     }
+
+# ============================================================================
+# 4. New client from documents (CLI) - turning the AI's reading of the client's
+#    documents into a client record, and finding what's still missing.
+#    Pure functions: no printing, no files, no AI.
+# ============================================================================
+
+COMPOSITION_KEYS = ["property", "listed_equities", "private_business", "cash"]
+PEP_STATUSES = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
+                "Family member / close associate of a PEP"]
+
+
+def _age_from_birth(date_of_birth, today: str) -> int | None:
+    """Whole years between date_of_birth and today, or None if either can't be read."""
+    try:
+        born = datetime.date.fromisoformat(str(date_of_birth))
+        day = datetime.date.fromisoformat(today)
+    except (TypeError, ValueError):
+        return None
+    age = day.year - born.year - ((day.month, day.day) < (born.month, born.day))
+    return age if 0 < age < 130 else None
+
+
+def _blank(value) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip()) or value == []
+
+
+def record_from_documents(extracted: dict, client_ref: str, today: str) -> tuple[dict, list[str]]:
+    """Build a client record (the same layout the New Client form saves) from the AI's
+    reading of the documents. Returns (record, paths of the fields that came from the documents).
+
+    Every job, including the current one (end_year None), goes into career_history;
+    finish_document_record then copies the current job into "career".
+    """
+    client = extracted.get("client") or {}
+    claims = extracted.get("claims") or {}
+    composition = extracted.get("composition") or {}
+
+    jobs = [{key: job.get(key) for key in ("start_year", "end_year", "occupation", "seniority", "industry",
+                                           "employer_name", "employer_size", "country")}
+            for job in extracted.get("jobs") or []]
+    if not jobs:   # always at least one (current) job, so its details get asked for
+        jobs = [{"start_year": None, "end_year": None, "occupation": None, "seniority": None,
+                 "industry": None, "employer_name": None, "employer_size": None,
+                 "country": client.get("country_of_residence")}]
+
+    investments = []
+    for asset in extracted.get("assets") or []:
+        investments.append({
+            "asset_type": asset.get("asset_type"), "asset_description": asset.get("asset_type"),
+            "country": asset.get("country"), "year_acquired": asset.get("year_acquired"),
+            "price_paid": asset.get("price_paid_sgd"), "payment_method": asset.get("payment_method"),
+            "year_sold": None, "sale_price": None,
+            "current_value": asset.get("current_declared_value_sgd"),
+            "yearly_income": asset.get("income_produced_sgd"), "currency": "SGD",
+        })
+
+    split = {key: composition.get(key) for key in COMPOSITION_KEYS}
+    if all(isinstance(v, (int, float)) for v in split.values()):
+        split = {key: value / 100 for key, value in split.items()}    # AI gives percentages
+
+    age = client.get("age") or _age_from_birth(client.get("date_of_birth"), today)
+    record = {
+        "client_ref": client_ref,
+        "name": client.get("name"),
+        "nationality": client.get("nationality"),
+        "current_date": today,
+        "career": {"country_of_residence": client.get("country_of_residence"), "age": age},
+        "career_history": jobs,
+        "investments": investments,
+        "claims": {
+            "declared_net_worth": claims.get("declared_net_worth_sgd"),
+            "expected_aum": claims.get("expected_aum_sgd"),
+            "pep_status": claims.get("pep_status"),
+            "wealth_countries": list(claims.get("wealth_countries") or []),
+            "asset_composition": split,
+            "biggest_wealth_jump": claims.get("biggest_wealth_jump_sgd"),
+            "wealth_jump_years": claims.get("wealth_jump_years"),
+            "declared_counterparties": list(claims.get("declared_counterparties") or []),
+        },
+        "sow_declaration": extracted.get("sow_declaration"),
+        "reviews": [],
+        "supporting_documents": [],
+    }
+    found = [".".join(str(part) for part in item["path"])
+             for item in _required_fields(record) if not _missing(record, item)]
+    return record, found
+
+
+def get_path(record: dict, path: list):
+    """The value at path (e.g. ["career_history", 0, "start_year"]), or None if it isn't there."""
+    value = record
+    for part in path:
+        if isinstance(value, dict):
+            value = value.get(part)
+        elif isinstance(value, list) and isinstance(part, int) and 0 <= part < len(value):
+            value = value[part]
+        else:
+            return None
+    return value
+
+
+def set_path(record: dict, path: list, value) -> dict:
+    """Return a copy of record with the value at path replaced."""
+    new = copy.deepcopy(record)
+    target = new
+    for part in path[:-1]:
+        target = target[part]
+    target[path[-1]] = value
+    return new
+
+
+def _field(path: list, short: str, kind: str, group: str = "", label: str = "") -> dict:
+    """One form field. label is the full question (when asking); short + group are for the summary."""
+    return {"path": path, "short": short, "kind": kind, "group": group,
+            "label": label or (f"{group}: {short}" if group else short)}
+
+
+def _job_group(i: int, job: dict) -> str:
+    years = f"{job.get('start_year') or '?'}-{job.get('end_year') or 'present'}"
+    return f"Job {i + 1}: {job.get('occupation') or 'job'} at {job.get('employer_name') or 'unknown employer'} ({years})"
+
+
+def _asset_group(i: int, asset: dict) -> str:
+    return f"Asset {i + 1}: {asset.get('asset_type') or 'asset'}"
+
+
+def _required_fields(record: dict) -> list[dict]:
+    """Every field the New Client form insists on, with how it should be asked for."""
+    fields = [
+        _field(["name"], "Full name", "words"),
+        _field(["nationality"], "Nationality", "words"),
+        _field(["career", "country_of_residence"], "Country of residence", "words"),
+        _field(["career", "age"], "Age", "age"),
+    ]
+    for i, job in enumerate(record.get("career_history", [])):
+        group = _job_group(i, job)
+        fields += [
+            _field(["career_history", i, "start_year"], "start year", "year", group),
+            _field(["career_history", i, "occupation"], "job title", "label", group),
+            _field(["career_history", i, "seniority"], "seniority", "label", group),
+            _field(["career_history", i, "industry"], "industry", "label", group),
+            _field(["career_history", i, "employer_name"], "employer", "label", group),
+            _field(["career_history", i, "employer_size"], "employer size", "text", group,
+                   f"{group}: employer size (e.g. 1,000-5,000 employees)"),
+            _field(["career_history", i, "country"], "country", "words", group),
+        ]
+    for i, asset in enumerate(record.get("investments", [])):
+        group = _asset_group(i, asset)
+        fields += [
+            _field(["investments", i, "country"], "country", "words", group),
+            _field(["investments", i, "year_acquired"], "year acquired", "year", group),
+            _field(["investments", i, "price_paid"], "price paid (SGD)", "money_positive", group),
+            _field(["investments", i, "payment_method"], "how it was paid for", "payment", group),
+            _field(["investments", i, "current_value"], "current value (SGD)", "money", group),
+            _field(["investments", i, "yearly_income"], "yearly income (SGD)", "money", group,
+                   f"{group}: yearly income (SGD, 0 if none)"),
+        ]
+    fields += [
+        _field(["claims", "declared_net_worth"], "Declared net worth (SGD)", "money_positive"),
+        _field(["claims", "expected_aum"], "Expected assets to be managed by the bank (SGD)", "money_positive"),
+        _field(["claims", "pep_status"], "PEP status", "pep"),
+        _field(["claims", "wealth_countries"], "Countries where wealth was generated", "countries",
+               label="Countries where wealth was generated (comma-separated)"),
+        _field(["claims", "asset_composition"], "Asset composition", "composition",
+               label="Asset composition (must add up to 100%)"),
+        _field(["sow_declaration"], "Source of wealth declaration", "sow"),
+    ]
+    return fields
+
+
+def _missing(record: dict, field: dict) -> bool:
+    value = get_path(record, field["path"])
+    kind = field["kind"]
+    if kind == "composition":
+        split = value or {}
+        values = [split.get(key) for key in COMPOSITION_KEYS]
+        return any(not isinstance(v, (int, float)) for v in values) or abs(sum(values) - 1.0) > 0.005
+    if kind == "sow":
+        return _blank(value) or len(str(value).strip()) < 50
+    if kind == "payment":
+        return value not in ("cash", "loan", "asset_sale")
+    if kind == "pep":
+        return _blank(value)
+    return _blank(value)
+
+
+def missing_client_fields(record: dict) -> list[dict]:
+    """The required fields still empty (or unusable) after reading the documents, in form order."""
+    return [field for field in _required_fields(record) if _missing(record, field)]
+
+
+def finish_document_record(record: dict) -> dict:
+    """Copy the current job (the one with no end year) into "career", and the first job's start year
+    into career_start_year - the same layout the New Client form saves."""
+    record = copy.deepcopy(record)
+    jobs = record.get("career_history", [])     # kept in document order so the summary lines up
+    current = next((job for job in reversed(jobs) if job.get("end_year") in (None, "")), jobs[-1] if jobs else {})
+    career = record.setdefault("career", {})
+    for key in ("occupation", "seniority", "industry", "employer_name", "employer_size"):
+        career[key] = current.get(key)
+    starts = [job.get("start_year") for job in jobs if isinstance(job.get("start_year"), int)]
+    career["career_start_year"] = min(starts) if starts else None
+    return record
+
+
+def check_document_record(record: dict, today: str) -> list[str]:
+    """Things worth a second look in a record filled from documents. Empty list = nothing spotted."""
+    warnings = []
+    this_year = int(today[:4])
+    age = record.get("career", {}).get("age")
+    start = record.get("career", {}).get("career_start_year")
+    if isinstance(age, int) and isinstance(start, int) and start < this_year - age + 14:
+        warnings.append(f"Career start year {start} means the client started work before age 14.")
+    for i, job in enumerate(record.get("career_history", []), start=1):
+        s, e = job.get("start_year"), job.get("end_year")
+        if isinstance(s, int) and isinstance(e, int) and e < s:
+            warnings.append(f"Job {i} ends ({e}) before it starts ({s}).")
+        if isinstance(s, int) and s > this_year:
+            warnings.append(f"Job {i} starts in the future ({s}).")
+    open_jobs = [job for job in record.get("career_history", []) if job.get("end_year") in (None, "")]
+    if len(open_jobs) > 1:
+        warnings.append(f"{len(open_jobs)} jobs have no end year; only one should be the current job.")
+    for i, asset in enumerate(record.get("investments", []), start=1):
+        year = asset.get("year_acquired")
+        if isinstance(year, int) and isinstance(start, int) and year < start:
+            warnings.append(f"Asset {i} was bought in {year}, before the client's career started ({start}).")
+    claims = record.get("claims", {})
+    worth, aum = claims.get("declared_net_worth"), claims.get("expected_aum")
+    if isinstance(worth, (int, float)) and isinstance(aum, (int, float)) and aum > worth:
+        warnings.append("Expected assets with the bank are more than the declared net worth.")
+    held = sum(a.get("current_value") or 0 for a in record.get("investments", [])
+               if isinstance(a.get("current_value"), (int, float)))
+    if isinstance(worth, (int, float)) and held > worth * 1.2:
+        warnings.append(f"The listed assets are worth {held:,.0f}, well above the declared net worth {worth:,.0f}.")
+    return warnings
+
+
+def _optional_fields(record: dict) -> list[dict]:
+    """Fields shown in the summary that the form doesn't insist on."""
+    fields = [_field(["career_history", i, "end_year"], "end year (blank = current job)", "year", _job_group(i, job))
+              for i, job in enumerate(record.get("career_history", []))]
+    return fields + [
+        _field(["claims", "biggest_wealth_jump"], "Biggest single-period wealth increase (SGD)", "money"),
+        _field(["claims", "wealth_jump_years"], "Over how many years", "money"),
+        _field(["claims", "declared_counterparties"], "Known counterparties", "countries"),
+    ]
+
+
+SUMMARY_SECTIONS = {"name": "Client", "nationality": "Client", "career": "Client",
+                    "career_history": "Career history", "investments": "Assets",
+                    "claims": "Financial claims", "sow_declaration": "Source of wealth declaration"}
+
+
+def summarise_document_record(record: dict, doc_record: dict) -> list[dict]:
+    """One row per field for the officer to check: its value and where it came from.
+
+    source: "documents" (read from the documents, unchanged), "edited" (read from the documents,
+    then changed by the officer), "entered" (typed by the officer) or "blank".
+    """
+    rows = []
+    fields = _required_fields(record) + _optional_fields(record)
+    order = {name: i for i, name in enumerate(SUMMARY_SECTIONS.values())}
+    for field in fields:
+        value = get_path(record, field["path"])
+        from_docs = get_path(doc_record, field["path"])
+        if _blank(value) or (field["kind"] == "composition" and _missing(record, field)):
+            source = "blank"
+        elif _blank(from_docs) or (field["kind"] == "composition" and _missing(doc_record, field)):
+            source = "entered"
+        elif from_docs == value:
+            source = "documents"
+        else:
+            source = "edited"
+        rows.append({"section": SUMMARY_SECTIONS.get(field["path"][0], "Other"), "group": field["group"],
+                     "label": field["short"], "kind": field["kind"], "value": value, "source": source,
+                     "path": field["path"]})
+    rows.sort(key=lambda row: (order.get(row["section"], 99),
+                              row["path"][1] if len(row["path"]) > 2 and isinstance(row["path"][1], int) else -1))
+    return rows
+
+
+CAREER_JOB_KEYS = ["occupation", "seniority", "industry", "employer_name", "employer_size"]
+
+
+def sync_after_edit(before: dict, after: dict) -> dict:
+    """After the officer edits the record, keep "career" and the current job in career_history the same.
+    If the profile screen changed "career", copy that into the current job; otherwise copy the
+    (possibly edited) current job into "career"."""
+    after = copy.deepcopy(after)
+    jobs = after.get("career_history", [])
+    open_jobs = [i for i, job in enumerate(jobs) if job.get("end_year") in (None, "")]
+    changed = any((before.get("career") or {}).get(k) != (after.get("career") or {}).get(k)
+                  for k in CAREER_JOB_KEYS)
+    if changed and open_jobs:
+        for key in CAREER_JOB_KEYS:
+            jobs[open_jobs[-1]][key] = after["career"].get(key)
+    return finish_document_record(after)

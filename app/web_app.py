@@ -26,6 +26,7 @@ and validate_case() (from io_manager) checks the result before anything is saved
  
 import datetime
 import io
+import logging
 import os
 import shutil
 import tempfile
@@ -41,7 +42,7 @@ from flask import (Flask, abort, flash, jsonify, redirect, render_template,
 from jinja2 import DictLoader
 from werkzeug.utils import secure_filename
 
-from app import ai_manager, logic_manager, common
+from app import ai_manager, logic_manager, utilities
 from app.data_manager import (
     save_case_record,
     load_all_records,
@@ -57,11 +58,20 @@ from app.data_manager import (
     load_assessment as _load_assessment,
     load_client_assessments,
     load_assessment_by_id,
+    read_document_for_extraction,
 )
 from app.io_manager import generate_client_id, validate_case, _number, show_crime_scan_result, show_benchmark_result, show_onboarding
 
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"))
+_log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger().addHandler(_log_handler)
+
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
+app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024   # uploads for auto-fill: 40 MB per request
 
 ASSESS_STEPS = [
     "Fetching sector research reports",
@@ -434,9 +444,178 @@ def check_record(record: dict) -> list:
  
  
 # ============================================================================
+# Auto-fill from uploaded documents
+# ============================================================================
+
+# AI reply key -> form key, where they differ (the AI's money fields say they're in SGD)
+_AI_ASSET_KEYS = {"price_paid_sgd": "price_paid",
+                  "current_declared_value_sgd": "current_declared_value",
+                  "income_produced_sgd": "income_produced"}
+_AI_CLAIM_KEYS = {"declared_net_worth_sgd": "declared_net_worth",
+                  "expected_aum_sgd": "expected_aum",
+                  "biggest_wealth_jump_sgd": "biggest_wealth_jump"}
+
+
+def _age_on(date_of_birth, on_date: str):
+    """Age in whole years on on_date, or None if either date can't be read."""
+    try:
+        born = datetime.date.fromisoformat(str(date_of_birth))
+        day = datetime.date.fromisoformat(on_date) if on_date else datetime.date.today()
+    except ValueError:
+        return None
+    age = day.year - born.year - ((day.month, day.day) < (born.month, born.day))
+    return age if 0 < age < 130 else None
+
+
+def extracted_to_values(extracted: dict, current_date: str = "") -> dict:
+    """The AI's document details as form text, in the same shape values_from_form gives."""
+    client = dict(extracted.get("client") or {})
+    if not client.get("age") and client.get("date_of_birth"):
+        client["age"] = _age_on(client["date_of_birth"], current_date)
+
+    claims = {_AI_CLAIM_KEYS.get(key, key): value
+              for key, value in (extracted.get("claims") or {}).items()}
+    if claims.get("declared_counterparties"):
+        claims["declared_counterparties"] = ", ".join(claims["declared_counterparties"])
+
+    composition = extracted.get("composition") or {}
+    raw = {
+        "client": client,
+        "jobs": extracted.get("jobs") or [],
+        "assets": [{_AI_ASSET_KEYS.get(key, key): value for key, value in asset.items()}
+                   for asset in extracted.get("assets") or []],
+        # the form stores fractions; the AI gives percentages
+        "composition": {key: (value / 100 if isinstance(value, (int, float)) else None)
+                        for key, value in composition.items()},
+        "claims": claims,
+        "sow": {"sow_declaration": extracted.get("sow_declaration")},
+    }
+    values = {}
+    for prefix, title, fields, kind in SECTIONS:
+        if kind == "dict":
+            values[prefix] = {key: to_text(k, raw[prefix].get(key)) for key, label, k in fields}
+        else:
+            rows = [{key: to_text(k, item.get(key)) for key, label, k in fields} for item in raw[prefix]]
+            values[prefix] = [row for row in rows if any(row.values())]
+    return values
+
+
+def _same_entry(prefix: str, a: dict, b: dict) -> bool:
+    """Is this extracted job / asset already on the form?"""
+    def norm(text):
+        return " ".join(str(text or "").lower().split())
+    if prefix == "jobs":
+        return (norm(a.get("employer_name")) == norm(b.get("employer_name"))
+                and norm(a.get("start_year")) == norm(b.get("start_year")))
+    return (norm(a.get("asset_type")) == norm(b.get("asset_type"))
+            and norm(a.get("year_acquired")) == norm(b.get("year_acquired")))
+
+
+def fill_blanks(values: dict, found: dict) -> tuple[dict, list[str]]:
+    """Put the document details into the form without overwriting anything typed.
+
+    Single boxes are filled only when empty. Jobs and assets found in the documents
+    are added unless the same one is already there; empty entries are filled first.
+    The wealth split is filled only if all four boxes are empty, so it still adds up.
+    Returns (new values, input names that were filled) so the form can highlight them.
+    """
+    merged = {prefix: (dict(section) if isinstance(section, dict) else [dict(r) for r in section])
+              for prefix, section in values.items()}
+    filled = []
+    for prefix, title, fields, kind in SECTIONS:
+        new = found.get(prefix)
+        if not new:
+            continue
+        if kind == "dict":
+            current = merged.setdefault(prefix, {})
+            if prefix == "composition" and any(current.get(f[0]) for f in fields):
+                continue
+            for key, label, k in fields:
+                if new.get(key) and not current.get(key):
+                    current[key] = new[key]
+                    filled.append(f"{prefix}.{key}")
+            continue
+
+        rows = [row for row in merged.get(prefix, []) if any(row.values())]
+        for row in new:
+            if any(_same_entry(prefix, row, existing) for existing in rows):
+                continue
+            rows.append(row)
+            index = len(rows) - 1
+            filled.extend(f"{prefix}.{index}.{key}" for key, value in row.items() if value)
+        if prefix == "jobs":   # keep the oldest job first, like the saved record
+            order = sorted(range(len(rows)), key=lambda i: rows[i].get("start_year") or "9999")
+            remap = {f"{prefix}.{old}.": f"{prefix}.{new}." for new, old in enumerate(order)}
+            filled = [next((name.replace(o, n, 1) for o, n in remap.items() if name.startswith(o)), name)
+                      for name in filled]
+            rows = [rows[i] for i in order]
+        merged[prefix] = rows
+    return merged, filled
+
+
+def _is_stored_document(file_id: str) -> bool:
+    """Only accept document references this app made (a local copy or a GridFS id)."""
+    file_id = str(file_id or "")
+    if len(file_id) == 24 and all(c in "0123456789abcdef" for c in file_id.lower()):
+        return True
+    return file_id.startswith("data/documents/") and ".." not in file_id and "\\" not in file_id
+
+
+def pending_documents(form) -> list[dict]:
+    """Documents uploaded during auto-fill, carried in hidden boxes until the client is saved."""
+    names, ids = form.getlist("doc.file_name"), form.getlist("doc.file_id")
+    return [{"file_name": secure_filename(name) or "document", "file_id": file_id}
+            for name, file_id in zip(names, ids) if _is_stored_document(file_id)]
+
+
+def store_uploads(files) -> tuple[list[dict], list[dict]]:
+    """Keep each uploaded file as a supporting document and read it for the AI.
+    Returns (supporting document entries, documents read for extraction)."""
+    stored, read = [], []
+    for uploaded in files:
+        if not uploaded or not uploaded.filename:
+            continue
+        name = secure_filename(uploaded.filename) or "document"
+        folder = tempfile.mkdtemp()
+        try:
+            path = os.path.join(folder, name)
+            uploaded.save(path)
+            read.append(read_document_for_extraction(path, name))
+            file_id = upload_supporting_document(path)
+            if file_id is not None:
+                stored.append({"file_name": name, "file_id": file_id})
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+    return stored, read
+
+
+def autofill_form(heading: str, form, files):
+    """Read the uploaded documents and show the form again with the blanks filled in."""
+    values = values_from_form(form)
+    documents = pending_documents(form)
+    stored, read = store_uploads(files)
+    documents += stored
+    if not read:
+        return show_form(heading, values, ["Choose at least one document to read."], documents=documents)
+
+    extracted, warnings = ai_manager.extract_client_details(read)
+    filled, notes = [], list(warnings)
+    if extracted is not None:
+        found = extracted_to_values(extracted, values["client"].get("current_date", ""))
+        values, filled = fill_blanks(values, found)
+        notes += extracted.get("notes") or []
+    if extracted is not None and filled:
+        flash(f"Read {len(read)} document(s) and filled {len(filled)} box(es), highlighted in yellow. "
+              "Check every highlighted value before saving.")
+    elif extracted is not None:
+        flash("The documents were read, but nothing new was found to fill in.")
+    return show_form(heading, values, [], documents=documents, autofilled=filled, notes=notes)
+
+
+# ============================================================================
 # Helpers
 # ============================================================================
- 
+
 def get_record(client_ref: str):
     """Find one client record by reference. Returns None if not found."""
     for record in load_all_records():
@@ -445,22 +624,18 @@ def get_record(client_ref: str):
     return None
  
  
-def show_form(heading: str, values: dict, problems: list, field_errors: dict = None):
+def show_form(heading: str, values: dict, problems: list, field_errors: dict = None,
+              documents: list | None = None, autofilled: list | None = None,
+              notes: list | None = None):
     return render_template("client_form.html", heading=heading, values=values,
                            problems=problems, SECTIONS=SECTIONS,
-                           field_errors=field_errors or {})
+                           field_errors=field_errors or {}, documents=documents or [],
+                           autofilled=autofilled or [], notes=notes or [])
 
 
 # ============================================================================
 # Assessment helpers
 # ============================================================================
-
-def _whole_number(value):
-    try:
-        return int(float(str(value).replace(",", "").replace("%", "").strip()))
-    except (TypeError, ValueError):
-        return None
-
 
 def _crime_scan_input(record):
     career = record.get("career") or {}
@@ -477,7 +652,7 @@ def _crime_scan_input(record):
 
 
 def _run_crime_scan(case_input):
-    policy = common.policy()
+    policy = utilities.policy()
     research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
@@ -503,11 +678,11 @@ def _run_benchmark(record, case_input):
     nw     = claims.get("declared_net_worth") or 0
     benchmark_input = {
         **case_input,
-        "declared_net_worth":      _whole_number(nw),
-        "listed_equities":         _whole_number((comp.get("listed_equities") or 0) * nw),
-        "cash":                    _whole_number((comp.get("cash") or 0) * nw),
-        "property":                _whole_number((comp.get("property") or 0) * nw),
-        "private_business":        _whole_number((comp.get("private_business") or 0) * nw),
+        "declared_net_worth":      utilities.whole_number(nw),
+        "listed_equities":         utilities.whole_number((comp.get("listed_equities") or 0) * nw),
+        "cash":                    utilities.whole_number((comp.get("cash") or 0) * nw),
+        "property":                utilities.whole_number((comp.get("property") or 0) * nw),
+        "private_business":        utilities.whole_number((comp.get("private_business") or 0) * nw),
         "biggest_wealth_jump":     claims.get("biggest_wealth_jump"),
         "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
         "declared_counterparties": claims.get("declared_counterparties", []),
@@ -529,7 +704,7 @@ def _run_assessment_job(job_id, client_ref, record):
 
     try:
         case_input = _crime_scan_input(record)
-        policy = common.policy()
+        policy = utilities.policy()
 
         step(1)
         research, _ = ai_manager.get_ai_research(case_input)
@@ -635,22 +810,36 @@ def find():
     return redirect(url_for("home"))
  
  
+def _documents_on_save(form, files) -> list[dict]:
+    """Documents to attach when the form is saved: ones kept from auto-fill, plus any
+    files chosen in the upload box without pressing "Read documents"."""
+    stored, _ = store_uploads(files)
+    return pending_documents(form) + stored
+
+
 @app.route("/client/new", methods=["GET", "POST"])
 def new_client():
     if request.method == "POST":
         values = values_from_form(request.form)
+        documents = _documents_on_save(request.form, request.files.getlist("autofill_files"))
         record, problems, field_errors = build_record(values, generate_client_id())
         if not problems:
             problems = check_record(record)
             field_errors = {}
         if not problems:
+            record["supporting_documents"] = documents
             if save_case_record(record):
                 flash("Client saved.")
                 return redirect(url_for("view_client", client_ref=record["client_ref"]))
             problems = ["The client could not be saved. Check the database connection."]
-        return show_form("New client", values, problems, field_errors)
+        return show_form("New client", values, problems, field_errors, documents=documents)
  
     return show_form("New client", values_from_record({"current_date": today()}), [])
+
+
+@app.route("/client/new/autofill", methods=["POST"])
+def new_client_autofill():
+    return autofill_form("New client", request.form, request.files.getlist("autofill_files"))
  
  
 @app.route("/client/<client_ref>")
@@ -691,18 +880,29 @@ def edit_client(client_ref):
  
     if request.method == "POST":
         values = values_from_form(request.form)
+        documents = _documents_on_save(request.form, request.files.getlist("autofill_files"))
         record, problems, field_errors = build_record(values, client_ref, old)
         if not problems:
             problems = check_record(record)
             field_errors = {}
         if not problems:
+            known = {d.get("file_id") for d in record.get("supporting_documents", [])}
+            record["supporting_documents"] = list(record.get("supporting_documents", [])) + [
+                d for d in documents if d["file_id"] not in known]
             if save_case_record(record):
                 flash("Changes saved.")
                 return redirect(url_for("view_client", client_ref=client_ref))
             problems = ["The changes could not be saved. Check the database connection."]
-        return show_form(f"Edit {client_ref}", values, problems, field_errors)
+        return show_form(f"Edit {client_ref}", values, problems, field_errors, documents=documents)
  
     return show_form(f"Edit {client_ref}", values_from_record(old), [])
+
+
+@app.route("/client/<client_ref>/autofill", methods=["POST"])
+def edit_client_autofill(client_ref):
+    if get_record(client_ref) is None:
+        abort(404)
+    return autofill_form(f"Edit {client_ref}", request.form, request.files.getlist("autofill_files"))
  
  
 @app.route("/client/<client_ref>/documents", methods=["POST"])
@@ -743,7 +943,7 @@ def upload_documents(client_ref):
     return redirect(url_for("view_client", client_ref=client_ref))
  
  
-@app.route("/client/<client_ref>/documents/<file_id>")
+@app.route("/client/<client_ref>/documents/<path:file_id>")
 def download_document(client_ref, file_id):
     record = get_record(client_ref)
     if record is None:
@@ -933,6 +1133,10 @@ BASE = """<!doctype html>
   th { color:var(--muted); font-weight:500; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; width:auto; }
   .muted { color:var(--muted); }
   .savebar { position:sticky; bottom:0; background:var(--bg); padding:12px 0; border-top:1px solid var(--line); }
+  .autofill { border-color:#b9d3e6; background:#f5f9fc; }
+  .autofilled { background:#fff8db !important; border-color:#e0c25a !important; }
+  .notes { background:#fff8db; border:1px solid #e9d68f; border-radius:6px; padding:10px 14px; margin-top:12px; font-size:.88rem; }
+  .notes ul { margin:6px 0 0; padding-left:18px; }
   .badge { display:inline-block; font-size:.75rem; font-weight:700; padding:2px 8px; border-radius:12px; letter-spacing:.03em; }
   .badge-pass { background:#d1fae5; color:#065f46; }
   .badge-warn { background:#fef3c7; color:#92400e; }
@@ -1051,7 +1255,51 @@ FORM = """{% extends "base.html" %}
 </div>
 {% endif %}
  
-<form method="post">
+{% if request.endpoint in ('new_client', 'new_client_autofill') %}
+  {% set autofill_url = url_for('new_client_autofill') %}
+  {% set save_url = url_for('new_client') %}
+{% else %}
+  {% set autofill_url = url_for('edit_client_autofill', client_ref=request.view_args.get('client_ref', '')) %}
+  {% set save_url = url_for('edit_client', client_ref=request.view_args.get('client_ref', '')) %}
+{% endif %}
+
+<form method="post" action="{{ save_url }}" enctype="multipart/form-data" id="client-form">
+  <fieldset class="autofill">
+    <legend>Fill in from documents</legend>
+    <p class="muted" style="margin:0 0 10px">
+      Upload the client's documents (CV, payslips, employment letters, tax notices, property deeds,
+      bank or brokerage statements, KYC forms). The AI reads them and fills in the empty boxes below.
+      Nothing you've typed is overwritten, and every filled box is highlighted for you to check.
+    </p>
+    <div class="actions">
+      <input type="file" name="autofill_files" id="autofill-files" multiple
+             accept=".pdf,.docx,.xlsx,.xlsm,.txt,.csv,.md,.json,.png,.jpg,.jpeg,.webp,.gif"
+             style="flex:1; min-width:240px; margin:0">
+      <button type="submit" id="autofill-button" formaction="{{ autofill_url }}" formnovalidate>
+        Read documents &amp; fill in
+      </button>
+    </div>
+    <p id="autofill-status" class="muted" style="display:none; margin:10px 0 0">
+      Reading documents... this can take up to a minute.
+    </p>
+    {% if documents %}
+    <p style="margin:12px 0 4px; font-size:.88rem"><strong>Attached to this client when saved:</strong></p>
+    <ul style="margin:0; padding-left:18px; font-size:.88rem">
+      {% for d in documents %}
+      <li>{{ d.file_name }}
+        <input type="hidden" name="doc.file_name" value="{{ d.file_name }}">
+        <input type="hidden" name="doc.file_id" value="{{ d.file_id }}"></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if notes %}
+    <div class="notes">
+      <strong>Notes from reading the documents</strong>
+      <ul>{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+  </fieldset>
+
   {% for prefix, title, fields, kind in SECTIONS %}
   <fieldset>
     <legend>{{ title }}</legend>
@@ -1070,7 +1318,7 @@ FORM = """{% extends "base.html" %}
   </fieldset>
   {% endfor %}
  
-  <p class="muted">Supporting documents can be uploaded on the client page after saving.</p>
+  <p class="muted">Files chosen above are kept as supporting documents when you save. More can be added on the client page later.</p>
   <div class="savebar actions">
     <button type="submit">Save client</button>
     <a class="button secondary" href="{{ url_for('home') }}">Cancel</a>
@@ -1101,6 +1349,40 @@ FORM = """{% extends "base.html" %}
     span.style.cssText = "color:#a61b1b;font-size:.79rem;display:block;margin-top:3px";
     span.textContent = msg;
     lbl.appendChild(span);
+  });
+})();
+</script>
+<script>
+(function () {
+  // Highlight the boxes the documents filled in; the highlight clears once the officer edits the box.
+  var filled = {{ autofilled | tojson }};
+  filled.forEach(function (key) {
+    var parts = key.split("."), input;
+    if (parts.length === 3 && /^\\d+$/.test(parts[1])) {
+      input = document.querySelectorAll('[name="' + parts[0] + "." + parts[2] + '"]')[parseInt(parts[1], 10)];
+    } else {
+      input = document.querySelector('[name="' + key + '"]');
+    }
+    if (!input) return;
+    input.classList.add("autofilled");
+    input.title = "Filled in from the uploaded documents - please check";
+    input.addEventListener("input", function () { input.classList.remove("autofilled"); });
+    input.addEventListener("change", function () { input.classList.remove("autofilled"); });
+  });
+
+  var button = document.getElementById("autofill-button");
+  var files = document.getElementById("autofill-files");
+  document.getElementById("client-form").addEventListener("submit", function (event) {
+    if (event.submitter !== button) return;
+    if (!files.files.length) { event.preventDefault(); alert("Choose at least one document first."); return; }
+    button.disabled = true;
+    button.textContent = "Reading...";
+    document.getElementById("autofill-status").style.display = "block";
+    // a disabled submitter isn't sent, so submit through the form action ourselves
+    event.preventDefault();
+    var form = event.target;
+    form.action = button.getAttribute("formaction");
+    form.submit();
   });
 })();
 </script>
@@ -1528,4 +1810,3 @@ app.jinja_env.globals.update(PEP_OPTIONS=PEP_OPTIONS, PAYMENT_OPTIONS=PAYMENT_OP
  
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
-

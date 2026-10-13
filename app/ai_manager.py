@@ -8,15 +8,19 @@ from typing import Any, Callable
 
 import jsonschema
 from dotenv import load_dotenv
+from jsonschema import Draft202012Validator
+from google import genai as google_genai
+from google.genai import types as google_types
+from openai import OpenAI
 
-from app import common
+from app import utilities
 from app.utilities import (
     build_instructions,
     cache_check, cache_dir, cache_write,
     client, extract_json, extract_prompt_version,
-    forecast_model, forecast_settings, has_api_key,
+    forecast_settings, has_api_key,
     load_forecast_schema,
-    load_policy, load_prompt, load_schema,
+    load_prompt, load_schema,
     model,
 )
 
@@ -25,6 +29,35 @@ load_dotenv()  # read the API key and model names from .env
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Shared Functions
+# ---------------------------------------------------------------------------
+# Single entry point for all web search AI calls — tries OpenAI first, falls back to Gemini if OpenAI fails.
+# Gemini grounding requires a paid API key; domain filtering is OpenAI-only.
+def _ai_search_pipeline(
+    prompt: str,
+    schema: dict,
+    domains: list | None = None,
+) -> tuple[str | None, object | None]:
+    research_model = os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4.1-mini")
+    text, response = _openai_search_response(prompt, research_model, schema, domains)
+    if text is not None:
+        logger.info("_ai_search_pipeline: OpenAI search succeeded")
+        return text, response
+    logger.warning("_ai_search_pipeline: OpenAI search failed, falling back to Gemini")
+    gemini_search_model = os.getenv("GEMINI_SEARCH_MODEL", "gemini-3.8-flash")
+    # TODO: test Gemini search grounding end-to-end once Google grounding service is stable
+    return _gemini_search_response(prompt, gemini_search_model, schema, domains)
+
+# Single entry point for all chat completion AI calls — tries OpenAI first, falls back to Gemini if OpenAI fails
+def _ai_chat_completion_pipeline(prompt: str, schema: dict | None = None) -> str | None:
+    result = _openai_completion_response(prompt, model(), schema)
+    if result is not None:
+        logger.info("_ai_chat_completion_pipeline: OpenAI completion succeeded")
+        return result
+    logger.warning("_ai_chat_completion_pipeline: OpenAI failed, falling back to Gemini")
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    return _gemini_completion_response(prompt, gemini_model, schema)
 
 # ============================================================================
 # 1. Shared helpers - used by every section below
@@ -58,7 +91,67 @@ def _openai_completion_response(prompt: str, model: str, schema: dict | None = N
         logger.warning("_openai_completion_response failed: %s", repr(exc))
         return None
 
+# Purely to call Google Gemini chat completion API. Pass schema to enforce JSON output shape; omit for plain JSON mode.
+def _convert_schema_for_gemini(node, unsupported: set | None = None):
+    """Recursively convert a JSON Schema dict into Gemini-compatible schema format.
 
+    Strips unsupported meta-fields (from policy.json) and converts nullable type arrays
+    (e.g. ["string", "null"]) to Gemini's {type, nullable: true} form.
+    """
+    if unsupported is None:
+        unsupported = set(load_policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
+    if isinstance(node, list):
+        return [_convert_schema_for_gemini(item, unsupported) for item in node]
+    if not isinstance(node, dict):
+        return node
+    result = {}
+    for k, v in node.items():
+        if k in unsupported:
+            continue
+        if k == "type" and isinstance(v, list):
+            non_null = [t for t in v if t != "null"]
+            if non_null:
+                result["type"] = non_null[0]
+                result["nullable"] = True
+            continue
+        # properties keys are field names (e.g. "title", "url") — never filter them
+        if k == "properties" and isinstance(v, dict):
+            result["properties"] = {name: _convert_schema_for_gemini(schema, unsupported)
+                                    for name, schema in v.items()}
+            continue
+        result[k] = _convert_schema_for_gemini(v, unsupported)
+    return result
+
+def _gemini_completion_response(prompt: str, model: str, schema: dict | None = None) -> str | None:
+    """
+    Raw Google Gemini API call (chat completion, no web search).
+    If schema is provided, passes it as response_schema to enforce structured output.
+    Otherwise requests plain JSON via response_mime_type only.
+    Returns the response text, or None if the call fails.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning("_gemini_completion_response: GEMINI_API_KEY not set")
+        return None
+    try:
+        gemini_client = google_genai.Client(api_key=api_key)
+        gemini_schema = _convert_schema_for_gemini(schema) if schema else None
+        config = google_types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_schema=gemini_schema,
+        )
+        response = gemini_client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config,
+        )
+        return response.text
+    except Exception as exc:
+        logger.warning("_gemini_completion_response failed: %s", repr(exc))
+        return None
+
+#Purely to call OpenAI Responses API with web search + strict JSON schema output (json_schema works with web_search, json_object does not)
 def _openai_search_response(
     prompt: str,
     model: str,
@@ -95,7 +188,46 @@ def _openai_search_response(
         logger.warning("_openai_search_response failed: %s", repr(exc))
         return None, None
 
+# Purely to call Google Gemini API with Google Search grounding + structured JSON output.
+# Domain filtering is not supported by Gemini — the domains param is accepted for API symmetry but ignored.
+def _gemini_search_response(
+    prompt: str,
+    model: str,
+    schema: dict,
+    domains: list | None = None,
+) -> tuple[str | None, object | None]:
+    """
+    Raw Google Gemini API call with Google Search grounding.
+    Passes schema as response_schema to enforce structured output.
+    Domain filtering is not supported by Gemini — domains param is ignored.
+    Returns (json_text, response_object), or (None, None) if the call fails.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning("_gemini_search_response: GEMINI_API_KEY not set")
+        return None, None
+    if domains:
+        logger.warning("_gemini_search_response: domain filtering not supported by Gemini — searching all sources")
+    try:
+        gemini_client = google_genai.Client(api_key=api_key)
+        gemini_schema = _convert_schema_for_gemini(schema)
+        config = google_types.GenerateContentConfig(
+            temperature=0,
+            tools=[google_types.Tool(google_search=google_types.GoogleSearch())],
+            response_mime_type="application/json",
+            response_schema=gemini_schema,
+        )
+        response = gemini_client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config,
+        )
+        return response.text, response
+    except Exception as exc:
+        logger.warning("_gemini_search_response failed: %s", repr(exc))
+        return None, None
 
+#Shared function that accepts (AI reponse & Schema) checking if the AI output matches the actaul schema
 def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
     """Check an AI reply against a JSON schema. Returns (True, None) or (False, error)."""
     try:
@@ -133,7 +265,7 @@ def get_ai_benchmark(client_data: dict) -> dict | None:
 
     # Step 4: Call the AI, parse, validate, save (2 attempts)
     for attempt in range(2):
-        text = _openai_completion_response(prompt, mdl, schema=schema)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             logger.warning("get_ai_benchmark attempt %d: API call failed", attempt + 1)
             continue
@@ -158,7 +290,7 @@ def get_ai_benchmark(client_data: dict) -> dict | None:
 
 def build_benchmark_payload(client_data: dict) -> dict:
     """Keep only the fields the benchmark AI may see (CLAUDE.md rule 5)."""
-    allowed = load_policy().get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
+    allowed = utilities.policy().get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
     return {k: client_data[k] for k in allowed if k in client_data}
 
 
@@ -167,14 +299,20 @@ def build_benchmark_payload(client_data: dict) -> dict:
 # ============================================================================
 
 def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
-    """Entry point. Returns (research dict or None, warnings)."""
+    """Orchestrate the full research AI flow for a given case input.
+
+    Internally: build payload → cache check → search pipeline (OpenAI first, Gemini fallback) →
+    JSON parse → trim + validate → post-process → return.
+
+    Returns (research_dict | None, warnings).
+    """
     warnings: list[str] = []
 
     # Step 1: Build payload (allowlist only - industry + country)
     payload = build_research_payload(case_input)
 
     # Step 2: Load policy limits, then build prompt + schema
-    policy = load_policy()
+    policy = utilities.policy()
     domains = policy.get("trusted_sources", [])
     max_reports = policy.get("research_max_reports")
     max_excerpts = policy.get("research_max_excerpts_per_report")
@@ -196,16 +334,15 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
     if cached is not None:
         return cached, warnings
 
-    # Step 4: Search, parse, trim, validate, save (1 attempt - web search is expensive)
+    # Step 4: API call + parse + validate + post-process (no retry — web search is expensive)
+    # Uses _ai_search_pipeline: OpenAI Responses API first, Gemini grounding as fallback
     last_error = ""
     error_type = "api"
 
     for attempt in range(1):
         attempt_warnings: list[str] = []
 
-        text, response = _openai_search_response(
-            prompt, mdl, schema=schema, domains=domains,
-        )
+        text, response = _ai_search_pipeline(prompt, schema=schema, domains=domains)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
@@ -242,7 +379,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
 
 def build_research_payload(case_input: dict) -> dict:
     """Keep only the fields the research AI may see. Country falls back to residence."""
-    allowed = load_policy().get("research_allowed_fields", ["industry", "country"])
+    allowed = utilities.policy().get("research_allowed_fields", ["industry", "country"])
     payload = {k: case_input[k] for k in allowed if k in case_input}
     if "country" not in payload:
         payload["country"] = case_input.get("country_of_residence", "Singapore")
@@ -343,10 +480,8 @@ def strip_excerpts(data: dict) -> dict:
     return data
 
 
-# ============================================================================
-# 4. Typologies - ways the client's industry is commonly abused
-# ============================================================================
-
+# TODO: Change name to get_ai_typologies
+# Single entry point for typology AI — main.py calls only this
 def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
     """Entry point. Returns (typologies dict or None, warnings).
 
@@ -355,7 +490,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     warnings: list[str] = []
 
     # Step 1: Load policy limits, then build payload (profile + reports)
-    policy = load_policy()
+    policy = utilities.policy()
     allowed_fields = policy.get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
     report_fields = policy.get("typology_report_fields", ["report_id", "organisation", "title", "year", "summary", "excerpts"])
     max_patterns = policy.get("typology_max_patterns", 5)
@@ -390,7 +525,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     for attempt in range(2):
         attempt_warnings: list[str] = []
 
-        text = _openai_completion_response(prompt, mdl, schema=schema)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
@@ -424,6 +559,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
     return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
 
+# Trim AI response to policy max typologies. Called by get_typologies before schema validation.
 
 def trim_typologies(data: dict, max_patterns: int) -> tuple[dict, list[str]]:
     """Keep at most max_patterns typologies. Returns (data, warnings)."""
@@ -477,6 +613,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
     # Step 3: Reuse a saved answer if there is one
     key, cached = cache_check("declaration", payload, extract_prompt_version(prompt), mdl)
     if cached is not None:
+        logger.info("get_declaration: returning cached result")
         return cached, warnings
 
     # Step 4: Call the AI, parse, validate, save (2 attempts)
@@ -484,7 +621,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
     error_type = "api"
 
     for attempt in range(2):
-        text = _openai_completion_response(prompt, mdl)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
@@ -513,6 +650,95 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
 
     logger.error("get_declaration exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
     return None, ["Declaration AI call failed. This case needs manual review. Details: logs/app.log"]
+
+
+# ============================================================================
+# 5b. Document auto-fill - reads uploaded client documents into form details
+# ============================================================================
+
+# Most documents sent to the AI in one go (each one is a separate part of the message)
+MAX_EXTRACT_DOCUMENTS = 10
+
+
+def build_document_parts(documents: list[dict]) -> list[dict]:
+    """Turn documents read by data_manager.read_document_for_extraction into
+    chat message parts. Text goes between <document> markers so the AI treats it as data."""
+    parts: list[dict] = []
+    for document in documents[:MAX_EXTRACT_DOCUMENTS]:
+        name = document.get("file_name", "document")
+        kind = document.get("kind")
+        if kind == "text":
+            body = wrap_free_text(document.get("text", ""), f'<document name="{name}">', "</document>")
+            parts.append({"type": "text", "text": body})
+        elif kind == "image":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (image below)'})
+            parts.append({"type": "image_url", "image_url": {
+                "url": f"data:{document['mime']};base64,{document['data_b64']}"}})
+        elif kind == "pdf":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (scanned PDF below)'})
+            parts.append({"type": "file", "file": {
+                "filename": name, "file_data": f"data:application/pdf;base64,{document['data_b64']}"}})
+    return parts
+
+
+def _openai_document_response(prompt: str, parts: list[dict], mdl: str, schema: dict) -> str | None:
+    """Chat call with documents attached (text, images, scanned PDFs). Returns the reply text or None."""
+    try:
+        response = client().chat.completions.create(
+            model=mdl,
+            temperature=0,
+            response_format={"type": "json_schema",
+                             "json_schema": {"name": "document_extract", "schema": schema, "strict": False}},
+            messages=[{"role": "system", "content": prompt},
+                      {"role": "user", "content": parts}],
+        )
+        return response.choices[0].message.content
+    except Exception as exc:
+        logger.warning("_openai_document_response failed: %s", repr(exc))
+        return None
+
+
+def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str]]:
+    """Entry point. Read uploaded documents and return (form details or None, warnings).
+
+    The details follow app/schemas/document_extract.schema.json. Nothing is decided here:
+    the officer reviews every pre-filled value before the client is saved.
+    """
+    warnings = [d["error"] for d in documents if d.get("kind") == "error"]
+    readable = [d for d in documents if d.get("kind") in ("text", "image", "pdf")]
+    if len(readable) > MAX_EXTRACT_DOCUMENTS:
+        warnings.append(f"Only the first {MAX_EXTRACT_DOCUMENTS} documents were read.")
+    if not readable:
+        return None, warnings or ["None of the uploaded files could be read."]
+    if not has_api_key():
+        return None, warnings + ["No OPENAI_API_KEY is set, so documents can't be read automatically."]
+
+    prompt = load_prompt("document_extract.txt")
+    schema = load_schema("document_extract.schema.json")
+    parts = build_document_parts(readable)
+    mdl = model()
+
+    last_error = ""
+    for attempt in range(2):
+        text = _openai_document_response(prompt, parts, mdl, schema)
+        if text is None:
+            last_error = "API call failed"
+            continue
+        try:
+            data = json.loads(extract_json(text))
+        except json.JSONDecodeError as exc:
+            last_error = repr(exc)
+            logger.warning("extract_client_details attempt %d JSON error: %s", attempt + 1, last_error)
+            continue
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            last_error = err or "schema"
+            logger.warning("extract_client_details attempt %d schema error: %s", attempt + 1, last_error)
+            continue
+        return data, warnings
+
+    logger.error("extract_client_details failed: %s", last_error)
+    return None, warnings + ["The documents could not be read automatically. Details: logs/app.log"]
 
 
 # ============================================================================
@@ -562,7 +788,7 @@ def client_facts(record: dict, include_declaration: bool = False) -> dict:
         "current_date": record.get("current_date"),
         "career": record.get("career", {}),
         "career_history": [{"position_index": i, **job}
-                           for i, job in enumerate(common.career_positions(record))],
+                           for i, job in enumerate(utilities.career_positions(record))],
         "assets": [{"asset_index": i, **asset} for i, asset in enumerate(record.get("investments", []))],
         "countries_named_by_client": claims.get("wealth_countries", []),
         "pep_status": claims.get("pep_status"),
@@ -582,7 +808,7 @@ def range_errors(value: Any, where: str = "") -> list[str]:
     """Every {low, typical, high} range must be in order."""
     errors = []
     if isinstance(value, dict):
-        if set(value) == set(common.RANGE_KEYS):
+        if set(value) == set(utilities.RANGE_KEYS):
             if not value["low"] <= value["typical"] <= value["high"]:
                 errors.append(f"{where or '<root>'}: range out of order {value}")
             return errors
@@ -599,8 +825,8 @@ def sort_ranges(value: Any) -> Any:
     The model sometimes labels a negative range back to front; the three numbers are kept,
     only relabelled, so nothing is invented. Same reply in, same result out."""
     if isinstance(value, dict):
-        if set(value) == set(common.RANGE_KEYS):
-            numbers = [value[k] for k in common.RANGE_KEYS]
+        if set(value) == set(utilities.RANGE_KEYS):
+            numbers = [value[k] for k in utilities.RANGE_KEYS]
             if all(isinstance(n, (int, float)) and not isinstance(n, bool) for n in numbers):
                 value["low"], value["typical"], value["high"] = sorted(numbers)
             return value
@@ -779,17 +1005,17 @@ def repair_person_types(data: dict, record: dict, source_records: list[dict]) ->
     years can't overlap its enabler at all is left for check_person_types to reject.
     Same reply in, same repair out, so saved replies give identical results.
     """
-    start, end = common.career_years(record)
-    last_forecast_year = common.future_years(record)[-1]
-    jobs = common.career_positions(record)
+    start, end = utilities.career_years(record)
+    last_forecast_year = utilities.future_years(record)[-1]
+    jobs = utilities.career_positions(record)
     assets = record.get("investments", [])
     sources = {s["source_id"]: s for s in source_records}
     for person_type in data.get("person_types", []):
-        if person_type.get("type_id") == common.BASELINE_TYPE:
+        if person_type.get("type_id") == utilities.BASELINE_TYPE:
             person_type["open_from"], person_type["open_to"] = start, last_forecast_year
             if not person_type.get("rule_out_documents"):
                 # the documents that test the declared story as a whole (policy: NET_WORTH)
-                codes = load_policy().get("breach_documents", {}).get("NET_WORTH") \
+                codes = utilities.policy().get("breach_documents", {}).get("NET_WORTH") \
                     or ["DOC_TAX_RETURNS", "DOC_BANK_STATEMENTS"]
                 person_type["rule_out_documents"] = [{"document_code": c, "also_rules_out": []} for c in codes]
             continue
@@ -799,7 +1025,7 @@ def repair_person_types(data: dict, record: dict, source_records: list[dict]) ->
         job_index = person_type.get("enabled_by_position_index")
         if isinstance(job_index, int) and 0 <= job_index < len(jobs):
             job = jobs[job_index]
-            job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+            job_last = last_forecast_year if not job.get("end_year") else utilities.position_end(job, end)
             windows.append((int(job["start_year"]), job_last))
         asset_index = person_type.get("enabled_by_asset_index")
         if isinstance(asset_index, int) and 0 <= asset_index < len(assets):
@@ -833,15 +1059,15 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
     """
     types = data["person_types"]
     ids = [t["type_id"] for t in types]
-    start, end = common.career_years(record)
-    last_forecast_year = common.future_years(record)[-1]
-    jobs = common.career_positions(record)
+    start, end = utilities.career_years(record)
+    last_forecast_year = utilities.future_years(record)[-1]
+    jobs = utilities.career_positions(record)
     sources = {s["source_id"]: s for s in source_records}
     assets = record.get("investments", [])
     errors = []
 
-    if not ids or ids[0] != common.BASELINE_TYPE:
-        errors.append(f"the first type must be {common.BASELINE_TYPE} (wealth exactly as declared)")
+    if not ids or ids[0] != utilities.BASELINE_TYPE:
+        errors.append(f"the first type must be {utilities.BASELINE_TYPE} (wealth exactly as declared)")
     if len(ids) < 2:
         errors.append("at least one crime type besides the honest one is required")
     settings = forecast_settings()
@@ -854,9 +1080,9 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
     honest_category = settings["honest_category"]
     categories = [t["category"] for t in types]
     if types and categories[0] != honest_category:
-        errors.append(f"{common.BASELINE_TYPE} must use category {honest_category}")
+        errors.append(f"{utilities.BASELINE_TYPE} must use category {honest_category}")
     if honest_category in categories[1:]:
-        errors.append(f"only {common.BASELINE_TYPE} may use category {honest_category}")
+        errors.append(f"only {utilities.BASELINE_TYPE} may use category {honest_category}")
     crime_categories = categories[1:]
     if len(crime_categories) != len(set(crime_categories)):
         errors.append("each crime category may appear only once")
@@ -869,9 +1095,9 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
                           f"open_from <= open_to (got {first}-{last})")
         for document in person_type["rule_out_documents"]:
             errors += _unknown_ids(f"{type_id} also_rules_out", document["also_rules_out"], set(ids))
-        if type_id != common.BASELINE_TYPE and not person_type["rule_out_documents"]:
+        if type_id != utilities.BASELINE_TYPE and not person_type["rule_out_documents"]:
             errors.append(f"{type_id}: list at least one document that would prove this type wrong")
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             # The honest type covers his whole career and every forecast year.
             if (first, last) != (start, last_forecast_year):
                 errors.append(f"{type_id}: open_from/open_to must be {start}-{last_forecast_year}")
@@ -890,7 +1116,7 @@ def check_person_types(data: dict, record: dict, source_records: list[dict]) -> 
                 job = jobs[job_index]
                 job_first = int(job["start_year"])
                 # A job he still holds can carry the crime into the forecast years; a past job can't.
-                job_last = last_forecast_year if not job.get("end_year") else common.position_end(job, end)
+                job_last = last_forecast_year if not job.get("end_year") else utilities.position_end(job, end)
                 if not job_first <= first <= job_last:
                     errors.append(f"{type_id}: open_from {first} must fall while job {job_index} was held "
                                   f"({job_first}-{job_last})")
@@ -977,7 +1203,7 @@ def check_type_behaviour(data: dict, type_id: str, start: int, end: int,
             errors.append(f"{signal['signal_code']}: amount_per_year is 0; give the money this activity "
                           f"would really show in his account each year (in SGD)")
     salary_signal = forecast_settings()["honest_required_signal"]
-    if type_id == common.BASELINE_TYPE and salary_signal not in {s["signal_code"] for s in data["signals"]}:
+    if type_id == utilities.BASELINE_TYPE and salary_signal not in {s["signal_code"] for s in data["signals"]}:
         errors.append(f"the honest type must include his regular salary ({salary_signal}) among its signals")
     return errors
 
@@ -1040,9 +1266,9 @@ def _build_prompt(instructions: str, user_text: str, schema: dict) -> str:
 
 
 #Call forecasting ai name
-def call_ai(call_name: str, prompt_name: str, values: dict, user_data: dict,
-            schema_name: str, check: CheckFunction | None = None,
-            cached_raw: str | None = None, web_search: bool = False) -> dict:
+def run_forecasting(call_name: str, prompt_name: str, values: dict, user_data: dict,
+                    schema_name: str, check: CheckFunction | None = None,
+                    cached_raw: str | None = None, web_search: bool = False) -> dict:
     """Send one forecasting request and return a checked result. Never raises.
 
     call_name    name of this piece (also its key in the saved replies)
@@ -1077,7 +1303,6 @@ def call_ai(call_name: str, prompt_name: str, values: dict, user_data: dict,
         logger.error("%s: %s", call_name, result["error"])
         return result
 
-    mdl = forecast_model()
     prompt = _build_prompt(instructions, json.dumps(user_data, indent=2, ensure_ascii=False), schema)
     max_retries = settings["max_retries"]
     last_errors: list[str] = []
@@ -1090,11 +1315,11 @@ def call_ai(call_name: str, prompt_name: str, values: dict, user_data: dict,
             message += ("\n\nYOUR PREVIOUS ANSWER WAS REJECTED because:\n- " + "\n- ".join(last_errors[:settings["max_errors_sent_back"]])
                         + "\nReturn a complete, corrected JSON object.")
         if web_search:
-            raw, _ = _openai_search_response(message, mdl, schema)
+            raw, _ = _ai_search_pipeline(message, schema)
         else:
-            raw = _openai_completion_response(message, mdl)
+            raw = _ai_chat_completion_pipeline(message, schema)
         if raw is None:
-            result["error"] = "the OpenAI request failed (details in logs/app.log)"
+            result["error"] = "the AI request failed (details in logs/app.log)"
             logger.warning("%s: attempt %d failed", call_name, attempt)
             if attempt < max_retries:
                 time.sleep(settings["retry_wait_seconds"] * attempt)
@@ -1145,7 +1370,7 @@ def _types_brief(types: dict) -> list[dict]:
 def _crime_categories() -> list[dict]:
     """The fixed list of crime categories the AI must choose from (config vocabulary)."""
     return [{"category": code, "description": text}
-            for code, text in common.vocabulary().get("crime_categories", {}).items()]
+            for code, text in utilities.vocabulary().get("crime_categories", {}).items()]
 
 
 # ---- The pipeline: Step 0 + Calls 1-4 ----
@@ -1154,10 +1379,10 @@ def _crime_categories() -> list[dict]:
 
 def read_declaration(record: dict, cache: dict, results: dict) -> dict | None:
     """Step 0: free-text declaration -> structured list of claimed sources."""
-    jobs, assets = len(common.career_positions(record)), len(record.get("investments", []))
-    result = call_ai("step0_declaration", "declaration", {},
-                     client_facts(record, include_declaration=True), "declaration",
-                     lambda data: check_declaration(data, jobs, assets), cache.get("step0_declaration"))
+    jobs, assets = len(utilities.career_positions(record)), len(record.get("investments", []))
+    result = run_forecasting("step0_declaration", "declaration", {},
+                             client_facts(record, include_declaration=True), "declaration",
+                             lambda data: check_declaration(data, jobs, assets), cache.get("step0_declaration"))
     results[result["call"]] = result
     return result["data"] if result["ok"] else None
 
@@ -1165,18 +1390,18 @@ def read_declaration(record: dict, cache: dict, results: dict) -> dict | None:
 def forecast_markets(record: dict, declaration: dict,
                      cache: dict, results: dict) -> dict | None:
     """Call 1: choose the markets, then recall and forecast each one."""
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
               "last_forecast_year": years[-1]}
     web_search = forecast_settings()["web_search"]
 
     # 1a. Which markets matter for this client
     name = "call1_markets.list"
-    listing = call_ai(name, "markets_list", values,
-                      {"client": client_facts(record), "claimed_sources": declaration["claimed_sources"]},
-                      "markets_list", lambda data: check_markets_list(data, years),
-                      cache.get(name), web_search)
+    listing = run_forecasting(name, "markets_list", values,
+                              {"client": client_facts(record), "claimed_sources": declaration["claimed_sources"]},
+                              "markets_list", lambda data: check_markets_list(data, years),
+                              cache.get(name), web_search)
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1186,12 +1411,12 @@ def forecast_markets(record: dict, declaration: dict,
     for market in listing["data"]["relevant_markets"]:
         market_id = market["market_id"]
         name = f"call1_markets.series.{market_id}"
-        piece = call_ai(name, "market_series",
-                        {**values, "market_id": market_id, "market_name": market["name"],
-                         "indicator": market["indicator"]},
-                        {"market": market, "client": client_facts(record)}, "market_series",
-                        lambda data, m=market_id: check_market_series(data, m, list(range(start, end + 1)), years),
-                        cache.get(name), web_search)
+        piece = run_forecasting(name, "market_series",
+                                {**values, "market_id": market_id, "market_name": market["name"],
+                                 "indicator": market["indicator"]},
+                                {"market": market, "client": client_facts(record)}, "market_series",
+                                lambda data, m=market_id: check_market_series(data, m, list(range(start, end + 1)), years),
+                                cache.get(name), web_search)
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1202,25 +1427,25 @@ def forecast_markets(record: dict, declaration: dict,
 def forecast_earnings(record: dict, markets: dict,
                       cache: dict, results: dict) -> dict | None:
     """Call 2: expected pay for every job, future pay, and how each asset behaves."""
-    _, end = common.career_years(record)
-    years = common.future_years(record)
+    _, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     market_ids = set(markets["series"])
     claimed_figure_keys = set(forecast_settings()["claimed_figure_keys"])
     earnings = {"positions": [], "assets": []}
     earlier_pay = []
 
     # 2a. Past pay, one request per job (each one sees the pay from the jobs before it)
-    for index, job in enumerate(common.career_positions(record)):
-        first, last = int(job["start_year"]), common.position_end(job, end)
+    for index, job in enumerate(utilities.career_positions(record)):
+        first, last = int(job["start_year"]), utilities.position_end(job, end)
         name = f"call2_earnings.position.{index}"
-        piece = call_ai(name, "position_pay",
-                        {"position_index": index, "first_year": first, "last_year": last},
-                        {"job": {"position_index": index, **job}, "earlier_pay_typical": earlier_pay,
-                         "markets": _markets_brief(markets),
-                         "market_changes": _market_changes(markets, first, last)},
-                        "position_pay",
-                        lambda data, i=index, y=list(range(first, last + 1)): check_position_pay(data, i, y),
-                        cache.get(name))
+        piece = run_forecasting(name, "position_pay",
+                                {"position_index": index, "first_year": first, "last_year": last},
+                                {"job": {"position_index": index, **job}, "earlier_pay_typical": earlier_pay,
+                                 "markets": _markets_brief(markets),
+                                 "market_changes": _market_changes(markets, first, last)},
+                                "position_pay",
+                                lambda data, i=index, y=list(range(first, last + 1)): check_position_pay(data, i, y),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1230,10 +1455,10 @@ def forecast_earnings(record: dict, markets: dict,
 
     # 2b. Future pay, from his last 3 years of pay and the market outlooks
     name = "call2_earnings.future_pay"
-    piece = call_ai(name, "future_pay", {"forecast_years": _years_text(years)},
-                    {"recent_pay_typical": earlier_pay[-3:], "client": client_facts(record),
-                     "markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets)},
-                    "future_pay", lambda data: check_future_pay(data, years), cache.get(name))
+    piece = run_forecasting(name, "future_pay", {"forecast_years": _years_text(years)},
+                            {"recent_pay_typical": earlier_pay[-3:], "client": client_facts(record),
+                             "markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets)},
+                            "future_pay", lambda data: check_future_pay(data, years), cache.get(name))
     results[name] = piece
     if not piece["ok"]:
         return None
@@ -1243,15 +1468,15 @@ def forecast_earnings(record: dict, markets: dict,
     for index, asset in enumerate(record.get("investments", [])):
         bought = int(asset["year_acquired"])
         name = f"call2_earnings.asset.{index}"
-        piece = call_ai(name, "asset_model",
-                        {"asset_index": index, "bought_year": bought, "end_year": end,
-                         "forecast_years": _years_text(years)},
-                        {"asset": strip_keys({"asset_index": index, **asset}, claimed_figure_keys),
-                         "markets": _markets_brief(markets),
-                         "market_changes": _market_changes(markets, bought, end)},
-                        "asset_model",
-                        lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(data, i, y, market_ids),
-                        cache.get(name))
+        piece = run_forecasting(name, "asset_model",
+                                {"asset_index": index, "bought_year": bought, "end_year": end,
+                                 "forecast_years": _years_text(years)},
+                                {"asset": strip_keys({"asset_index": index, **asset}, claimed_figure_keys),
+                                 "markets": _markets_brief(markets),
+                                 "market_changes": _market_changes(markets, bought, end)},
+                                "asset_model",
+                                lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(data, i, y, market_ids),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1266,26 +1491,26 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
     The types are T1 (honest) plus the standard crime categories his jobs, assets and
     declared sources make possible, each tied to what enables it.
     """
-    start, end = common.career_years(record)
-    years = common.future_years(record)
+    start, end = utilities.career_years(record)
+    years = utilities.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
-              "last_forecast_year": years[-1], "baseline_type": common.BASELINE_TYPE,
+              "last_forecast_year": years[-1], "baseline_type": utilities.BASELINE_TYPE,
               "honest_category": forecast_settings()["honest_category"],
               "max_crime_types": forecast_settings()["max_crime_types"]}
     claimed_sources = declaration["claimed_sources"]
 
     # 3a. The list of types (years are repaired first, then checked)
     name = "call3_types.list"
-    listing = call_ai(name, "person_types", values,
-                      {"client": client_facts(record, include_declaration=True),
-                       "claimed_sources": declaration["claimed_sources"],
-                       "markets": _markets_brief(markets),
-                       "career_outlook": earnings["future_pay"]["career_outlook"],
-                       "crime_categories": _crime_categories()},
-                      "person_types",
-                      lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
-                                                      record, claimed_sources),
-                      cache.get(name))
+    listing = run_forecasting(name, "person_types", values,
+                              {"client": client_facts(record, include_declaration=True),
+                               "claimed_sources": declaration["claimed_sources"],
+                               "markets": _markets_brief(markets),
+                               "career_outlook": earnings["future_pay"]["career_outlook"],
+                               "crime_categories": _crime_categories()},
+                              "person_types",
+                              lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
+                                                              record, claimed_sources),
+                              cache.get(name))
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1294,7 +1519,7 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
     types = {"person_types": listing["data"]["person_types"], "behaviour": {}}
     for person_type in types["person_types"]:
         type_id = person_type["type_id"]
-        if type_id == common.BASELINE_TYPE:
+        if type_id == utilities.BASELINE_TYPE:
             baseline_note = "This is the as-declared type, so its extra money is 0 every year."
         else:
             baseline_note = ("Give only the money this crime ADDS on top of his declared sources, and "
@@ -1302,17 +1527,17 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
                              "source named in enabled_by, at the size that channel could realistically carry.")
         open_years = (person_type["open_from"], person_type["open_to"])
         name = f"call3_types.behaviour.{type_id}"
-        piece = call_ai(name, "type_behaviour",
-                        {**values, "type_id": type_id, "type_name": person_type["name"],
-                         "baseline_note": baseline_note},
-                        {"this_type": person_type, "all_types": _types_brief(types),
-                         "claimed_sources": declaration["claimed_sources"],
-                         "markets": _markets_brief(markets), "client": client_facts(record)},
-                        "type_behaviour",
-                        lambda data, t=type_id, o=open_years: check_type_behaviour(
-                            repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
-                            t, start, end, years, set(markets["series"]), o),
-                        cache.get(name))
+        piece = run_forecasting(name, "type_behaviour",
+                                {**values, "type_id": type_id, "type_name": person_type["name"],
+                                 "baseline_note": baseline_note},
+                                {"this_type": person_type, "all_types": _types_brief(types),
+                                 "claimed_sources": declaration["claimed_sources"],
+                                 "markets": _markets_brief(markets), "client": client_facts(record)},
+                                "type_behaviour",
+                                lambda data, t=type_id, o=open_years: check_type_behaviour(
+                                    repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
+                                    t, start, end, years, set(markets["series"]), o),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1323,18 +1548,18 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
 def forecast_events(record: dict, markets: dict, types: dict,
                     cache: dict, results: dict) -> dict | None:
     """Call 4: specific future events, then how each type would react to them."""
-    years = common.future_years(record)
+    years = utilities.future_years(record)
     settings = forecast_settings()
 
     # 4a. The list of future events
     name = "call4_events.list"
-    listing = call_ai(name, "events",
-                      {"forecast_years": _years_text(years), "min_events": settings["min_events"],
-                       "max_events": settings["max_events"]},
-                      {"markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets),
-                       "person_types": _types_brief(types), "client": client_facts(record)},
-                      "events", lambda data: check_events(data, years, set(markets["series"])),
-                      cache.get(name))
+    listing = run_forecasting(name, "events",
+                              {"forecast_years": _years_text(years), "min_events": settings["min_events"],
+                               "max_events": settings["max_events"]},
+                              {"markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets),
+                               "person_types": _types_brief(types), "client": client_facts(record)},
+                              "events", lambda data: check_events(data, years, set(markets["series"])),
+                              cache.get(name))
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1345,14 +1570,14 @@ def forecast_events(record: dict, markets: dict, types: dict,
     for person_type in types["person_types"]:
         type_id = person_type["type_id"]
         name = f"call4_events.reactions.{type_id}"
-        piece = call_ai(name, "type_reactions",
-                        {"type_id": type_id, "type_name": person_type["name"], "event_ids": ", ".join(event_ids)},
-                        {"this_type": person_type, "its_signals": types["behaviour"][type_id]["signals"],
-                         "events": events["events"]},
-                        "type_reactions",
-                        lambda data, t=type_id: check_type_reactions(repair_type_reactions(data, t, event_ids),
-                                                                     t, event_ids),
-                        cache.get(name))
+        piece = run_forecasting(name, "type_reactions",
+                                {"type_id": type_id, "type_name": person_type["name"], "event_ids": ", ".join(event_ids)},
+                                {"this_type": person_type, "its_signals": types["behaviour"][type_id]["signals"],
+                                 "events": events["events"]},
+                                "type_reactions",
+                                lambda data, t=type_id: check_type_reactions(repair_type_reactions(data, t, event_ids),
+                                                                             t, event_ids),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1418,6 +1643,5 @@ def read_review_notes(review: dict, forecast: dict, cache: dict | None = None) -
     }
     market_ids = set(markets["series"])
     event_ids = {e["event_id"] for e in events}
-    return call_ai(name, "review", {"review_date": review.get("current_date")}, user_data, "review",
-                   lambda data: check_review(data, market_ids, event_ids), (cache or {}).get(name))
-
+    return run_forecasting(name, "review", {"review_date": review.get("current_date")}, user_data, "review",
+                           lambda data: check_review(data, market_ids, event_ids), (cache or {}).get(name))
