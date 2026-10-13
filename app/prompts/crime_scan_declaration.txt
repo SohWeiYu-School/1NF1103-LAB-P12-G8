@@ -12,6 +12,9 @@ Read the Source of Wealth declaration below and extract every wealth source
 into a structured JSON object that conforms to declaration.schema.json.
 Return ONLY the JSON object. Do not include any text outside the JSON.
 
+Client career profile:
+{career_profile}
+
 For each source, extract:
 - source_type: one of employment, business_ownership, property, investment,
   inheritance, gift, other
@@ -22,6 +25,10 @@ For each source, extract:
 - jurisdiction: country code or name (null if not stated)
 - counterparty: employer, buyer, or other party name (null if not stated)
 - evidence_sentence: verbatim sentence from the declaration supporting this source
+- occupation_mismatch: true if this source type is implausible or unusual given
+  the client's stated occupation and industry; false otherwise.
+  Example: a civil servant claiming large "business_ownership" dividends from an
+  offshore entity would be occupation_mismatch: true.
 
 Declaration text:
 {declaration_text}

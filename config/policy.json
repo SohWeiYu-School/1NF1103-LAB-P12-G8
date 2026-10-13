@@ -24,6 +24,9 @@
     "unsupported_inheritance": "Grant of probate and estate distribution schedule"
   },
   "typology_max_patterns": 5,
+  "benchmark_allowed_fields": ["occupation", "industry", "age", "career_start_year", "country"],
+  "research_allowed_fields": ["industry", "country"],
+  "typology_report_fields": ["report_id", "organisation", "title", "year", "summary", "excerpts"],
   "trusted_sources": [
     "fatf-gafi.org",
     "mas.gov.sg",

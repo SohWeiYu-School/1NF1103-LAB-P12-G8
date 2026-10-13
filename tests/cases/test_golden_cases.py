@@ -28,7 +28,7 @@ def _load_golden_cases():
     ids=lambda c: c["_path"],
 )
 def test_golden_case(case):
-    result = logic_manager.assess_case(
+    result = logic_manager.assess_typology_case(
         case["case_input"],
         case["benchmark"],
         case["declaration"],

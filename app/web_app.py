@@ -480,11 +480,11 @@ def _crime_scan_input(record):
 
 def _run_crime_scan(case_input):
     policy = common.policy()
-    research, _ = ai_manager.get_research(case_input)
+    research, _ = ai_manager.get_ai_research(case_input)
     clean_research = None
     if research is not None:
         clean_research, _ = logic_manager.verify_research(research, policy)
-    typology_response, _ = ai_manager.get_typologies(case_input)
+    typology_response, _ = ai_manager.get_typologies(case_input, research)
     if typology_response is not None and clean_research is not None:
         verified_typs, _ = logic_manager.verify_typology_sources(
             typology_response.get("sector_typologies", []), clean_research, policy,
@@ -495,7 +495,7 @@ def _run_crime_scan(case_input):
         declaration, _ = logic_manager.normalize_declaration_jurisdictions(declaration)
     crime_result = None
     if typology_response is not None and declaration is not None:
-        crime_result = logic_manager.assess_case(case_input, typology_response, declaration, policy)
+        crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
     return research, typology_response, declaration, crime_result
 
 
@@ -518,7 +518,7 @@ def _run_benchmark(record, case_input):
     if any(benchmark_input[k] is None for k in
            ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
         return None
-    return logic_manager.run_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
 
 
 def _run_assessment_job(job_id, client_ref, record):
@@ -533,7 +533,7 @@ def _run_assessment_job(job_id, client_ref, record):
         policy = common.policy()
 
         step(1)
-        research, _ = ai_manager.get_research(case_input)
+        research, _ = ai_manager.get_ai_research(case_input)
 
         step(2)
         clean_research = None
@@ -542,7 +542,7 @@ def _run_assessment_job(job_id, client_ref, record):
         time.sleep(4)
 
         step(3)
-        typology_response, _ = ai_manager.get_typologies(case_input)
+        typology_response, _ = ai_manager.get_typologies(case_input, research)
 
         step(4)
         if typology_response is not None and clean_research is not None:
@@ -563,7 +563,7 @@ def _run_assessment_job(job_id, client_ref, record):
         step(7)
         crime_result = None
         if typology_response is not None and declaration is not None:
-            crime_result = logic_manager.assess_case(case_input, typology_response, declaration, policy)
+            crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
             show_crime_scan_result(crime_result, typology_response, research)
         time.sleep(4)
 
@@ -581,7 +581,6 @@ def _run_assessment_job(job_id, client_ref, record):
         if run["ok"]:
             save_forecast(client_ref, run["forecast"])
             forecast_assessment = logic_manager.assess_onboarding(record, run["forecast"])
-            save_forecast_assessment(client_ref, "onboarding", forecast_assessment)
             show_onboarding(forecast_assessment)
 
         step(10)
@@ -606,6 +605,7 @@ def _run_assessment_job(job_id, client_ref, record):
         job["result"] = {
             "record":        record,
             "crime_result":  crime_result,
+            "research":      research,
             "benchmark":     benchmark,
             "forecast":      forecast_assessment,
             "assessment_id": assessment_id,
@@ -676,6 +676,7 @@ def view_assessment(assessment_id):
     return render_template("assess_result.html",
         record=record,
         crime_result=saved.get("crime_result"),
+        research=saved.get("crime_scan", {}).get("research"),
         benchmark=saved.get("benchmark"),
         forecast=saved.get("forecast"),
         assessed_at=saved.get("assessed_at"),
@@ -1211,25 +1212,90 @@ ASSESS_RESULT = """{% extends "base.html" %}
 </div>
 
 {% if crime_result %}
+{% set CAT_COLOR = {'critical': '#7f1d1d', 'high': '#b91c1c', 'medium': '#c2410c', 'partial': '#b45309', 'weak_signal': '#92400e', 'no_match': '#1a7a3f'} %}
+{% set CAT_LABEL = {'critical': 'CRITICAL', 'high': 'HIGH', 'medium': 'MEDIUM', 'partial': 'PARTIAL', 'weak_signal': 'WEAK', 'no_match': 'PASS'} %}
+
+{% if research %}
 <div class="panel">
-  <h2>Crime Scan &nbsp;
-    <span style="font-size:1rem; font-weight:700; color:{{ '#b91c1c' if crime_result.get('breach_count', 0) > 0 else '#1a7a3f' }}">
-      {{ crime_result.get('breach_count', 0) }} typolog{{ 'y' if crime_result.get('breach_count', 0) == 1 else 'ies' }} matched
+  <h2>Research Reports <span class="muted" style="font-size:.9rem; font-weight:400">({{ research.get('reports', []) | length }} retrieved)</span></h2>
+  {% for r in research.get('reports', []) %}
+  <div style="padding:6px 0; border-bottom:1px solid var(--line)">
+    <span style="font-family:monospace; font-weight:700">[{{ r.get('report_id', '?') }}]</span>
+    {{ r.get('organisation', '') }}{% if r.get('year') %} ({{ r.get('year') }}){% endif %}
+    &mdash; <em>{{ r.get('title', '') }}</em>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Typology Results &nbsp;
+    <span style="font-size:1rem; font-weight:700; color:{{ '#b91c1c' if crime_result.get('match_count', 0) > 0 else '#1a7a3f' }}">
+      {{ crime_result.get('match_count', 0) }} of {{ crime_result.get('match_results', []) | length }} matched
     </span>
   </h2>
+
   {% for mr in crime_result.get('match_results', []) %}
-  <div style="padding:8px 0; border-bottom:1px solid var(--line)">
-    <strong>{{ mr.name }}</strong>
-    <span style="margin-left:10px; font-weight:700; color:{{ '#b91c1c' if mr.breached else '#1a7a3f' }}">
-      {{ 'BREACH' if mr.breached else 'PASS' }}
-    </span>
-    {% if mr.core_fired %}
-    <div class="muted" style="font-size:.87rem; margin-top:2px">Fired: {{ mr.core_fired | join(', ') }}</div>
+  {% set cat = mr.get('category', 'no_match') %}
+  {% set cat_color = CAT_COLOR[cat] %}
+  {% set cat_label = CAT_LABEL[cat] %}
+  {% set src_ids = mr.get('source_ids', []) %}
+  {% set all_fired = mr.get('core_fired', []) + mr.get('supporting_fired', []) %}
+
+  <div style="margin-bottom:16px; padding:12px; background:var(--bg2); border-radius:4px; border-left:4px solid {{ cat_color }}">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px">
+      <strong style="font-size:1rem">{{ mr.get('name', mr.get('typology_id', '?')) }}</strong>
+      <span style="font-weight:700; color:{{ cat_color }}; white-space:nowrap; background:{{ cat_color }}22; padding:2px 10px; border-radius:3px; font-size:.9rem">{{ cat_label }}</span>
+    </div>
+    {% if src_ids %}
+    <div class="muted" style="font-size:.82rem; margin-top:4px">Sources: [{{ src_ids | join(', ') }}]</div>
+    {% endif %}
+
+    <table style="margin-top:10px; width:100%; border-collapse:collapse; font-size:.88rem">
+      <thead>
+        <tr style="border-bottom:1px solid var(--line)">
+          <th style="text-align:left; padding:3px 8px 3px 0">Indicator</th>
+          <th style="text-align:left; padding:3px 8px; color:var(--muted)">Weight</th>
+          <th style="text-align:left; padding:3px 0">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ind in mr.get('core_indicators', []) %}
+        {% set fired = ind in mr.get('core_fired', []) %}
+        <tr style="border-bottom:1px solid var(--line)">
+          <td style="padding:4px 8px 4px 0">{{ ind.replace('_', ' ') }}</td>
+          <td style="padding:4px 8px; color:var(--muted)">core</td>
+          <td style="padding:4px 0; font-weight:600; color:{{ '#b91c1c' if fired else 'var(--muted)' }}">{{ 'FIRED' if fired else '—' }}</td>
+        </tr>
+        {% endfor %}
+        {% for ind in mr.get('supporting_indicators', []) %}
+        {% set fired = ind in mr.get('supporting_fired', []) %}
+        <tr style="border-bottom:1px solid var(--line)">
+          <td style="padding:4px 8px 4px 0">{{ ind.replace('_', ' ') }}</td>
+          <td style="padding:4px 8px; color:var(--muted)">supporting</td>
+          <td style="padding:4px 0; font-weight:600; color:{{ '#b45309' if fired else 'var(--muted)' }}">{{ 'FIRED' if fired else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if cat != 'no_match' %}
+    <div style="margin-top:8px; font-size:.85rem; color:{{ cat_color }}; font-weight:600">
+      → {{ cat_label }} match because:
+      {% for f in all_fired %}{{ f.replace('_', ' ') }}{% if not loop.last %}, {% endif %}{% endfor %}
+      fired
+    </div>
     {% endif %}
   </div>
   {% else %}
   <p class="muted">No typologies returned.</p>
   {% endfor %}
+
+  <div class="muted" style="font-size:.85rem; margin-top:4px">
+    Total: {{ crime_result.get('match_results', []) | length }} &nbsp;|&nbsp;
+    Matched: {{ crime_result.get('match_count', 0) }} &nbsp;|&nbsp;
+    Not matched: {{ (crime_result.get('match_results', []) | length) - crime_result.get('match_count', 0) }}
+  </div>
 </div>
 {% else %}
 <div class="panel"><p class="muted">Crime scan could not be completed (check API key).</p></div>
