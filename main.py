@@ -189,7 +189,7 @@ def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None
 # 4. Forecasting
 # ---------------------------------------------------------------------------
 
-def run_forecast(case: dict) -> tuple[dict | None, dict | None]:
+def run_forecast_pipeline(case: dict) -> tuple[dict | None, dict | None]:
     """Forecast and decide one case. Returns (forecast, onboarding assessment)."""
     ref = case["client_ref"]
     cache = data_manager.load_raw_replies(ref)
@@ -304,7 +304,7 @@ def run_case_file(path: str) -> bool:
     if problems:
         io_manager.show_case_problems(path, problems)
         return False
-    forecast, onboarding = run_forecast(case)
+    forecast, onboarding = run_forecast_pipeline(case)
     if forecast is None:
         return False
     if not data_manager.save_forecast_assessment(case["client_ref"], "onboarding", onboarding):
