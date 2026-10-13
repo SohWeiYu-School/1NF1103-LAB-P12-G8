@@ -71,6 +71,7 @@ logging.getLogger().addHandler(_log_handler)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
+
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024   # uploads for auto-fill: 40 MB per request
 
 ASSESS_STEPS = [
@@ -981,6 +982,13 @@ def assess_client(client_ref):
         flash("No API key configured — assessment cannot run.")
         return redirect(url_for("view_client", client_ref=client_ref))
 
+    user_key = request.remote_addr or "unknown"
+    allowed, seconds_left = utilities.check_rate_limit(user_key)
+    if not allowed:
+        flash(f"Rate limit: please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before running another assessment.")
+        return redirect(url_for("view_client", client_ref=client_ref))
+
+    utilities.record_assessment(user_key)
     job_id = uuid.uuid4().hex
     _assessment_jobs[job_id] = {
         "status":     "running",

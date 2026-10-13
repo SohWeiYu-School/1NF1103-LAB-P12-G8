@@ -99,7 +99,7 @@ def _convert_schema_for_gemini(node, unsupported: set | None = None):
     (e.g. ["string", "null"]) to Gemini's {type, nullable: true} form.
     """
     if unsupported is None:
-        unsupported = set(load_policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
+        unsupported = set(utilities.policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
     if isinstance(node, list):
         return [_convert_schema_for_gemini(item, unsupported) for item in node]
     if not isinstance(node, dict):

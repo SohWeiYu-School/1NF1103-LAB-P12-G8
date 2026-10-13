@@ -63,6 +63,10 @@ def show_error(text: str) -> None:
     #Print an error message.
     print(f"[ERROR] {text}")
 
+def show_rate_limit_error(seconds_left: int) -> None:
+    print(f"[RATE LIMIT] Assessment already running or recently completed.")
+    print(f"             Please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before starting another assessment.")
+
 def show_research_output(research_response: dict) -> None:
     """Print a short summary of the research results."""
     reports = research_response.get("reports", [])

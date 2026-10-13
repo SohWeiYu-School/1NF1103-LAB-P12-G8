@@ -5,6 +5,7 @@ so the managers never have to import each other.
 """
 
 import hashlib
+import time
 import json
 import logging
 import os
@@ -335,3 +336,33 @@ def cache_write(key: str, data: dict, kind: str | None = None) -> None:
         os.replace(tmp, path)
     except OSError as exc:
         logger.warning("Cache write failed: %s", exc)
+
+# ---------------------------------------------------------------------------
+# Assessment rate limit — one assessment per cooldown window per user
+# ---------------------------------------------------------------------------
+
+_rate_limit_store: dict[str, float] = {}  # user_key -> timestamp of last assessment
+
+
+def check_rate_limit(user_key: str) -> tuple[bool, int]:
+    """Check whether user_key is allowed to start a new assessment.
+
+    Reads assessment_rate_limit from policy.json.
+    Returns (True, 0) if allowed, or (False, seconds_remaining) if still in cooldown.
+    """
+    config = policy().get("assessment_rate_limit", {})
+    if not config.get("enabled", True):
+        return True, 0
+    cooldown = int(config.get("cooldown_seconds", 60))
+    last = _rate_limit_store.get(user_key)
+    if last is None:
+        return True, 0
+    elapsed = time.time() - last
+    if elapsed >= cooldown:
+        return True, 0
+    return False, int(cooldown - elapsed) + 1
+
+
+def record_assessment(user_key: str) -> None:
+    """Record that user_key has just started an assessment (starts the cooldown clock)."""
+    _rate_limit_store[user_key] = time.time()

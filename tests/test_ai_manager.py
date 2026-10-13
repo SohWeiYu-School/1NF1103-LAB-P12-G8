@@ -760,3 +760,5 @@ def test_research_cache_key_ignores_non_research_fields():
     k1 = _cache_key("research", payload_a, "research-v1", "gpt-4o")
     k2 = _cache_key("research", payload_b, "research-v1", "gpt-4o")
     assert k1 == k2
+
+

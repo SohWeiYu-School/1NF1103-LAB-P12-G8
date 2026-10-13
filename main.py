@@ -448,12 +448,22 @@ def run_menu() -> None:
                 upload_fn=data_manager.upload_supporting_document,
             )
             if client_record is not None:
-                assess_client_record(client_record)
+                allowed, wait = utilities.check_rate_limit("cli")
+                if not allowed:
+                    io_manager.show_rate_limit_error(wait)
+                else:
+                    utilities.record_assessment("cli")
+                    assess_client_record(client_record)
 
         elif choice == "2":
             client_record = new_client_from_documents()
             if client_record is not None:
-                assess_client_record(client_record)
+                allowed, wait = utilities.check_rate_limit("cli")
+                if not allowed:
+                    io_manager.show_rate_limit_error(wait)
+                else:
+                    utilities.record_assessment("cli")
+                    assess_client_record(client_record)
 
         elif choice == "3":
             io_manager.find_existing_client(
@@ -471,7 +481,12 @@ def run_menu() -> None:
             if client_record is None:
                 io_manager.show_error(f"No client found with reference {ref} (or the database can't be reached).")
                 continue
-            assess_client_record(client_record)
+            allowed, wait = utilities.check_rate_limit("cli")
+            if not allowed:
+                io_manager.show_rate_limit_error(wait)
+            else:
+                utilities.record_assessment("cli")
+                assess_client_record(client_record)
 
         elif choice == "5":
             ref = io_manager.ask_client_ref()
