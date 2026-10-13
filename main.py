@@ -66,6 +66,7 @@ def _configure_logging() -> None:
 # 1-2. Sector Crime Scan
 # ---------------------------------------------------------------------------
 
+# Adapts the full client record into the flat dict that the crime scan pipeline expects.
 def crime_scan_input(client_record: dict) -> dict:
     """Map the client record (flat structure) to the crime scan input."""
     career = client_record["career"]
@@ -82,7 +83,8 @@ def crime_scan_input(client_record: dict) -> dict:
     }
 
 
-def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | None]:
+# Orchestrates the full crime scan: research → verify → typologies → declaration → match → display.
+def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None, dict | None]:
     """Research, verify, match typologies and parse declaration. Returns (research, typologies, declaration)."""
     policy = _load_json(os.path.join(_BASE, "config", "policy.json"))
 
@@ -138,18 +140,12 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
     return research, typology_response, declaration
 
 
-def _run_sample_assessment() -> None:
-    """Crime scan of the hardcoded sample client (python main.py --crime-scan-sample)."""
-    raw = _load_json(SAMPLE_CLIENT_PATH)
-    case_input = crime_scan_input(raw)
-    run_crime_scan(case_input)
-
-
 # ---------------------------------------------------------------------------
 # 3. Benchmark
 # ---------------------------------------------------------------------------
 
-def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
+# Orchestrates the benchmark: builds input, calls AI for expected values, runs logic checks, returns findings.
+def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None:
     """The benchmark check on the declared net worth and asset split."""
     claims = client_record.get("claims", {})
     comp   = claims.get("asset_composition", {})
@@ -185,8 +181,8 @@ def run_benchmark_for(client_record: dict, case_input: dict) -> dict | None:
     if unreadable:
         io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
         return None
-    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
-
+    ai_data = ai_manager.get_ai_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data)
 
 # ---------------------------------------------------------------------------
 # 4. Forecasting
@@ -207,8 +203,6 @@ def assess_case(case: dict, client: ai_manager.AIClient) -> tuple[dict | None, d
 
     data_manager.save_forecast(ref, run["forecast"])
     assessment = logic_manager.assess_onboarding(case, run["forecast"])
-    if not data_manager.save_forecast_assessment(ref, "onboarding", assessment):
-        io_manager.show_error("Could not reach the database; the decision below was not saved.")
     io_manager.show_onboarding(assessment)
     return run["forecast"], assessment
 
@@ -246,9 +240,9 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
         case_input = None
     research = typology_response = declaration = ai_data = None
     if case_input is not None:
-        research, typology_response, declaration = run_crime_scan(case_input)
+        research, typology_response, declaration = run_crime_scan_pipeline(case_input)
         # Benchmark
-        ai_data = run_benchmark_for(client_record, case_input)
+        ai_data = run_benchmark_pipeline(client_record, case_input)
         if ai_data is not None:
             io_manager.show_benchmark_result(ai_data)
 
