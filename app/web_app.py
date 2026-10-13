@@ -518,7 +518,8 @@ def _run_benchmark(record, case_input):
     if any(benchmark_input[k] is None for k in
            ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
         return None
-    return logic_manager.run_benchmark(benchmark_input, ai_data_fn=ai_manager.get_ai_benchmark)
+    ai_data = ai_manager.get_ai_benchmark(benchmark_input)
+    return logic_manager.run_benchmark(benchmark_input, ai_data)
 
 
 def _run_assessment_job(job_id, client_ref, record):
