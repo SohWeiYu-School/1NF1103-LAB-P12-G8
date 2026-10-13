@@ -47,7 +47,7 @@ def _sample_typology(typology_id, source_ids, source_quotes):
         "description": "Sentence one. Sentence two.",
         "source_ids": source_ids,
         "source_quotes": source_quotes,
-        "indicators": [{"indicator": "offshore_entity_present", "weight": "core"}],
+        "indicators": [{"indicator": "source_contradicts_occupation", "weight": "core"}],
         "typical_documents": ["Bank statements"],
     }
 
