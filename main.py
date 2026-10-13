@@ -82,8 +82,8 @@ def crime_scan_input(client_record: dict) -> dict:
     }
 
 
-def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | None]:
-    """Research, verify, match typologies and parse declaration. Returns (research, typologies, declaration)."""
+def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | None, dict | None]:
+    """Research, verify, match typologies and parse declaration. Returns (research, typologies, declaration, crime_result)."""
     policy = _load_json(os.path.join(_BASE, "config", "policy.json"))
 
     # Step 1: Research
@@ -130,12 +130,13 @@ def run_crime_scan(case_input: dict) -> tuple[dict | None, dict | None, dict | N
             io_manager.show_error(w)
 
     # Steps 7-8: Match typologies and display result
+    crime_result = None
     if typology_response is not None and declaration is not None:
         io_manager.show_ai_output(case_input, typology_response, declaration)
         crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
         io_manager.show_crime_scan_result(crime_result, typology_response, research)
 
-    return research, typology_response, declaration
+    return research, typology_response, declaration, crime_result
 
 
 def _run_sample_assessment() -> None:
@@ -207,8 +208,6 @@ def run_forecast(case: dict) -> tuple[dict | None, dict | None]:
 
     data_manager.save_forecast(ref, run["forecast"])
     assessment = logic_manager.assess_onboarding(case, run["forecast"])
-    if not data_manager.save_forecast_assessment(ref, "onboarding", assessment):
-        io_manager.show_error("Could not reach the database; the decision below was not saved.")
     io_manager.show_onboarding(assessment)
     return run["forecast"], assessment
 
@@ -244,27 +243,38 @@ def assess_client_record(client_record: dict) -> None:
     except KeyError as missing:
         io_manager.show_error(f"Crime scan and benchmark skipped: the client record has no {missing}.")
         case_input = None
-    research = typology_response = declaration = ai_data = None
+    research = typology_response = declaration = ai_data = crime_result = None
     if case_input is not None:
-        research, typology_response, declaration = run_crime_scan(case_input)
+        research, typology_response, declaration, crime_result = run_crime_scan(case_input)
         # Benchmark
         ai_data = run_benchmark_for(client_record, case_input)
         if ai_data is not None:
             io_manager.show_benchmark_result(ai_data)
 
-    # Save AI results to ai_assessments collection
+    # Forecasting
+    case = io_manager.case_from_client_record(client_record)
+    if case is None:
+        return
+    data_manager.save_case(case)
+    _, forecast_assessment = assess_case(case, client)
+
+    # Save one combined record (crime scan + benchmark + forecast)
     assessment = {
-        "client_ref":   ref,
-        "assessed_at":  datetime.now(timezone.utc).isoformat(),
+        "client_ref":  ref,
+        "kind":        "onboarding",
+        "assessed_at": datetime.now(timezone.utc).isoformat(),
         "crime_scan": {
             "research":    research,
             "typologies":  typology_response,
             "declaration": declaration,
         },
-        "benchmark": ai_data,
+        "crime_result": crime_result,
+        "benchmark":    ai_data,
+        "forecast":     forecast_assessment,
+        "assessment":   forecast_assessment,
     }
     if data_manager.save_assessment(assessment):
-        io_manager.show_message("\nAI results saved to database.")
+        io_manager.show_message("\nAssessment saved.")
     else:
         io_manager.show_error("Could not reach the database; the crime scan and benchmark were not saved.")
 
@@ -272,8 +282,10 @@ def assess_client_record(client_record: dict) -> None:
     case = io_manager.case_from_client_record(client_record)
     if case is None:
         return
-    data_manager.save_case(case)
-    run_forecast(case)
+    client_record["forecasting_case"] = case
+    data_manager.save_case_record(client_record)
+    assess_case(case, client)
+    io_manager.show_error("Could not reach the database; the assessment was not saved.")
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +311,8 @@ def run_case_file(path: str) -> bool:
     forecast, onboarding = run_forecast(case)
     if forecast is None:
         return False
+    if not data_manager.save_forecast_assessment(case["client_ref"], "onboarding", onboarding):
+        io_manager.show_error("Could not reach the database; the decision was not saved.")
     for review in case.get("reviews", []):
         if review_case(case, review, forecast, onboarding) is None:
             return False
