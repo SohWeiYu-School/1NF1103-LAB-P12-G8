@@ -27,8 +27,10 @@ Thumbs.db
 # Runtime data
 data/runtime/
 data/cache/
+data/documents/
 logs/
 *.corrupt-*
+
 
 # Old forecasting file storage (everything is in MongoDB now; stops old local files being committed)
 data/raw/

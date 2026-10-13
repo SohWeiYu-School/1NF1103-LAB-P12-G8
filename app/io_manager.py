@@ -2,7 +2,7 @@
 io_manager.py - the input/output layer: every boundary between the system and the user.
 
     * Client input and editing (New Client form, Find / Edit Existing Client,
-      supporting documents) - saved to MongoDB through data_manager
+      supporting documents) - saved locally as JSON through data_manager (synced to MongoDB on request)
     * Crime scan and research output
     * Forecasting: turns a saved client record into a forecasting case (asking the
       officer only for what's missing), collects periodic reviews, and prints the
@@ -34,7 +34,7 @@ except ImportError:
 
 Ask = Callable[[str], str]
 LINE = "-" * 72
-
+PAYMENT_METHODS = ["cash", "loan", "asset_sale"]
 
 def show_app_menu() -> str:
     """Display the unified main menu and return the user's choice (1-8)."""
@@ -279,127 +279,119 @@ def generate_client_id() -> str:
 def get_client_profile() -> dict:
     """Collect name, nationality and current position."""
     print("\n=== Client Profile ===")
-    name        = input("Full name: ").strip()
-    nationality = input("Nationality: ").strip()
+    name        = ask_words("Full name")
+    nationality = ask_words("Nationality")
     print("\n=== Current Position ===")
-    career = {
-        "occupation":           input("Current job title: ").strip(),
-        "seniority":            input("Seniority (e.g. Senior Manager, C-suite): ").strip(),
-        "industry":             input("Industry: ").strip(),
-        "employer_name":        input("Employer name: ").strip(),
-        "employer_size":        input("Employer size (e.g. 1,000-5,000 employees): ").strip(),
-        "country_of_residence": input("Country of residence: ").strip(),
-        "age":                  input("Age: ").strip(),
-        "career_start_year":    input("Year first career started: ").strip(),
-    }
+    occupation    = ask_words("Current job title", LABEL)
+    seniority     = ask_words("Seniority (e.g. Senior Manager, C-suite)", LABEL)
+    industry      = ask_words("Industry", LABEL)
+    employer_name = ask_words("Employer name", LABEL)
+    employer_size = ask_text("Employer size (e.g. 1,000-5,000 employees)")
+    residence     = ask_words("Country of residence")
+    age           = ask_int("Age", minimum=18, maximum=100)
+    while True:
+        start = ask_year("Year first career started")
+        if start >= datetime.date.today().year - age + 14:
+            break
+        show_error("That would mean the client started working before age 14. Please check the age and year.")
+    career = {"occupation": occupation, "seniority": seniority, "industry": industry,
+              "employer_name": employer_name, "employer_size": employer_size,
+              "country_of_residence": residence, "age": age, "career_start_year": start}
     return {"name": name, "nationality": nationality, "career": career}
+
+
+def _ask_job() -> dict:
+    start_year = ask_year("Start year")
+    end_year   = ask_year("End year (leave blank if current)", minimum=start_year, allow_blank=True)
+    return {
+        "start_year": start_year, "end_year": end_year,
+        "occupation":    ask_words("Job title", LABEL),
+        "seniority":     ask_words("Seniority", LABEL),
+        "industry":      ask_words("Industry", LABEL),
+        "employer_name": ask_words("Employer name", LABEL),
+        "employer_size": ask_text("Employer size"),
+        "country":       ask_words("Country"),
+    }
 
 
 def get_career_history() -> list:
     """Collect previous jobs (before the current one)."""
     career_history = []
-    while True:
+    prompt = "\nDoes the client have a previous job to add?"
+    while ask_yes_no(prompt):
         print("\n=== Previous Job ===")
-        end_year = input("End year (leave blank if current): ").strip() or None
-        career_history.append({
-            "start_year":    input("Start year: ").strip(),
-            "end_year":      end_year,
-            "occupation":    input("Job title: ").strip(),
-            "seniority":     input("Seniority: ").strip(),
-            "industry":      input("Industry: ").strip(),
-            "employer_name": input("Employer name: ").strip(),
-            "employer_size": input("Employer size: ").strip(),
-            "country":       input("Country: ").strip(),
-        })
-        if input("\nAdd another previous job? (y/n): ").strip().lower() != "y":
-            break
+        career_history.append(_ask_job())
+        prompt = "\nAdd another previous job?"
     return career_history
 
 
+def _ask_asset() -> dict:
+    asset_type  = ask_words("Asset type (e.g. Property, Shares)", LABEL)
+    description = ask_words("Description", LABEL)
+    country     = ask_words("Country")
+    year_acquired = ask_year("Year acquired")
+    price_paid    = ask_money("Price paid", allow_zero=False)
+    payment_method = PAYMENT_METHODS[ask_choice("Payment method", PAYMENT_METHODS)]
+    year_sold = sale_price = None
+    if ask_yes_no("Has this asset been sold?"):
+        year_sold  = ask_year("Year sold", minimum=year_acquired)
+        sale_price = ask_money("Sale price")
+    return {
+        "asset_type": asset_type, "asset_description": description, "country": country,
+        "year_acquired": year_acquired, "price_paid": price_paid,
+        "payment_method": payment_method, "year_sold": year_sold, "sale_price": sale_price,
+        "current_value": ask_money("Current value (0 if sold)"),
+        "yearly_income": ask_money("Yearly income from this asset (0 if none)"),
+        "currency":      ask_currency(),
+    }
+
+
 def get_investments() -> list:
-    """Collect assets and investments."""
     investments = []
-    if input("\nDoes the client have any investments or assets? (y/n): ").strip().lower() != "y":
-        return investments
-    while True:
+    prompt = "\nDoes the client have any investments or assets?"
+    while ask_yes_no(prompt):
         print("\n=== Investment / Asset ===")
-        investments.append({
-            "asset_type":        input("Asset type (e.g. Property, Shares): ").strip(),
-            "asset_description": input("Description: ").strip(),
-            "country":           input("Country: ").strip(),
-            "year_acquired":     input("Year acquired: ").strip(),
-            "price_paid":        input("Price paid: ").strip(),
-            "payment_method":    input("Payment method (cash/loan/asset_sale): ").strip(),
-            "year_sold":         input("Year sold (leave blank if still owned): ").strip() or None,
-            "sale_price":        input("Sale price (leave blank if still owned): ").strip() or None,
-            "current_value":     input("Current value: ").strip(),
-            "yearly_income":     input("Yearly income from this asset: ").strip(),
-            "currency":          input("Currency (e.g. SGD): ").strip(),
-        })
-        if input("\nAdd another investment or asset? (y/n): ").strip().lower() != "y":
-            break
+        investments.append(_ask_asset())
+        prompt = "\nAdd another investment or asset?"
     return investments
 
 
 def get_claims() -> dict:
     """Collect financial claims and asset composition."""
     print("\n=== Financial Claims ===")
-    declared_net_worth = input("Declared net worth (SGD): ").strip()
-    expected_aum       = input("Expected assets to be managed by the bank (SGD): ").strip()
-    pep_status         = input("PEP status (e.g. None, Domestic PEP): ").strip()
-    wealth_countries   = input("Countries where wealth was generated (comma-separated): ").strip()
+    declared_net_worth = ask_money("Declared net worth (SGD)", allow_zero=False)
+    expected_aum       = ask_money("Expected assets to be managed by the bank (SGD)", allow_zero=False)
+    pep_options = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
+                   "Family member / close associate of a PEP"]
+    pep_status = pep_options[ask_choice("PEP status", pep_options)]
+    wealth_countries = ask_countries("Countries where wealth was generated (comma-separated)")
 
     print("\n=== Asset Composition ===")
     print("Enter the percentage of total wealth for each category (must add up to 100%).")
-
-    def _pct_to_fraction(val: str) -> float:
-        try:
-            return float(val) / 100
-        except (TypeError, ValueError):
-            return 0.0
-
-    asset_composition = {
-        "property":         _pct_to_fraction(input("Property (%): ").strip()),
-        "listed_equities":  _pct_to_fraction(input("Listed Equities (%): ").strip()),
-        "private_business": _pct_to_fraction(input("Private Business (%): ").strip()),
-        "cash":             _pct_to_fraction(input("Cash (%): ").strip()),
-    }
+    asset_composition = ask_composition()
 
     print("\n=== Wealth Velocity ===")
-    jump_str = input("Biggest single-period wealth increase in SGD (leave blank if unknown): ").strip()
-    try:
-        biggest_wealth_jump = float(jump_str) if jump_str else None
-    except ValueError:
-        biggest_wealth_jump = None
-    wealth_jump_years = None
-    if biggest_wealth_jump is not None:
-        yrs_str = input("Over how many years did this increase occur?: ").strip()
-        try:
-            wealth_jump_years = float(yrs_str) if yrs_str else None
-        except ValueError:
-            wealth_jump_years = None
+    biggest_wealth_jump = wealth_jump_years = None
+    if ask_yes_no("Is there a known biggest single-period wealth increase?"):
+        biggest_wealth_jump = ask_money("Biggest single-period wealth increase (SGD)", allow_zero=False)
+        wealth_jump_years   = ask_int("Over how many years did this increase occur", minimum=1, maximum=60)
 
     print("\n=== Counterparties ===")
-    cp_str = input("Known counterparties — banks, brokers, firms (comma-separated, leave blank if none): ").strip()
+    cp_str = input("Known counterparties, banks/brokers/firms (comma-separated, blank if none): ").strip()
     declared_counterparties = [c.strip() for c in cp_str.split(",") if c.strip()]
 
     return {
-        "declared_net_worth":      declared_net_worth,
-        "expected_aum":            expected_aum,
-        "pep_status":              pep_status,
-        "wealth_countries":        [c.strip() for c in wealth_countries.split(",") if c.strip()],
-        "asset_composition":       asset_composition,
-        "biggest_wealth_jump":     biggest_wealth_jump,
-        "wealth_jump_years":       wealth_jump_years,
+        "declared_net_worth": declared_net_worth, "expected_aum": expected_aum,
+        "pep_status": pep_status, "wealth_countries": wealth_countries,
+        "asset_composition": asset_composition,
+        "biggest_wealth_jump": biggest_wealth_jump, "wealth_jump_years": wealth_jump_years,
         "declared_counterparties": declared_counterparties,
     }
 
 
 def get_sow_declaration() -> str:
-    """Collect the Source of Wealth declaration text."""
     print("\n=== Source of Wealth Declaration ===")
-    return input("Describe how the client accumulated their wealth: ").strip()
-
+    return ask_text("Describe how the client accumulated their wealth (min 50 characters)", min_length=50)
 
 def get_supporting_documents(upload_fn=None) -> list:
     """
@@ -410,13 +402,6 @@ def get_supporting_documents(upload_fn=None) -> list:
     """
 
     print("\n=== Supporting Documents ===")
-
-    answer = input(
-        "Does the client have any supporting documents? (y/n): "
-    ).strip().lower()
-
-    if answer != "y":
-        return []
 
     if tk is None:
         print("The file picker isn't available on this computer (tkinter is not installed).")
@@ -446,34 +431,24 @@ def get_supporting_documents(upload_fn=None) -> list:
 
     documents = []
 
-    print("\nUploading documents to database...")
+    print("\nSaving documents locally...")
 
     for path in file_paths:
 
-        print(f"Uploading: {os.path.basename(path)}")
+        stored_path = upload_fn(path) if upload_fn else None
 
-        file_id = upload_fn(path) if upload_fn else None
-
-        if file_id is None:
-            print(
-                f"ERROR: Could not upload "
-                f"{os.path.basename(path)}"
-            )
+        if stored_path is None:
+            print(f"ERROR: Could not save {os.path.basename(path)}")
             continue
 
         documents.append({
             "file_name": os.path.basename(path),
-            "file_id": file_id
+            "file_path": stored_path
         })
 
-        print(
-            f"Uploaded successfully: "
-            f"{os.path.basename(path)}"
-        )
+        print(f"Saved locally: {os.path.basename(path)}")
 
-    print(
-        f"\n{len(documents)} document(s) uploaded successfully."
-    )
+    print(f"\n{len(documents)} document(s) saved locally. They upload to the cloud when you run Manual Sync.")
 
     return documents
 
@@ -626,21 +601,9 @@ def create_new_client(save_fn=None, upload_fn=None):
     display_client_record(client_record)
 
     # Ask whether to save
-    while True:
+    if ask_yes_no("\nWould you like to save this client locally?"):
 
-        save_choice = input(
-            "\nWould you like to save this client "
-            "to the database? (y/n): "
-        ).strip().lower()
-
-        if save_choice in ("y", "n"):
-            break
-
-        print("Please enter y or n.")
-
-    if save_choice == "y":
-
-        print("\nSaving client to database...")
+        print("\nSaving client locally...")
 
         success = save_fn(client_record) if save_fn else False
 
@@ -648,46 +611,43 @@ def create_new_client(save_fn=None, upload_fn=None):
             print("\nClient successfully saved!")
             print(f"Client Reference: {client_ref}")
 
-        else:
-            print(
-                "\nERROR: The client could not be saved "
-                "to the database."
+            next_step = ask_choice(
+                "\nWhat would you like to do next?",
+                ["Run the assessment now (crime scan, benchmark and forecasting)",
+                 "Return to the main menu"],
             )
+            if next_step == 1:
+                print("\nReturning to the main menu. You can run the assessment later with option 3.")
+                client_record = None   # None tells main.py not to start the assessment
+
+        else:
+            print("\nERROR: The client could not be saved to the local file.")
+            client_record = None
+            input("\nPress Enter to return to the main menu...")
 
     else:
 
-        print("\nClient was NOT saved to the database.")
+        print("\nClient was NOT saved.")
         print("The information has been discarded.")
         client_record = None
+        input("\nPress Enter to return to the main menu...")
 
-    input("\nPress Enter to return to the main menu...")
     return client_record
-
 def edit_client_profile(record):
     """Edit name, nationality and current career info."""
     print("\n=== Edit Client Profile ===")
     print("Press Enter to keep the existing value.")
+    this_year = datetime.date.today().year
 
-    v = input(f"Full name [{record.get('name', '')}]: ").strip()
-    if v: record["name"] = v
-
-    v = input(f"Nationality [{record.get('nationality', '')}]: ").strip()
-    if v: record["nationality"] = v
+    record["name"]        = keep_words("Full name", record.get("name", ""))
+    record["nationality"] = keep_words("Nationality", record.get("nationality", ""))
 
     career = record.setdefault("career", {})
-    fields = [
-        ("occupation",           "Current job title"),
-        ("seniority",            "Seniority"),
-        ("industry",             "Industry"),
-        ("employer_name",        "Employer name"),
-        ("employer_size",        "Employer size"),
-        ("country_of_residence", "Country of residence"),
-        ("age",                  "Age"),
-        ("career_start_year",    "Year first career started"),
-    ]
-    for key, label in fields:
-        v = input(f"{label} [{career.get(key, '')}]: ").strip()
-        if v: career[key] = v
+    for key, label in [("occupation", "Current job title"), ("seniority", "Seniority"),
+                       ("industry", "Industry"), ("employer_name", "Employer name")]:
+        career[key] = keep_words(label, career.get(key, ""), LABEL)
+    career["employer_size"]        = keep_text("Employer size", career.get("employer_size", ""))
+    career["country_of_residence"] = keep_words("Country of residence", career.get("country_of_residence", ""))
 
     print("\nClient profile updated.")
 
@@ -695,17 +655,7 @@ def edit_client_profile(record):
 def add_career_record(record):
     """Add a job to career_history."""
     print("\n=== Add Career Record ===")
-    end_year = input("End year (leave blank if current): ").strip() or None
-    record.setdefault("career_history", []).append({
-        "start_year":    input("Start year: ").strip(),
-        "end_year":      end_year,
-        "occupation":    input("Job title: ").strip(),
-        "seniority":     input("Seniority: ").strip(),
-        "industry":      input("Industry: ").strip(),
-        "employer_name": input("Employer name: ").strip(),
-        "employer_size": input("Employer size: ").strip(),
-        "country":       input("Country: ").strip(),
-    })
+    record.setdefault("career_history", []).append(_ask_job())
     print("\nCareer record added.")
 
 
@@ -725,31 +675,32 @@ def edit_career_record(record):
         return
     career = careers[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
-    for key, label in [("start_year","Start year"),("end_year","End year"),
-                       ("occupation","Job title"),("seniority","Seniority"),
-                       ("industry","Industry"),("employer_name","Employer name"),
-                       ("employer_size","Employer size"),("country","Country")]:
-        v = input(f"{label} [{career.get(key,'')}]: ").strip()
-        if v: career[key] = v
+    this_year = datetime.date.today().year
+    career["start_year"] = keep_int("Start year", career.get("start_year", ""), 1940, this_year)
+    start = _year(career["start_year"]) or 1940
+    while True:
+        v = input(f"End year [{career.get('end_year') or 'present'}] (type 'present' for current job): ").strip()
+        if not v:
+            break
+        if v.lower() in ("present", "now"):
+            career["end_year"] = None
+            break
+        if v.isdigit() and start <= int(v) <= this_year:
+            career["end_year"] = int(v)
+            break
+        show_error(f"Enter a year between {start} and {this_year}, 'present', or press Enter to keep.")
+    for key, label in [("occupation", "Job title"), ("seniority", "Seniority"),
+                       ("industry", "Industry"), ("employer_name", "Employer name")]:
+        career[key] = keep_words(label, career.get(key, ""), LABEL)
+    career["employer_size"] = keep_text("Employer size", career.get("employer_size", ""))
+    career["country"]       = keep_words("Country", career.get("country", ""))
     print("\nCareer record updated.")
 
 
 def add_asset_record(record):
     """Add an entry to investments."""
     print("\n=== Add Investment / Asset ===")
-    record.setdefault("investments", []).append({
-        "asset_type":        input("Asset type (e.g. Property, Shares): ").strip(),
-        "asset_description": input("Description: ").strip(),
-        "country":           input("Country: ").strip(),
-        "year_acquired":     input("Year acquired: ").strip(),
-        "price_paid":        input("Price paid: ").strip(),
-        "payment_method":    input("Payment method (cash/loan/asset_sale): ").strip(),
-        "year_sold":         input("Year sold (leave blank if still owned): ").strip() or None,
-        "sale_price":        input("Sale price (leave blank if still owned): ").strip() or None,
-        "current_value":     input("Current value: ").strip(),
-        "yearly_income":     input("Yearly income from this asset: ").strip(),
-        "currency":          input("Currency (e.g. SGD): ").strip(),
-    })
+    record.setdefault("investments", []).append(_ask_asset())
     print("\nAsset added.")
 
 
@@ -768,14 +719,44 @@ def edit_asset_record(record):
         return
     asset = assets[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
-    for key, label in [("asset_type","Asset type"),("asset_description","Description"),
-                       ("country","Country"),("year_acquired","Year acquired"),
-                       ("price_paid","Price paid"),("payment_method","Payment method"),
-                       ("year_sold","Year sold"),("sale_price","Sale price"),
-                       ("current_value","Current value"),("yearly_income","Yearly income"),
-                       ("currency","Currency")]:
-        v = input(f"{label} [{asset.get(key,'')}]: ").strip()
-        if v: asset[key] = v
+    this_year = datetime.date.today().year
+    asset["asset_type"]        = keep_words("Asset type", asset.get("asset_type", ""), LABEL)
+    asset["asset_description"] = keep_words("Description", asset.get("asset_description", ""), LABEL)
+    asset["country"]           = keep_words("Country", asset.get("country", ""))
+    asset["year_acquired"] = keep_int("Year acquired", asset.get("year_acquired", ""), 1940, this_year)
+    asset["price_paid"]    = keep_money("Price paid", asset.get("price_paid", ""))
+    while True:
+        v = input(f"Payment method {PAYMENT_METHODS} [{asset.get('payment_method', '')}]: ").strip().lower()
+        if not v:
+            break
+        if v in PAYMENT_METHODS:
+            asset["payment_method"] = v
+            break
+        show_error(f"Please type one of: {', '.join(PAYMENT_METHODS)}.")
+    bought = _year(asset.get("year_acquired")) or 1940
+    while True:
+        v = input(f"Year sold [{asset.get('year_sold') or 'not sold'}] (type 'none' if still owned): ").strip().lower()
+        if not v:
+            break
+        if v == "none":
+            asset["year_sold"] = None
+            asset["sale_price"] = None
+            break
+        if v.isdigit() and bought <= int(v) <= this_year:
+            asset["year_sold"] = int(v)
+            asset["sale_price"] = keep_money("Sale price", asset.get("sale_price") or 0)
+            break
+        show_error(f"Enter a year between {bought} and {this_year}, 'none', or press Enter to keep.")
+    asset["current_value"] = keep_money("Current value", asset.get("current_value", ""))
+    asset["yearly_income"] = keep_money("Yearly income", asset.get("yearly_income", ""))
+    while True:
+        v = input(f"Currency [{asset.get('currency', '')}]: ").strip().upper()
+        if not v:
+            break
+        if len(v) == 3 and v.isalpha():
+            asset["currency"] = v
+            break
+        show_error("Please enter a 3-letter currency code like SGD.")
     print("\nAsset updated.")
 
 
@@ -783,22 +764,10 @@ def edit_asset_composition(record):
     """Edit asset composition inside claims."""
     print("\n=== Edit Asset Composition ===")
     composition = record.setdefault("claims", {}).setdefault("asset_composition", {})
-    print("Press Enter to keep the existing value. Enter new value as a percentage (e.g. 30).")
-
-    def _show_pct(val):
-        try: return f"{float(val)*100:.0f}%"
-        except: return str(val)
-
-    def _to_fraction(val):
-        try: return float(val) / 100
-        except: return composition.get(key, 0.0)
-
-    for key, label in [("property","Property"),("listed_equities","Listed Equities"),
-                       ("private_business","Private Business"),("cash","Cash")]:
-        v = input(f"{label} [current: {_show_pct(composition.get(key, 0))}]: ").strip()
-        if v: composition[key] = _to_fraction(v)
-
+    print("Press Enter to keep a value. Percentages must add up to 100%.")
+    record["claims"]["asset_composition"] = ask_composition(current=composition)
     print("\nAsset composition updated.")
+
 
 
 def edit_client_declarations(record):
@@ -807,17 +776,22 @@ def edit_client_declarations(record):
     claims = record.setdefault("claims", {})
     print("Press Enter to keep the existing value.")
 
-    v = input(f"Declared net worth (SGD) [{claims.get('declared_net_worth','')}]: ").strip()
-    if v: claims["declared_net_worth"] = v
+    claims["declared_net_worth"] = keep_money("Declared net worth (SGD)", claims.get("declared_net_worth", ""))
+    claims["expected_aum"]       = keep_money("Expected AUM (SGD)", claims.get("expected_aum", ""))
 
-    v = input(f"Expected AUM (SGD) [{claims.get('expected_aum','')}]: ").strip()
-    if v: claims["expected_aum"] = v
-
-    v = input(f"PEP status [{claims.get('pep_status','')}]: ").strip()
-    if v: claims["pep_status"] = v
+    pep_options = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
+                   "Family member / close associate of a PEP"]
+    print(f"PEP status [{claims.get('pep_status', '')}]")
+    if ask_yes_no("Change PEP status?"):
+        claims["pep_status"] = pep_options[ask_choice("PEP status", pep_options)]
 
     v = input(f"Wealth countries [{', '.join(claims.get('wealth_countries', []))}]: ").strip()
-    if v: claims["wealth_countries"] = [c.strip() for c in v.split(",") if c.strip()]
+    if v:
+        items = [c.strip() for c in v.split(",") if c.strip()]
+        if items and all(_only(c, LETTERS) for c in items):
+            claims["wealth_countries"] = items
+        else:
+            show_error("Not changed. Countries must be letters only, separated by commas.")
 
     print("\nClaims updated.")
 
@@ -827,7 +801,7 @@ def edit_sow_declaration(record):
     print("\n=== Edit Source of Wealth Declaration ===")
     current = record.get("sow_declaration", "")
     print(f"Current: {current}")
-    v = input("New declaration text (Enter to keep): ").strip()
+    v = keep_text("New declaration text (min 50 characters, Enter to keep)", "", min_length=50)
     if v: record["sow_declaration"] = v
     print("\nDeclaration updated.")
 
@@ -936,15 +910,7 @@ def edit_existing_client(record, upload_fn=None):
 
             print("\nInvalid choice.")
 
-        print("\n----------------------------------------")
-        print("Would you like to make another change?")
-        print("----------------------------------------")
-
-        again = input(
-            "Enter y to continue or n to finish: "
-        ).strip().lower()
-
-        if again != "y":
+        if not ask_yes_no("Make another change?"):
             break
 
 def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn=None):
@@ -959,7 +925,7 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
     if client_ref == "0":
         return
 
-    print("\nSearching database...")
+    print("\nSearching saved clients...")
 
     records = load_fn() if load_fn else []
 
@@ -971,7 +937,7 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
     client_record = None
 
     for record in records:
-        if record.get("client_ref") == client_ref:
+        if record.get("client_ref", "").upper() == client_ref.upper():
             client_record = record
             break
 
@@ -1020,13 +986,13 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
 
             edit_existing_client(client_record, upload_fn)
 
-            print("\nSaving changes to MongoDB...")
+            print("\nSaving changes locally...")
 
             success = save_fn(client_record) if save_fn else False
 
             if success:
                 print(
-                    "\nChanges saved successfully to MongoDB."
+                    "\nChanges saved successfully."
                 )
             else:
                 print(
@@ -1098,14 +1064,12 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
                     "Unknown file"
                 )
 
-                file_id = selected_document.get(
-                    "file_id"
-                )
+                file_id = selected_document.get("file_path") or selected_document.get("file_id")
 
                 if not file_id:
                     print(
                         "\nThis document does not have "
-                        "a GridFS file ID."
+                        "a file reference."
                     )
                     input(
                         "\nPress Enter to continue..."
@@ -1275,6 +1239,129 @@ def ask_yes_no(question: str, ask: Ask = read_answer) -> bool:
             return False
         show_error("Please answer y or n.")
 
+def ask_year(question: str, minimum: int = 1940, maximum: int | None = None,
+             allow_blank: bool = False) -> int | None:
+    maximum = maximum or datetime.date.today().year
+    return ask_int(question, read_answer, minimum, maximum, allow_blank)
+
+
+def ask_currency(ask: Ask = read_answer) -> str:
+    while True:
+        code = ask("Currency (3-letter code, e.g. SGD): ").strip().upper()
+        if len(code) == 3 and code.isalpha():
+            return code
+        show_error("Please enter a 3-letter currency code like SGD or USD.")
+
+
+def ask_composition(current: dict | None = None) -> dict:
+    """Four percentages that must add up to 100. Enter keeps the current value when editing."""
+    labels = [("property", "Property"), ("listed_equities", "Listed Equities"),
+              ("private_business", "Private Business"), ("cash", "Cash")]
+    while True:
+        split = {}
+        for key, label in labels:
+            if current is None:
+                split[key] = ask_money(f"{label} (%)") / 100
+            else:
+                shown = f"{current.get(key, 0) * 100:.0f}"
+                v = input(f"{label} (%) [{shown}]: ").strip().replace(",", "")
+                try:
+                    split[key] = float(v) / 100 if v else current.get(key, 0.0)
+                except ValueError:
+                    show_error("Please enter a number, or press Enter to keep.")
+                    split = None
+                    break
+                if split[key] < 0:
+                    show_error("Percentages can't be negative.")
+                    split = None
+                    break
+        if split is None:
+            continue
+        total = sum(split.values())
+        if abs(total - 1.0) <= 0.005:
+            return split
+        show_error(f"That adds up to {total:.1%}. It must be 100%. Please re-enter.")
+
+
+def keep_text(label: str, current, min_length: int = 2) -> str:
+    while True:
+        v = input(f"{label} [{current}]: ").strip()
+        if not v:
+            return current
+        if len(v) >= min_length:
+            return v
+        show_error(f"Enter at least {min_length} characters, or press Enter to keep.")
+
+
+def keep_int(label: str, current, minimum: int, maximum: int):
+    while True:
+        v = input(f"{label} [{current}]: ").strip()
+        if not v:
+            return current
+        try:
+            n = int(v)
+        except ValueError:
+            show_error("Please enter a whole number, or press Enter to keep.")
+            continue
+        if minimum <= n <= maximum:
+            return n
+        show_error(f"Please enter a value between {minimum} and {maximum}.")
+
+
+def keep_money(label: str, current):
+    while True:
+        v = input(f"{label} [{current}]: ").strip().replace(",", "")
+        if not v:
+            return current
+        try:
+            n = float(v)
+        except ValueError:
+            show_error("Please enter an amount like 1500000, or press Enter to keep.")
+            continue
+        if n >= 0:
+            return n
+        show_error("Amounts can't be negative.")
+
+LETTERS = " '.-"                    # allowed besides letters: names, nationality, countries
+LABEL   = " '.-&/,()0123456789"     # job titles, industries, employers, asset descriptions
+
+
+def _only(text: str, allowed: str) -> bool:
+    """Must contain at least one letter, and nothing outside letters + the allowed characters."""
+    return any(c.isalpha() for c in text) and all(c.isalpha() or c in allowed for c in text)
+
+
+def _words_error(allowed: str) -> str:
+    if allowed == LETTERS:
+        return "Letters only please (spaces, - ' . are fine). No numbers."
+    return "Please enter a proper description. It must contain letters and can't be only numbers."
+
+
+def ask_words(question: str, allowed: str = LETTERS, min_length: int = 2) -> str:
+    while True:
+        answer = input(f"{question}: ").strip()
+        if len(answer) >= min_length and _only(answer, allowed):
+            return answer
+        show_error(_words_error(allowed))
+
+
+def keep_words(label: str, current, allowed: str = LETTERS, min_length: int = 2) -> str:
+    while True:
+        v = input(f"{label} [{current}]: ").strip()
+        if not v:
+            return current
+        if len(v) >= min_length and _only(v, allowed):
+            return v
+        show_error(_words_error(allowed))
+
+
+def ask_countries(question: str) -> list:
+    while True:
+        items = [c.strip() for c in ask_text(question).split(",") if c.strip()]
+        if items and all(_only(c, LETTERS) for c in items):
+            return items
+        show_error("Enter country names separated by commas, letters only (no numbers).")
+
 
 def validate_case(case: object) -> list[str]:
     """Everything wrong with a case (from a file or typed in). [] means it's fine."""
@@ -1336,7 +1423,8 @@ def collect_review(case: dict, ask: Ask = read_answer) -> dict:
 # case_from_client_record() converts one into the other and asks the officer
 # only for what the form doesn't have or what can't be read.
 
-PAYMENT_METHODS = ["cash", "loan", "asset_sale"]
+
+
 
 
 def _number(text: object) -> float | None:

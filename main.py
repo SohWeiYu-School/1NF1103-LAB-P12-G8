@@ -272,7 +272,8 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
     case = io_manager.case_from_client_record(client_record)
     if case is None:
         return
-    data_manager.save_case(case)
+    client_record["forecasting_case"] = case
+    data_manager.save_case_record(client_record)
     assess_case(case, client)
 
 
