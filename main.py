@@ -39,19 +39,6 @@ SAMPLE_CLIENT_PATH = os.path.join(_BASE, "data", "sample", "case_daniel_tan.json
 SAMPLE_BENCHMARK_PATH = os.path.join(_BASE, "data", "sample", "case_benchmark.json")
 
 
-def _load_json(path: str) -> dict:
-    with open(path) as f:
-        return json.load(f)
-
-
-def _whole_number(value: object) -> int | None:
-    """'16,500,000' / '30%' / 30 -> a whole number, or None if it can't be read."""
-    try:
-        return int(float(str(value).replace(",", "").replace("%", "").strip()))
-    except (TypeError, ValueError):
-        return None
-
-
 def _configure_logging() -> None:
     """Route all logging (including httpx) to logs/app.log. Nothing goes to the console."""
     log_dir = os.path.join(_BASE, "logs")
@@ -77,8 +64,8 @@ def crime_scan_input(client_record: dict) -> dict:
         "client_ref":           client_record["client_ref"],
         "occupation":           career["occupation"],
         "industry":             career["industry"],
-        "age":                  _whole_number(career["age"]),
-        "career_start_year":    _whole_number(career["career_start_year"]),
+        "age":                  utilities.whole_number(career["age"]),
+        "career_start_year":    utilities.whole_number(career["career_start_year"]),
         "country":              career["country_of_residence"],
         "country_of_residence": career["country_of_residence"],
         "declaration_text":     sow if isinstance(sow, str) else sow.get("declaration_text", ""),
@@ -89,7 +76,7 @@ def crime_scan_input(client_record: dict) -> dict:
 def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None, dict | None, dict | None]:
     """Research, verify, match typologies and parse declaration.
     Returns (research, typologies, declaration, crime_result)."""
-    policy = _load_json(os.path.join(_BASE, "config", "policy.json"))
+    policy = utilities.policy()
 
     # Step 1: Research
     io_manager.show_message("\nSearching trusted sources for typology reports...")
@@ -146,7 +133,11 @@ def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None,
 
 def _run_sample_assessment() -> None:
     """Crime scan of the hardcoded sample client (python main.py --crime-scan-sample)."""
-    run_crime_scan_pipeline(crime_scan_input(_load_json(SAMPLE_CLIENT_PATH)))
+    client_record = data_manager.load_case(SAMPLE_CLIENT_PATH)
+    if client_record is None:
+        io_manager.show_error(f"Could not read the sample client: {SAMPLE_CLIENT_PATH}")
+        return
+    run_crime_scan_pipeline(crime_scan_input(client_record))
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +152,7 @@ def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None
 
     def _comp_pct(val) -> int | None:
         """Convert fraction (0.1) or percentage (10) to whole-number percentage."""
-        n = _whole_number(val)
+        n = utilities.whole_number(val)
         if n is None:
             return None
         # If stored as fraction (0-1), multiply by 100
@@ -174,7 +165,7 @@ def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None
 
     benchmark_input = {
         **case_input,
-        "declared_net_worth":      _whole_number(claims.get("declared_net_worth")),
+        "declared_net_worth":      utilities.whole_number(claims.get("declared_net_worth")),
         "listed_equities":         _comp_pct(comp.get("listed_equities")),
         "cash":                    _comp_pct(comp.get("cash")),
         "property":                _comp_pct(comp.get("property")),
@@ -411,7 +402,7 @@ def saved_case_forecast(ref: str) -> tuple[dict | None, dict | None, dict | None
 def use_recorded_replies() -> int:
     """Copy the recorded AI replies from tests/golden into the reply cache.
     Only fills gaps, so real replies already saved are never overwritten."""
-    golden = os.path.join(common.ROOT_DIR, "tests", "golden")
+    golden = os.path.join(utilities.ROOT_DIR, "tests", "golden")
     copied = 0
     for path in data_manager.list_sample_cases():
         name = os.path.splitext(os.path.basename(path))[0]
@@ -517,7 +508,7 @@ def run_menu() -> None:
 
 def main(arguments: list[str]) -> int:
     _configure_logging()
-    problems = common.config_problems()
+    problems = utilities.config_problems()
     if problems:
         for problem in problems:
             io_manager.show_error(problem)

@@ -16,7 +16,7 @@ from app.utilities import (
     client, extract_json, extract_prompt_version,
     forecast_model, forecast_settings, has_api_key,
     load_forecast_schema,
-    load_policy, load_prompt, load_schema,
+    load_prompt, load_schema,
     model,
 )
 
@@ -158,7 +158,7 @@ def get_ai_benchmark(client_data: dict) -> dict | None:
 
 def build_benchmark_payload(client_data: dict) -> dict:
     """Keep only the fields the benchmark AI may see (CLAUDE.md rule 5)."""
-    allowed = load_policy().get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
+    allowed = utilities.policy().get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
     return {k: client_data[k] for k in allowed if k in client_data}
 
 
@@ -174,7 +174,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
     payload = build_research_payload(case_input)
 
     # Step 2: Load policy limits, then build prompt + schema
-    policy = load_policy()
+    policy = utilities.policy()
     domains = policy.get("trusted_sources", [])
     max_reports = policy.get("research_max_reports")
     max_excerpts = policy.get("research_max_excerpts_per_report")
@@ -242,7 +242,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
 
 def build_research_payload(case_input: dict) -> dict:
     """Keep only the fields the research AI may see. Country falls back to residence."""
-    allowed = load_policy().get("research_allowed_fields", ["industry", "country"])
+    allowed = utilities.policy().get("research_allowed_fields", ["industry", "country"])
     payload = {k: case_input[k] for k in allowed if k in case_input}
     if "country" not in payload:
         payload["country"] = case_input.get("country_of_residence", "Singapore")
@@ -355,7 +355,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     warnings: list[str] = []
 
     # Step 1: Load policy limits, then build payload (profile + reports)
-    policy = load_policy()
+    policy = utilities.policy()
     allowed_fields = policy.get("benchmark_allowed_fields", ["occupation", "industry", "age", "career_start_year", "country"])
     report_fields = policy.get("typology_report_fields", ["report_id", "organisation", "title", "year", "summary", "excerpts"])
     max_patterns = policy.get("typology_max_patterns", 5)
@@ -878,7 +878,7 @@ def repair_person_types(data: dict, record: dict, source_records: list[dict]) ->
             person_type["open_from"], person_type["open_to"] = start, last_forecast_year
             if not person_type.get("rule_out_documents"):
                 # the documents that test the declared story as a whole (policy: NET_WORTH)
-                codes = load_policy().get("breach_documents", {}).get("NET_WORTH") \
+                codes = utilities.policy().get("breach_documents", {}).get("NET_WORTH") \
                     or ["DOC_TAX_RETURNS", "DOC_BANK_STATEMENTS"]
                 person_type["rule_out_documents"] = [{"document_code": c, "also_rules_out": []} for c in codes]
             continue

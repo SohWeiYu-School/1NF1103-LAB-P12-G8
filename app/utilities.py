@@ -120,14 +120,8 @@ def load_prompt(name: str) -> str:
 
 
 def load_schema(name: str) -> dict:
-    path = os.path.join(_BASE, "app", "schemas", name)
-    with open(path) as f:
-        return json.load(f)
-
-
-def load_policy() -> dict:
-    path = os.path.join(_BASE, "config", "policy.json")
-    with open(path) as f:
+    path = os.path.join(SCHEMA_DIR, name)
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -161,7 +155,7 @@ def forecast_settings() -> dict:
         declaration_markers    [open, close] around the client's declaration
         notes_markers          [open, close] around the officer's review notes
     """
-    return load_policy()["forecasting"]
+    return policy()["forecasting"]
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +247,14 @@ def forecast_model() -> str:
 # ---------------------------------------------------------------------------
 # Text / JSON helpers
 # ---------------------------------------------------------------------------
+
+def whole_number(value: object) -> int | None:
+    """'16,500,000' / '30%' / 30 -> a whole number, or None if it can't be read."""
+    try:
+        return int(float(str(value).replace(",", "").replace("%", "").strip()))
+    except (TypeError, ValueError):
+        return None
+
 
 def extract_prompt_version(prompt_text: str) -> str:
     """Return the value of the first '# prompt_version: ...' line, or 'unknown'."""

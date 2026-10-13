@@ -14,7 +14,6 @@ typing) so tests can feed in typed answers.
 """
 
 import datetime
-import json
 import os
 import textwrap
 import uuid
