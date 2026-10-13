@@ -14,7 +14,6 @@ typing) so tests can feed in typed answers.
 """
 
 import datetime
-import json
 import os
 import textwrap
 import uuid
@@ -22,7 +21,7 @@ from typing import Callable
 
 from jsonschema import Draft202012Validator
 
-from app import common
+from app import utilities
 
 # The file picker needs tkinter, which isn't installed everywhere (e.g. the Docker image).
 # Without it the app still runs; only choosing files to upload or download is unavailable.
@@ -1549,8 +1548,7 @@ def validate_case(case: object) -> list[str]:
     """Everything wrong with a case (from a file or typed in). [] means it's fine."""
     if not isinstance(case, dict):
         return ["the case must be a JSON object"]
-    with open(os.path.join(common.SCHEMA_DIR, "case_input.schema.json"), "r", encoding="utf-8") as handle:
-        schema = json.load(handle)
+    schema = utilities.load_schema("case_input.schema.json")
     errors = [f"{'/'.join(str(p) for p in e.path) or 'case'}: {e.message}"
               for e in Draft202012Validator(schema).iter_errors(case)]
     if errors:
