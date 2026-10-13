@@ -37,23 +37,24 @@ LINE = "-" * 72
 PAYMENT_METHODS = ["cash", "loan", "asset_sale"]
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-8)."""
+    """Display the unified main menu and return the user's choice (1-9)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
-    print("1. New Client (enter, then crime scan, benchmark and forecasting)")
-    print("2. Find / Edit Existing Client")
-    print("3. Assess an Existing Client (crime scan, benchmark and forecasting)")
-    print("4. Run a Periodic Review")
-    print("5. List Saved Assessments")
-    print("6. View All Clients")
-    print("7. Manual Sync to Cloud Database")
-    print("8. Quit")
+    print("1. New Client (type in, then crime scan, benchmark and forecasting)")
+    print("2. New Client from Documents (auto-fill from a folder of documents)")
+    print("3. Find / Edit Existing Client")
+    print("4. Assess an Existing Client (crime scan, benchmark and forecasting)")
+    print("5. Run a Periodic Review")
+    print("6. List Saved Assessments")
+    print("7. View All Clients")
+    print("8. Manual Sync to Cloud Database")
+    print("9. Quit")
     while True:
-        choice = input("\nEnter your choice (1-8): ").strip()
-        if choice in ("1", "2", "3", "4", "5", "6", "7", "8"):
+        choice = input("\nEnter your choice (1-9): ").strip()
+        if choice in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
             return choice
-        print("Invalid choice. Please enter 1 to 8.")
+        print("Invalid choice. Please enter 1 to 9.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
@@ -483,6 +484,30 @@ def show_client_list(records: list) -> None:
     print("─" * W + "\n")
 
 
+FIELD_NAMES = {"expected_aum": "Expected AUM", "pep_status": "PEP Status"}
+
+
+def _field_name(key: str) -> str:
+    return FIELD_NAMES.get(key, key.replace("_", " ").title())
+
+
+def _field_value(key: str, value) -> str:
+    """A saved value as a person would write it: 6,000,000 not 6000000.0, Singapore not ['Singapore']."""
+    if key == "end_year" and value in (None, ""):
+        return "present (current job)"
+    if value is None or value == "" or value == []:
+        return "-"
+    if key == "asset_composition" and isinstance(value, dict):
+        return ", ".join(f"{k.replace('_', ' ').title()} {float(v or 0) * 100:.0f}%" for k, v in value.items())
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, int) and not key.endswith(("year", "_years", "age")) and key not in ("year_acquired", "year_sold"):
+        return f"{value:,}"
+    return str(value)
+
+
 def display_client_record(record: dict):
     """Display all information collected for the client."""
 
@@ -507,7 +532,7 @@ def display_client_record(record: dict):
     for index, career in enumerate(record.get("career_history", []), start=1):
         print(f"\n--- Job {index} ---")
         for key, value in career.items():
-            print(f"{key.replace('_', ' ').title()}: {value}")
+            print(f"{_field_name(key)}: {_field_value(key, value)}")
 
     # -------------------------------------------------
     # Investments
@@ -519,7 +544,9 @@ def display_client_record(record: dict):
         for index, inv in enumerate(investments, start=1):
             print(f"\n--- Investment {index} ---")
             for key, value in inv.items():
-                print(f"{key.replace('_', ' ').title()}: {value}")
+                if key == "asset_description" and value == inv.get("asset_type"):
+                    continue   # filled from documents: same as the asset type
+                print(f"{_field_name(key)}: {_field_value(key, value)}")
 
     # -------------------------------------------------
     # Claims
@@ -529,7 +556,7 @@ def display_client_record(record: dict):
     if claims:
         display_section("CLAIMS")
         for key, value in claims.items():
-            print(f"{key.replace('_', ' ').title()}: {value}")
+            print(f"{_field_name(key)}: {_field_value(key, value)}")
 
     # -------------------------------------------------
     # Source of Wealth Declaration
@@ -622,7 +649,7 @@ def create_new_client(save_fn=None, upload_fn=None):
                  "Return to the main menu"],
             )
             if next_step == 1:
-                print("\nReturning to the main menu. You can run the assessment later with option 3.")
+                print("\nReturning to the main menu. You can run the assessment later with option 4.")
                 client_record = None   # None tells main.py not to start the assessment
 
         else:
@@ -638,6 +665,156 @@ def create_new_client(save_fn=None, upload_fn=None):
         input("\nPress Enter to return to the main menu...")
 
     return client_record
+
+
+# ---------------------------------------------------------------------------
+# New client from documents (menu option 2). main.py does the reading, the AI
+# call and the saving; these functions only ask and show.
+# ---------------------------------------------------------------------------
+
+PEP_OPTIONS = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
+               "Family member / close associate of a PEP"]
+SOURCE_TAGS = {"documents": "[DOC]   ", "edited": "[EDITED]", "entered": "[YOU]   ", "blank": "[ -- ]  "}
+
+
+def ask_document_folder() -> str | None:
+    """Ask which folder holds the client's documents. Returns the folder path, or None to cancel."""
+    print("\n" + "=" * 60)
+    print("              NEW CLIENT FROM DOCUMENTS")
+    print("=" * 60)
+    print("Put the client's documents in one folder (CV, payslips, employment letter, tax notices,")
+    print("bank statements, property papers, KYC form). PDF, Word, Excel, text and images are read.")
+    if tk is not None and ask_yes_no("\nChoose the folder in a file explorer window?"):
+        root = tk.Tk()
+        root.withdraw()
+        folder = filedialog.askdirectory(title="Select the folder with the client's documents")
+        root.destroy()
+        if folder:
+            print(f"Folder: {folder}")
+            return folder
+        print("No folder was chosen.")
+    folder = input("\nFolder path (or press Enter to go back to the menu): ").strip()
+    folder = folder.strip('"').strip("'")          # paths dragged into the terminal come quoted
+    return folder or None
+
+
+def show_documents_found(paths: list[str]) -> None:
+    print(f"\nFound {len(paths)} document(s):")
+    for path in paths:
+        print(f"  - {os.path.basename(path)}")
+
+
+def ask_missing_field(field: dict):
+    """Ask for one detail the documents didn't give. field comes from logic_manager.missing_client_fields."""
+    label, kind = field["label"], field["kind"]
+    if kind == "words":
+        return ask_words(label)
+    if kind == "label":
+        return ask_words(label, LABEL)
+    if kind == "text":
+        return ask_text(label)
+    if kind == "age":
+        return ask_int(label, minimum=18, maximum=100)
+    if kind == "year":
+        return ask_year(label)
+    if kind == "money_positive":
+        return ask_money(label, allow_zero=False)
+    if kind == "money":
+        return ask_money(label)
+    if kind == "payment":
+        return PAYMENT_METHODS[ask_choice(label, PAYMENT_METHODS)]
+    if kind == "pep":
+        return PEP_OPTIONS[ask_choice(label, PEP_OPTIONS)]
+    if kind == "countries":
+        return ask_countries(label)
+    if kind == "composition":
+        print(f"\n{label}. Enter the percentage of total wealth for each category.")
+        return ask_composition()
+    if kind == "sow":
+        print("\nThe documents don't contain a usable source of wealth declaration "
+              "(it must be at least 50 characters).")
+        return ask_text("Describe how the client accumulated their wealth", min_length=50)
+    return ask_text(label)
+
+
+def show_missing_intro(count: int) -> None:
+    if count:
+        print(f"\n{count} required detail(s) weren't in the documents. Please fill them in:")
+    else:
+        print("\nEvery required detail was found in the documents.")
+
+
+def _summary_value(row: dict) -> str:
+    value, kind = row["value"], row["kind"]
+    if value is None or value == "" or value == []:
+        return "(blank)"
+    if kind == "composition" and isinstance(value, dict):
+        return ", ".join(f"{key.replace('_', ' ')} {float(value.get(key) or 0) * 100:.0f}%"
+                         for key in ("property", "listed_equities", "private_business", "cash"))
+    if kind in ("money", "money_positive") and isinstance(value, (int, float)):
+        return f"{value:,.0f}"
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    text = str(value)
+    return text if len(text) <= 90 else textwrap.shorten(text, 90, placeholder=" ...")
+
+
+def show_document_summary(rows: list[dict], files: list[str], notes: list[str], checks: list[str]) -> None:
+    """The check-before-saving summary: every field, its value, and where it came from."""
+    print("\n" + "=" * 72)
+    print("  SUMMARY - please check every value against the documents")
+    print("=" * 72)
+    print("  [DOC] read from the documents   [YOU] typed by you   [EDITED] changed by you   [ -- ] blank")
+    section = group = None
+    for row in rows:
+        if row["section"] != section:
+            section, group = row["section"], None
+            print(f"\n  {section.upper()}")
+        if row["group"] and row["group"] != group:
+            group = row["group"]
+            print(f"   {group}")
+        indent = "    " if row["group"] else ""
+        print(f"  {SOURCE_TAGS[row['source']]} {indent}{row['label']}: {_summary_value(row)}")
+    sow = next((row["value"] for row in rows if row["kind"] == "sow" and row["value"]), None)
+    if sow and len(str(sow)) > 90:
+        print("\n  Full source of wealth declaration:")
+        for line in textwrap.wrap(str(sow), 68):
+            print(f"    {line}")
+    counts = {tag: sum(1 for r in rows if r["source"] == tag) for tag in SOURCE_TAGS}
+    print(f"\n  {counts['documents']} from documents, {counts['entered']} typed, "
+          f"{counts['edited']} changed, {counts['blank']} blank (optional).")
+    print(f"  Documents read: {', '.join(os.path.basename(f) for f in files)}")
+    if notes:
+        print("\n  NOTES FROM READING THE DOCUMENTS")
+        for note in notes:
+            print(f"   - {note}")
+    if checks:
+        print("\n  PLEASE DOUBLE-CHECK")
+        for check in checks:
+            print(f"   ! {check}")
+    print("=" * 72)
+
+
+def ask_document_record_action() -> str:
+    """After the summary: 'save', 'edit' or 'discard'."""
+    options = ["Save this client", "Edit something first", "Discard (nothing is saved)"]
+    return ["save", "edit", "discard"][ask_choice("\nIs everything correct?", options)]
+
+
+def ask_after_save(record: dict) -> bool:
+    """After a client is saved: view the saved details, run the assessment, or go back.
+    Returns True if the assessment should run now."""
+    options = ["View the saved client details",
+               "Run the assessment now (crime scan, benchmark and forecasting)",
+               "Return to the main menu (you can assess later with option 4)"]
+    while True:
+        choice = ask_choice("\nWhat would you like to do next?", options)
+        if choice == 0:
+            display_client_record(record)
+            continue
+        return choice == 1
+
+
 def edit_client_profile(record):
     """Edit name, nationality and current career info."""
     print("\n=== Edit Client Profile ===")

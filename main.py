@@ -10,8 +10,10 @@ managers never import each other's work, everything is passed through here.
                                             (for machines with no API key, e.g. CI)
     python main.py --crime-scan-sample      crime scan of data/sample/case_daniel_tan.json
 
-Flow for a client (menu options 1 and 3):
+Flow for a client (menu options 1, 2 and 4):
     1. io_manager      New Client form -> saved to MongoDB (client_cases)
+       or option 2:    a folder of documents -> data_manager reads them -> ai_manager fills in
+                       the details -> io_manager asks for what's missing and shows a summary to check
     2. Crime scan      ai_manager: research, sector typologies, declaration reading
     3. Benchmark       logic_manager.run_benchmark (AI expected values -> PASS / FAIL)
        -> crime scan + benchmark saved to MongoDB (ai_assessments)
@@ -84,8 +86,9 @@ def crime_scan_input(client_record: dict) -> dict:
 
 
 # Orchestrates the full crime scan: research → verify → typologies → declaration → match → display.
-def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None, dict | None]:
-    """Research, verify, match typologies and parse declaration. Returns (research, typologies, declaration)."""
+def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None, dict | None, dict | None]:
+    """Research, verify, match typologies and parse declaration.
+    Returns (research, typologies, declaration, crime_result)."""
     policy = _load_json(os.path.join(_BASE, "config", "policy.json"))
 
     # Step 1: Research
@@ -139,6 +142,11 @@ def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None,
         io_manager.show_crime_scan_result(crime_result, typology_response, research)
 
     return research, typology_response, declaration, crime_result
+
+
+def _run_sample_assessment() -> None:
+    """Crime scan of the hardcoded sample client (python main.py --crime-scan-sample)."""
+    run_crime_scan_pipeline(crime_scan_input(_load_json(SAMPLE_CLIENT_PATH)))
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +239,7 @@ def review_case(case: dict, review: dict,
 # ---------------------------------------------------------------------------
 
 def assess_client_record(client_record: dict) -> None:
+    """Crime scan, benchmark and forecasting for a saved client, saved as one assessment."""
     ref = client_record["client_ref"]
 
     # Crime scan
@@ -239,20 +248,23 @@ def assess_client_record(client_record: dict) -> None:
     except KeyError as missing:
         io_manager.show_error(f"Crime scan and benchmark skipped: the client record has no {missing}.")
         case_input = None
-    research = typology_response = declaration = ai_data = crime_result = None
+    research = typology_response = declaration = crime_result = benchmark = None
     if case_input is not None:
-        research, typology_response, declaration = run_crime_scan_pipeline(case_input)
+        research, typology_response, declaration, crime_result = run_crime_scan_pipeline(case_input)
         # Benchmark
-        ai_data = run_benchmark_pipeline(client_record, case_input)
-        if ai_data is not None:
-            io_manager.show_benchmark_result(ai_data)
+        benchmark = run_benchmark_pipeline(client_record, case_input)
+        if benchmark is not None:
+            io_manager.show_benchmark_result(benchmark)
 
-    # Forecasting
+    # Forecasting (the officer is asked only for anything the forecast needs that's missing)
+    forecast_assessment = None
     case = io_manager.case_from_client_record(client_record)
-    if case is None:
-        return
-    data_manager.save_case(case)
-    _, forecast_assessment = assess_case(case, client)
+    if case is not None:
+        client_record["forecasting_case"] = case
+        data_manager.save_case_record(client_record)
+        _, forecast_assessment = run_forecast_pipeline(case)
+        if forecast_assessment is not None:
+            data_manager.save_forecast_assessment(ref, "onboarding", forecast_assessment)
 
     # Save one combined record (crime scan + benchmark + forecast)
     assessment = {
@@ -265,23 +277,93 @@ def assess_client_record(client_record: dict) -> None:
             "declaration": declaration,
         },
         "crime_result": crime_result,
-        "benchmark":    ai_data,
+        "benchmark":    benchmark,
         "forecast":     forecast_assessment,
         "assessment":   forecast_assessment,
     }
     if data_manager.save_assessment(assessment):
         io_manager.show_message("\nAssessment saved.")
     else:
-        io_manager.show_error("Could not reach the database; the crime scan and benchmark were not saved.")
+        io_manager.show_error("Could not save the assessment.")
 
-    # Forecasting
-    case = io_manager.case_from_client_record(client_record)
-    if case is None:
-        return
-    client_record["forecasting_case"] = case
-    data_manager.save_case_record(client_record)
-    assess_case(case, client)
-    io_manager.show_error("Could not reach the database; the assessment was not saved.")
+
+# ---------------------------------------------------------------------------
+# New client from a folder of documents (menu option 2)
+# ---------------------------------------------------------------------------
+
+def new_client_from_documents() -> dict | None:
+    """Read a folder of documents, auto-fill the client, ask for what's missing, show a summary
+    to check, then save. Returns the saved record (to assess) or None."""
+    # 1. Which folder
+    while True:
+        folder = io_manager.ask_document_folder()
+        if folder is None:
+            return None
+        paths = data_manager.list_documents_in_folder(folder)
+        if paths is None:
+            io_manager.show_error(f"Folder not found: {folder}")
+        elif not paths:
+            io_manager.show_error("No PDF, Word, Excel, text or image files in that folder.")
+        else:
+            break
+    io_manager.show_documents_found(paths)
+
+    # 2. Read the documents and let the AI pull out the details
+    io_manager.show_message(f"\nReading {len(paths)} document(s) with AI... this can take up to a minute.")
+    documents = [data_manager.read_document_for_extraction(path) for path in paths]
+    extracted, warnings = ai_manager.extract_client_details(documents)
+    for warning in warnings:
+        io_manager.show_error(warning)
+    if extracted is None:
+        if not io_manager.ask_yes_no("The documents couldn't be read automatically. Type the details in yourself?"):
+            return None
+        extracted = {}
+
+    # 3. Build the record and ask for anything missing
+    today = datetime.now().date().isoformat()
+    doc_record, _ = logic_manager.record_from_documents(extracted, io_manager.generate_client_id(), today)
+    record = doc_record
+    missing = logic_manager.missing_client_fields(record)
+    io_manager.show_missing_intro(len(missing))
+    for field in missing:
+        record = logic_manager.set_path(record, field["path"], io_manager.ask_missing_field(field))
+    record = logic_manager.finish_document_record(record)
+    doc_record = logic_manager.finish_document_record(doc_record)
+
+    # 4. Summary to check, edit until right, then save or discard
+    notes = list(extracted.get("notes") or []) + list(warnings)
+    while True:
+        rows = logic_manager.summarise_document_record(record, doc_record)
+        checks = logic_manager.check_document_record(record, today)
+        io_manager.show_document_summary(rows, paths, notes, checks)
+        action = io_manager.ask_document_record_action()
+        if action == "discard":
+            io_manager.show_message("\nClient discarded. Nothing was saved.")
+            return None
+        if action == "edit":
+            before = json.loads(json.dumps(record))
+            io_manager.edit_existing_client(record, data_manager.upload_supporting_document)
+            record = logic_manager.sync_after_edit(before, record)
+            still_missing = logic_manager.missing_client_fields(record)
+            for field in still_missing:
+                record = logic_manager.set_path(record, field["path"], io_manager.ask_missing_field(field))
+            continue
+        break
+
+    # 5. Keep the documents with the client, then save
+    for path in paths:
+        stored = data_manager.upload_supporting_document(path)
+        if stored is None:
+            io_manager.show_error(f"Could not keep a copy of {os.path.basename(path)}.")
+        else:
+            record.setdefault("supporting_documents", []).append(
+                {"file_name": os.path.basename(path), "file_path": stored})
+    if not data_manager.save_case_record(record):
+        io_manager.show_error("The client could not be saved.")
+        return None
+    io_manager.show_message(f"\nClient saved. Reference: {record['client_ref']} "
+                            f"({len(record['supporting_documents'])} document(s) attached).")
+    return record if io_manager.ask_after_save(record) else None
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +460,11 @@ def run_menu() -> None:
                 assess_client_record(client_record)
 
         elif choice == "2":
+            client_record = new_client_from_documents()
+            if client_record is not None:
+                assess_client_record(client_record)
+
+        elif choice == "3":
             io_manager.find_existing_client(
                 load_fn=data_manager.load_all_records,
                 save_fn=data_manager.save_case_record,
@@ -385,7 +472,7 @@ def run_menu() -> None:
                 upload_fn=data_manager.upload_supporting_document,
             )
 
-        elif choice == "3":
+        elif choice == "4":
             ref = io_manager.ask_client_ref()
             if ref is None:
                 continue
@@ -395,24 +482,24 @@ def run_menu() -> None:
                 continue
             assess_client_record(client_record)
 
-        elif choice == "4":
+        elif choice == "5":
             ref = io_manager.ask_client_ref()
             if ref is None:
                 continue
             case, forecast, onboarding = saved_case_forecast(ref)
             if not (case and forecast and onboarding):
-                io_manager.show_error(f"{ref} hasn't been assessed yet. Use option 3 first.")
+                io_manager.show_error(f"{ref} hasn't been assessed yet. Use option 4 first.")
                 continue
             review_case(case, io_manager.collect_review(case), forecast, onboarding)
 
-        elif choice == "5":
+        elif choice == "6":
             list_assessments()
 
-        elif choice == "6":
-            io_manager.show_client_list(data_manager.load_all_records())
-            input("Press Enter to continue...")
-
         elif choice == "7":
+            io_manager.show_client_list(data_manager.load_all_records())
+            io_manager.read_answer("Press Enter to continue...")
+
+        elif choice == "8":
             io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
             stats = data_manager.sync_json_to_mongodb()
             io_manager.show_message(
@@ -423,7 +510,7 @@ def run_menu() -> None:
                 for err in stats["errors"]:
                     io_manager.show_error(err)
 
-        elif choice == "8":
+        elif choice == "9":
             io_manager.show_message("\nGoodbye.")
             break
 

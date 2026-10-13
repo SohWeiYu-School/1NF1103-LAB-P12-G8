@@ -516,6 +516,95 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
 
 
 # ============================================================================
+# 5b. Document auto-fill - reads uploaded client documents into form details
+# ============================================================================
+
+# Most documents sent to the AI in one go (each one is a separate part of the message)
+MAX_EXTRACT_DOCUMENTS = 10
+
+
+def build_document_parts(documents: list[dict]) -> list[dict]:
+    """Turn documents read by data_manager.read_document_for_extraction into
+    chat message parts. Text goes between <document> markers so the AI treats it as data."""
+    parts: list[dict] = []
+    for document in documents[:MAX_EXTRACT_DOCUMENTS]:
+        name = document.get("file_name", "document")
+        kind = document.get("kind")
+        if kind == "text":
+            body = wrap_free_text(document.get("text", ""), f'<document name="{name}">', "</document>")
+            parts.append({"type": "text", "text": body})
+        elif kind == "image":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (image below)'})
+            parts.append({"type": "image_url", "image_url": {
+                "url": f"data:{document['mime']};base64,{document['data_b64']}"}})
+        elif kind == "pdf":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (scanned PDF below)'})
+            parts.append({"type": "file", "file": {
+                "filename": name, "file_data": f"data:application/pdf;base64,{document['data_b64']}"}})
+    return parts
+
+
+def _openai_document_response(prompt: str, parts: list[dict], mdl: str, schema: dict) -> str | None:
+    """Chat call with documents attached (text, images, scanned PDFs). Returns the reply text or None."""
+    try:
+        response = client().chat.completions.create(
+            model=mdl,
+            temperature=0,
+            response_format={"type": "json_schema",
+                             "json_schema": {"name": "document_extract", "schema": schema, "strict": False}},
+            messages=[{"role": "system", "content": prompt},
+                      {"role": "user", "content": parts}],
+        )
+        return response.choices[0].message.content
+    except Exception as exc:
+        logger.warning("_openai_document_response failed: %s", repr(exc))
+        return None
+
+
+def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str]]:
+    """Entry point. Read uploaded documents and return (form details or None, warnings).
+
+    The details follow app/schemas/document_extract.schema.json. Nothing is decided here:
+    the officer reviews every pre-filled value before the client is saved.
+    """
+    warnings = [d["error"] for d in documents if d.get("kind") == "error"]
+    readable = [d for d in documents if d.get("kind") in ("text", "image", "pdf")]
+    if len(readable) > MAX_EXTRACT_DOCUMENTS:
+        warnings.append(f"Only the first {MAX_EXTRACT_DOCUMENTS} documents were read.")
+    if not readable:
+        return None, warnings or ["None of the uploaded files could be read."]
+    if not has_api_key():
+        return None, warnings + ["No OPENAI_API_KEY is set, so documents can't be read automatically."]
+
+    prompt = load_prompt("document_extract.txt")
+    schema = load_schema("document_extract.schema.json")
+    parts = build_document_parts(readable)
+    mdl = model()
+
+    last_error = ""
+    for attempt in range(2):
+        text = _openai_document_response(prompt, parts, mdl, schema)
+        if text is None:
+            last_error = "API call failed"
+            continue
+        try:
+            data = json.loads(extract_json(text))
+        except json.JSONDecodeError as exc:
+            last_error = repr(exc)
+            logger.warning("extract_client_details attempt %d JSON error: %s", attempt + 1, last_error)
+            continue
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            last_error = err or "schema"
+            logger.warning("extract_client_details attempt %d schema error: %s", attempt + 1, last_error)
+            continue
+        return data, warnings
+
+    logger.error("extract_client_details failed: %s", last_error)
+    return None, warnings + ["The documents could not be read automatically. Details: logs/app.log"]
+
+
+# ============================================================================
 # 6. Forecasting - runs after the benchmark
 # ============================================================================
 

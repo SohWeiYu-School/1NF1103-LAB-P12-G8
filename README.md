@@ -79,6 +79,27 @@ Use `make run` (Docker) to do a final check before pushing your code.
 
 ---
 
+## Filling in a Client from Documents (web app)
+
+Instead of typing every field, the officer can upload the client's documents and let the AI fill in the form.
+
+```bash
+python -m app.web_app        # then open http://127.0.0.1:5000
+```
+
+1. Open **+ New client** (or **Edit** on an existing client).
+2. In **Fill in from documents**, choose one or more files — CV, payslips, employment letters, tax notices, property deeds, bank or brokerage statements, KYC forms. Accepted: PDF (including scans), Word (.docx), Excel (.xlsx), text/CSV, and images (.png, .jpg).
+3. Click **Read documents & fill in**. The AI fills in the **empty** boxes only — anything already typed is never overwritten — and highlights every filled box in yellow.
+4. Check each highlighted value, read the **Notes** box (e.g. amounts in other currencies that need converting to SGD, conflicts between documents), then **Save client**.
+
+The uploaded files are kept as the client's supporting documents when you save.
+
+How it works: `data_manager.read_document_for_extraction` reads each file's text (or keeps images and scanned PDFs as they are), `ai_manager.extract_client_details` sends them to the AI with `app/prompts/document_extract.txt` and checks the reply against `app/schemas/document_extract.schema.json`, and `web_app.fill_blanks` merges the result into the form.
+
+> **Privacy note:** this sends the full document contents — including declared figures — to the AI provider. This is separate from the benchmark call, whose allowlist (see `CLAUDE.md`) is unchanged. Only use synthetic documents.
+
+---
+
 ## Running Tests
 
 ```bash
