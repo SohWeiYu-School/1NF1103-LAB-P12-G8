@@ -158,13 +158,38 @@ def get_assessment_collection():
 # ==============================================================================
 
 def save_case_record(record: dict) -> bool:
-    # Save or update a client record strictly in local sow_cases.json
-    return save_to_json(record, LOCAL_CASES_JSON)
+    # Save or update a client record strictly in local sow_cases.json, always in the current layout
+    return save_to_json(standardise_record(record), LOCAL_CASES_JSON)
+
+
+# Older command-line records used other names for these asset values. The web app, the documents
+# auto-fill and the forecasting all use the names on the left.
+OLD_ASSET_KEYS = {"current_declared_value": "current_value", "income_produced": "yearly_income"}
+
+
+def standardise_record(record: dict) -> dict:
+    """Bring a client record saved in an older layout up to the one layout every screen uses:
+    asset values as current_declared_value / income_produced, and the asset's description
+    folded into asset_type ("Property - Condo"). Records already in that layout are unchanged."""
+    if not isinstance(record, dict):
+        return record
+    for asset in record.get("investments") or []:
+        if not isinstance(asset, dict):
+            continue
+        for new, old in OLD_ASSET_KEYS.items():
+            if asset.get(new) is None and old in asset:
+                asset[new] = asset[old]
+            asset.pop(old, None)
+        description = str(asset.pop("asset_description", None) or asset.pop("description", None) or "").strip()
+        kind = str(asset.get("asset_type") or "").strip()
+        if description and description.lower() not in kind.lower():
+            asset["asset_type"] = f"{kind} - {description}" if kind else description
+    return record
 
 
 def load_all_records() -> list:
-    # Get all client records strictly from local sow_cases.json
-    return load_from_json(LOCAL_CASES_JSON)
+    # Get all client records strictly from local sow_cases.json, in the current layout
+    return [standardise_record(record) for record in load_from_json(LOCAL_CASES_JSON)]
 
 
 def find_client_record(client_ref: str) -> dict | None:

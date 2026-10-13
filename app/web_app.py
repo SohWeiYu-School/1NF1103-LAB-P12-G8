@@ -182,9 +182,9 @@ def to_text(kind: str, value) -> str:
             return trim(float(value) * 100)       # 0.25 -> '25'
         except (TypeError, ValueError):
             return str(value)
-    if kind == "countries":
-        return ", ".join(value) if isinstance(value, list) else str(value)
-    if kind in ("int", "money"):
+    if isinstance(value, list):                    # countries, counterparties
+        return ", ".join(str(item) for item in value)
+    if kind in ("int", "money") or (isinstance(value, (int, float)) and not isinstance(value, bool)):
         return trim(value)
     return str(value)
  
@@ -447,56 +447,20 @@ def check_record(record: dict) -> list:
 # Auto-fill from uploaded documents
 # ============================================================================
 
-# AI reply key -> form key, where they differ (the AI's money fields say they're in SGD)
-_AI_ASSET_KEYS = {"price_paid_sgd": "price_paid",
-                  "current_declared_value_sgd": "current_declared_value",
-                  "income_produced_sgd": "income_produced"}
-_AI_CLAIM_KEYS = {"declared_net_worth_sgd": "declared_net_worth",
-                  "expected_aum_sgd": "expected_aum",
-                  "biggest_wealth_jump_sgd": "biggest_wealth_jump"}
-
-
-def _age_on(date_of_birth, on_date: str):
-    """Age in whole years on on_date, or None if either date can't be read."""
-    try:
-        born = datetime.date.fromisoformat(str(date_of_birth))
-        day = datetime.date.fromisoformat(on_date) if on_date else datetime.date.today()
-    except ValueError:
-        return None
-    age = day.year - born.year - ((day.month, day.day) < (born.month, born.day))
-    return age if 0 < age < 130 else None
-
-
 def extracted_to_values(extracted: dict, current_date: str = "") -> dict:
-    """The AI's document details as form text, in the same shape values_from_form gives."""
-    client = dict(extracted.get("client") or {})
-    if not client.get("age") and client.get("date_of_birth"):
-        client["age"] = _age_on(client["date_of_birth"], current_date)
+    """The AI's document details as form text, in the same shape values_from_form gives.
 
-    claims = {_AI_CLAIM_KEYS.get(key, key): value
-              for key, value in (extracted.get("claims") or {}).items()}
-    if claims.get("declared_counterparties"):
-        claims["declared_counterparties"] = ", ".join(claims["declared_counterparties"])
-
-    composition = extracted.get("composition") or {}
-    raw = {
-        "client": client,
-        "jobs": extracted.get("jobs") or [],
-        "assets": [{_AI_ASSET_KEYS.get(key, key): value for key, value in asset.items()}
-                   for asset in extracted.get("assets") or []],
-        # the form stores fractions; the AI gives percentages
-        "composition": {key: (value / 100 if isinstance(value, (int, float)) else None)
-                        for key, value in composition.items()},
-        "claims": claims,
-        "sow": {"sow_declaration": extracted.get("sow_declaration")},
-    }
-    values = {}
+    The AI reply is turned into a client record by logic_manager.record_from_documents - the very
+    function the command line's "New Client from Documents" uses - so both give the same values
+    (field names, age from the date of birth, wealth split as fractions, oldest job first)."""
+    record, _ = logic_manager.record_from_documents(extracted, "", current_date or today())
+    if not extracted.get("jobs"):
+        record["career_history"] = []      # the command line's empty "current job" is only there to be asked for
+    values = values_from_record(record)
+    values["client"]["current_date"] = ""  # never overwrite the officer's assessment date
     for prefix, title, fields, kind in SECTIONS:
-        if kind == "dict":
-            values[prefix] = {key: to_text(k, raw[prefix].get(key)) for key, label, k in fields}
-        else:
-            rows = [{key: to_text(k, item.get(key)) for key, label, k in fields} for item in raw[prefix]]
-            values[prefix] = [row for row in rows if any(row.values())]
+        if kind == "list":
+            values[prefix] = [row for row in values[prefix] if any(row.values())]
     return values
 
 
@@ -604,6 +568,14 @@ def autofill_form(heading: str, form, files):
         found = extracted_to_values(extracted, values["client"].get("current_date", ""))
         values, filled = fill_blanks(values, found)
         notes += extracted.get("notes") or []
+        # the same second-look checks the command line shows after reading documents
+        date = values["client"].get("current_date") or today()
+        try:
+            datetime.date.fromisoformat(date)
+        except ValueError:
+            date = today()
+        record, _ = logic_manager.record_from_documents(extracted, "", date)
+        notes += logic_manager.check_document_record(logic_manager.finish_document_record(record), date)
     if extracted is not None and filled:
         flash(f"Read {len(read)} document(s) and filled {len(filled)} box(es), highlighted in yellow. "
               "Check every highlighted value before saving.")
@@ -638,17 +610,8 @@ def show_form(heading: str, values: dict, problems: list, field_errors: dict = N
 # ============================================================================
 
 def _crime_scan_input(record):
-    career = record.get("career") or {}
-    return {
-        "client_ref":           record["client_ref"],
-        "occupation":           career.get("occupation", ""),
-        "industry":             career.get("industry", ""),
-        "age":                  career.get("age"),
-        "career_start_year":    career.get("career_start_year"),
-        "country":              career.get("country_of_residence", ""),
-        "country_of_residence": career.get("country_of_residence", ""),
-        "declaration_text":     record.get("sow_declaration", ""),
-    }
+    # same fields as the command line (logic_manager.crime_scan_input)
+    return logic_manager.crime_scan_input(record)
 
 
 def _run_crime_scan(case_input):
@@ -673,23 +636,9 @@ def _run_crime_scan(case_input):
 
 
 def _run_benchmark(record, case_input):
-    claims = record.get("claims") or {}
-    comp   = claims.get("asset_composition") or {}
-    nw     = claims.get("declared_net_worth") or 0
-    benchmark_input = {
-        **case_input,
-        "declared_net_worth":      utilities.whole_number(nw),
-        "listed_equities":         utilities.whole_number((comp.get("listed_equities") or 0) * nw),
-        "cash":                    utilities.whole_number((comp.get("cash") or 0) * nw),
-        "property":                utilities.whole_number((comp.get("property") or 0) * nw),
-        "private_business":        utilities.whole_number((comp.get("private_business") or 0) * nw),
-        "biggest_wealth_jump":     claims.get("biggest_wealth_jump"),
-        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
-        "declared_counterparties": claims.get("declared_counterparties", []),
-        "declared_countries":      claims.get("wealth_countries", []),
-    }
-    if any(benchmark_input[k] is None for k in
-           ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
+    # same input as the command line (logic_manager.benchmark_input): composition in whole percents
+    benchmark_input, missing = logic_manager.benchmark_input(record, case_input)
+    if missing:
         return None
     ai_data = ai_manager.get_ai_benchmark(benchmark_input)
     return logic_manager.run_benchmark(benchmark_input, ai_data)

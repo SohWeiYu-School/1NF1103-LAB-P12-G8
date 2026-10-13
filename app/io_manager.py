@@ -341,13 +341,16 @@ def _ask_asset() -> dict:
     if ask_yes_no("Has this asset been sold?"):
         year_sold  = ask_year("Year sold", minimum=year_acquired)
         sale_price = ask_money("Sale price")
+    # Same layout as the web form and the documents auto-fill: "Property - Condo", current_declared_value,
+    # income_produced. year_sold, sale_price and currency are extra details only this screen asks for.
     return {
-        "asset_type": asset_type, "asset_description": description, "country": country,
+        "asset_type": f"{asset_type} - {description}" if description.lower() not in asset_type.lower() else asset_type,
+        "country": country,
         "year_acquired": year_acquired, "price_paid": price_paid,
         "payment_method": payment_method, "year_sold": year_sold, "sale_price": sale_price,
-        "current_value": ask_money("Current value (0 if sold)"),
-        "yearly_income": ask_money("Yearly income from this asset (0 if none)"),
-        "currency":      ask_currency(),
+        "current_declared_value": ask_money("Current value (0 if sold)"),
+        "income_produced":        ask_money("Yearly income from this asset (0 if none)"),
+        "currency":               ask_currency(),
     }
 
 
@@ -483,7 +486,8 @@ def show_client_list(records: list) -> None:
     print("─" * W + "\n")
 
 
-FIELD_NAMES = {"expected_aum": "Expected AUM", "pep_status": "PEP Status"}
+FIELD_NAMES = {"expected_aum": "Expected AUM", "pep_status": "PEP Status",
+               "current_declared_value": "Current Value (SGD)", "income_produced": "Yearly Income (SGD)"}
 
 
 def _field_name(key: str) -> str:
@@ -893,7 +897,7 @@ def edit_asset_record(record):
         return
     print("\n=== Investments ===")
     for i, a in enumerate(assets, start=1):
-        print(f"{i}. {a.get('asset_type','?')} - {a.get('asset_description','?')}")
+        print(f"{i}. {a.get('asset_type') or '?'}")
     choice = input("\nSelect asset to edit: ").strip()
     if not choice.isdigit() or not (1 <= int(choice) <= len(assets)):
         print("Invalid selection.")
@@ -901,8 +905,7 @@ def edit_asset_record(record):
     asset = assets[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
     this_year = datetime.date.today().year
-    asset["asset_type"]        = keep_words("Asset type", asset.get("asset_type", ""), LABEL)
-    asset["asset_description"] = keep_words("Description", asset.get("asset_description", ""), LABEL)
+    asset["asset_type"]        = keep_words("Asset (e.g. Property - Condo)", asset.get("asset_type", ""), LABEL)
     asset["country"]           = keep_words("Country", asset.get("country", ""))
     asset["year_acquired"] = keep_int("Year acquired", asset.get("year_acquired", ""), 1940, this_year)
     asset["price_paid"]    = keep_money("Price paid", asset.get("price_paid", ""))
@@ -928,8 +931,8 @@ def edit_asset_record(record):
             asset["sale_price"] = keep_money("Sale price", asset.get("sale_price") or 0)
             break
         show_error(f"Enter a year between {bought} and {this_year}, 'none', or press Enter to keep.")
-    asset["current_value"] = keep_money("Current value", asset.get("current_value", ""))
-    asset["yearly_income"] = keep_money("Yearly income", asset.get("yearly_income", ""))
+    asset["current_declared_value"] = keep_money("Current value", asset.get("current_declared_value", ""))
+    asset["income_produced"]        = keep_money("Yearly income", asset.get("income_produced", ""))
     while True:
         v = input(f"Currency [{asset.get('currency', '')}]: ").strip().upper()
         if not v:
@@ -1504,7 +1507,7 @@ def keep_money(label: str, current):
         show_error("Amounts can't be negative.")
 
 LETTERS = " '.-"                    # allowed besides letters: names, nationality, countries
-LABEL   = " '.-&/,()0123456789"     # job titles, industries, employers, asset descriptions
+LABEL   = " '.-&/,()%#0123456789"     # job titles, industries, employers, asset descriptions
 
 
 def _only(text: str, allowed: str) -> bool:
@@ -1705,12 +1708,19 @@ def _jobs_from_record(record: dict, this_year: int, ask: Ask) -> list[dict]:
     return jobs
 
 
+def _first_filled(*values: object) -> object:
+    """The first value that isn't None or blank text, else None."""
+    for value in values:
+        if value is not None and str(value).strip():
+            return value
+    return None
+
+
 def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask) -> list[dict]:
     """Investments still held, amounts in SGD. Sold assets are excluded."""
     investments = []
     for number, entry in enumerate(record.get("investments", []), start=1):
-        name = " - ".join(p for p in (str(entry.get("asset_type") or "").strip(),
-                                      str(entry.get("asset_description") or "").strip()) if p) or f"Asset {number}"
+        name = str(entry.get("asset_type") or "").strip() or f"Asset {number}"
         if str(entry.get("year_sold") or "").strip():
             show(f"  {name}: sold in {entry['year_sold']}, so it's left out of the forecast.")
             continue
@@ -1718,6 +1728,10 @@ def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask)
         in_sgd = currency in ("", "SGD", "S$")
         if not in_sgd:
             show(f"\n{name} is in {currency}. Please give its amounts in SGD.")
+        # current_declared_value / income_produced, as the web form saves them; older command-line
+        # records called them current_value / yearly_income (data_manager upgrades those on load).
+        current_value = _first_filled(entry.get("current_declared_value"), entry.get("current_value"))
+        yearly_income = _first_filled(entry.get("income_produced"), entry.get("yearly_income"))
         method = _payment_method(entry.get("payment_method"))
         if method is None:
             method = PAYMENT_METHODS[ask_choice(f"{name}: how was it paid for?", PAYMENT_METHODS, ask)]
@@ -1727,10 +1741,10 @@ def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask)
             "year_acquired":          _year_or_ask(entry.get("year_acquired"), f"{name}: year bought", ask, first_year, this_year),
             "price_paid":             _number_or_ask(entry.get("price_paid") if in_sgd else None,
                                                      f"{name}: price paid (SGD)", ask, allow_zero=False),
-            "current_declared_value": _number_or_ask(entry.get("current_value") if in_sgd else None,
+            "current_declared_value": _number_or_ask(current_value if in_sgd else None,
                                                      f"{name}: current value (SGD)", ask),
             "payment_method":         method,
-            "income_produced":        _number_or_ask((entry.get("yearly_income") or "0") if in_sgd else None,
+            "income_produced":        _number_or_ask((yearly_income or "0") if in_sgd else None,
                                                      f"{name}: yearly income (SGD, 0 if none)", ask),
         })
     return investments

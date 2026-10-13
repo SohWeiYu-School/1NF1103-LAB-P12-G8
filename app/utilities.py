@@ -239,6 +239,12 @@ def research_model() -> str:
     return os.getenv("OPENAI_RESEARCH_MODEL")
 
 
+def extract_model() -> str:
+    """OPENAI_EXTRACT_MODEL if set (reading documents benefits from a stronger model),
+    otherwise the model every other section uses."""
+    return os.getenv("OPENAI_EXTRACT_MODEL") or model()
+
+
 def forecast_model() -> str:
     """OPENAI_FORECAST_MODEL if set, otherwise the model every other section uses."""
     return os.getenv("OPENAI_FORECAST_MODEL") or model()

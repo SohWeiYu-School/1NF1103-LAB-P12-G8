@@ -716,7 +716,7 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
     prompt = load_prompt("document_extract.txt")
     schema = load_schema("document_extract.schema.json")
     parts = build_document_parts(readable)
-    mdl = model()
+    mdl = utilities.extract_model()
 
     last_error = ""
     for attempt in range(2):

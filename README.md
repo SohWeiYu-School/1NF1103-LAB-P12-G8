@@ -94,7 +94,20 @@ python -m app.web_app        # then open http://127.0.0.1:5000
 
 The uploaded files are kept as the client's supporting documents when you save.
 
-How it works: `data_manager.read_document_for_extraction` reads each file's text (or keeps images and scanned PDFs as they are), `ai_manager.extract_client_details` sends them to the AI with `app/prompts/document_extract.txt` and checks the reply against `app/schemas/document_extract.schema.json`, and `web_app.fill_blanks` merges the result into the form.
+The command line does the same through menu option **2. New Client from Documents** (point it at a folder of documents).
+
+How it works — the web app and the command line share every step, so the same documents always give the same client:
+
+1. `data_manager.read_document_for_extraction` reads each file's text (or keeps images and scanned PDFs as they are).
+2. `ai_manager.extract_client_details` sends them to the AI with `app/prompts/document_extract.txt` and checks the reply against `app/schemas/document_extract.schema.json`.
+3. `logic_manager.record_from_documents` turns the reply into a client record (the web app then shows it in the form, and `web_app.fill_blanks` only fills empty boxes).
+4. `logic_manager.check_document_record` lists things worth a second look, shown with the AI's notes.
+
+The form records what the client **declares** (from the KYC / declaration form). Anything the other documents show that the client did not declare — an offshore company, unexplained payments, a purchase funded differently — is not added to the form; it appears in the **Notes** as "Not declared:", "Conflict:" or "Check:".
+
+Set `OPENAI_EXTRACT_MODEL` in `.env` to use a stronger model just for reading documents (it defaults to `OPENAI_MODEL`).
+
+`tests/documents/marcus_lim/` holds a specimen set of documents, and `tests/test_document_parity.py` checks that both routes save the same client from them.
 
 > **Privacy note:** this sends the full document contents — including declared figures — to the AI provider. This is separate from the benchmark call, whose allowlist (see `CLAUDE.md`) is unchanged. Only use synthetic documents.
 

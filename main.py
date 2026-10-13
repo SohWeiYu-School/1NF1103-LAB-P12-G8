@@ -55,21 +55,10 @@ def _configure_logging() -> None:
 # 1-2. Sector Crime Scan
 # ---------------------------------------------------------------------------
 
-# Adapts the full client record into the flat dict that the crime scan pipeline expects.
+# The crime scan input is built in logic_manager so the web app sends exactly the same fields.
 def crime_scan_input(client_record: dict) -> dict:
-    """Map the client record (flat structure) to the crime scan input."""
-    career = client_record["career"]
-    sow = client_record["sow_declaration"]
-    return {
-        "client_ref":           client_record["client_ref"],
-        "occupation":           career["occupation"],
-        "industry":             career["industry"],
-        "age":                  utilities.whole_number(career["age"]),
-        "career_start_year":    utilities.whole_number(career["career_start_year"]),
-        "country":              career["country_of_residence"],
-        "country_of_residence": career["country_of_residence"],
-        "declaration_text":     sow if isinstance(sow, str) else sow.get("declaration_text", ""),
-    }
+    """Map the client record to the crime scan input (KeyError if career or declaration is missing)."""
+    return logic_manager.crime_scan_input(client_record)
 
 
 # Orchestrates the full crime scan: research → verify → typologies → declaration → match → display.
@@ -147,37 +136,7 @@ def _run_sample_assessment() -> None:
 # Orchestrates the benchmark: builds input, calls AI for expected values, runs logic checks, returns findings.
 def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None:
     """The benchmark check on the declared net worth and asset split."""
-    claims = client_record.get("claims", {})
-    comp   = claims.get("asset_composition", {})
-
-    def _comp_pct(val) -> int | None:
-        """Convert fraction (0.1) or percentage (10) to whole-number percentage."""
-        n = utilities.whole_number(val)
-        if n is None:
-            return None
-        # If stored as fraction (0-1), multiply by 100
-        raw = val if val is not None else 0
-        try:
-            f = float(raw)
-            return round(f * 100) if f <= 1.0 else n
-        except (TypeError, ValueError):
-            return n
-
-    benchmark_input = {
-        **case_input,
-        "declared_net_worth":      utilities.whole_number(claims.get("declared_net_worth")),
-        "listed_equities":         _comp_pct(comp.get("listed_equities")),
-        "cash":                    _comp_pct(comp.get("cash")),
-        "property":                _comp_pct(comp.get("property")),
-        "private_business":        _comp_pct(comp.get("private_business")),
-        "biggest_wealth_jump":     float(claims["biggest_wealth_jump"]) if claims.get("biggest_wealth_jump") is not None else None,
-        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
-        "declared_counterparties": claims.get("declared_counterparties", []),
-        "declared_countries":      claims.get("wealth_countries", []),
-    }
-
-    unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
-                  if benchmark_input[k] is None]
+    benchmark_input, unreadable = logic_manager.benchmark_input(client_record, case_input)
     if unreadable:
         io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
         return None

@@ -41,6 +41,7 @@
     },
     "assets": {
       "type": "array",
+      "description": "The assets the client declares (KYC / declaration form). Undeclared assets go in notes.",
       "items": {
         "type": "object",
         "required": ["asset_type", "country", "year_acquired", "price_paid_sgd",
@@ -94,7 +95,7 @@
     },
     "notes": {
       "type": "array",
-      "description": "Short notes for the officer: amounts left out because they were not in SGD, conflicts between documents, anything uncertain.",
+      "description": "Up to 12 one-sentence notes for the officer, each starting 'Not declared:', 'Conflict:' or 'Check:' and naming the file(s).",
       "items": {"type": "string"}
     }
   }

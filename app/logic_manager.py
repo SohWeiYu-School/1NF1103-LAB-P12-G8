@@ -169,6 +169,56 @@ def calculate_jurisdiction(declared, expected):
     return unknown
 
 
+def crime_scan_input(record: dict) -> dict:
+    """The crime scan input from a saved client record (used by both the CLI and the web app).
+    Raises KeyError if the record has no career or no source of wealth declaration."""
+    career = record["career"]
+    sow = record["sow_declaration"]
+    return {
+        "client_ref":           record["client_ref"],
+        "occupation":           career["occupation"],
+        "industry":             career["industry"],
+        "age":                  utilities.whole_number(career["age"]),
+        "career_start_year":    utilities.whole_number(career["career_start_year"]),
+        "country":              career["country_of_residence"],
+        "country_of_residence": career["country_of_residence"],
+        "declaration_text":     sow if isinstance(sow, str) else (sow or {}).get("declaration_text", ""),
+    }
+
+
+def _whole_percent(value) -> int | None:
+    """A share of wealth as a whole-number percent: 0.45 (stored fraction) or 45 -> 45."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return round(value * 100) if value <= 1.0 else round(value)
+
+
+def benchmark_input(record: dict, case_input: dict) -> tuple[dict, list[str]]:
+    """The benchmark's input built from a saved client record - the CLI and the web app both use this,
+    so the same client always gets the same benchmark. Composition is in whole percents (45 = 45%),
+    the unit run_benchmark and the benchmark prompt expect.
+    Returns (input, names of the required values that are missing)."""
+    claims = record.get("claims") or {}
+    split = claims.get("asset_composition") or {}
+    worth = claims.get("declared_net_worth")
+    jump = claims.get("biggest_wealth_jump")
+    data = {
+        **case_input,
+        "declared_net_worth":      utilities.whole_number(worth),
+        "listed_equities":         _whole_percent(split.get("listed_equities")),
+        "cash":                    _whole_percent(split.get("cash")),
+        "property":                _whole_percent(split.get("property")),
+        "private_business":        _whole_percent(split.get("private_business")),
+        "biggest_wealth_jump":     float(jump) if isinstance(jump, (int, float)) else None,
+        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
+        "declared_counterparties": list(claims.get("declared_counterparties") or []),
+        "declared_countries":      list(claims.get("wealth_countries") or []),
+    }
+    missing = [key for key in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
+               if data[key] is None]
+    return data, missing
+
+
 def run_benchmark(client_data: dict, ai_data: dict):
     """Run all six benchmark checks for a client."""
 
@@ -1800,6 +1850,9 @@ def record_from_documents(extracted: dict, client_ref: str, today: str) -> tuple
     jobs = [{key: job.get(key) for key in ("start_year", "end_year", "occupation", "seniority", "industry",
                                            "employer_name", "employer_size", "country")}
             for job in extracted.get("jobs") or []]
+    # oldest first, current job (no end year) last - the order the forecasting checks
+    jobs.sort(key=lambda job: (job["start_year"] if isinstance(job["start_year"], int) else 9999,
+                               job["end_year"] if isinstance(job["end_year"], int) else 9999))
     if not jobs:   # always at least one (current) job, so its details get asked for
         jobs = [{"start_year": None, "end_year": None, "occupation": None, "seniority": None,
                  "industry": None, "employer_name": None, "employer_size": None,
@@ -1808,12 +1861,12 @@ def record_from_documents(extracted: dict, client_ref: str, today: str) -> tuple
     investments = []
     for asset in extracted.get("assets") or []:
         investments.append({
-            "asset_type": asset.get("asset_type"), "asset_description": asset.get("asset_type"),
+            "asset_type": asset.get("asset_type"),
             "country": asset.get("country"), "year_acquired": asset.get("year_acquired"),
-            "price_paid": asset.get("price_paid_sgd"), "payment_method": asset.get("payment_method"),
-            "year_sold": None, "sale_price": None,
-            "current_value": asset.get("current_declared_value_sgd"),
-            "yearly_income": asset.get("income_produced_sgd"), "currency": "SGD",
+            "price_paid": asset.get("price_paid_sgd"),
+            "current_declared_value": asset.get("current_declared_value_sgd"),
+            "payment_method": asset.get("payment_method"),
+            "income_produced": asset.get("income_produced_sgd"),   # the AI gives every amount in SGD
         })
 
     split = {key: composition.get(key) for key in COMPOSITION_KEYS}
@@ -1913,8 +1966,8 @@ def _required_fields(record: dict) -> list[dict]:
             _field(["investments", i, "year_acquired"], "year acquired", "year", group),
             _field(["investments", i, "price_paid"], "price paid (SGD)", "money_positive", group),
             _field(["investments", i, "payment_method"], "how it was paid for", "payment", group),
-            _field(["investments", i, "current_value"], "current value (SGD)", "money", group),
-            _field(["investments", i, "yearly_income"], "yearly income (SGD)", "money", group,
+            _field(["investments", i, "current_declared_value"], "current value (SGD)", "money", group),
+            _field(["investments", i, "income_produced"], "yearly income (SGD)", "money", group,
                    f"{group}: yearly income (SGD, 0 if none)"),
         ]
     fields += [
@@ -1990,10 +2043,44 @@ def check_document_record(record: dict, today: str) -> list[str]:
     worth, aum = claims.get("declared_net_worth"), claims.get("expected_aum")
     if isinstance(worth, (int, float)) and isinstance(aum, (int, float)) and aum > worth:
         warnings.append("Expected assets with the bank are more than the declared net worth.")
-    held = sum(a.get("current_value") or 0 for a in record.get("investments", [])
-               if isinstance(a.get("current_value"), (int, float)))
+    held = sum(a.get("current_declared_value") or 0 for a in record.get("investments", [])
+               if isinstance(a.get("current_declared_value"), (int, float)))
     if isinstance(worth, (int, float)) and held > worth * 1.2:
         warnings.append(f"The listed assets are worth {held:,.0f}, well above the declared net worth {worth:,.0f}.")
+    warnings += _split_against_assets(record)
+    return warnings
+
+
+# asset_type starts with the kind of asset ("Property - Condo"), as the form, the CLI and the documents auto-fill write it
+_ASSET_KIND_PREFIX = {"property": "property", "listed equities": "listed_equities",
+                       "private business": "private_business"}
+
+
+def _split_against_assets(record: dict) -> list[str]:
+    """Does the declared wealth split agree with the assets listed? Catches a value or a percentage
+    read wrongly from the documents (or typed wrongly). Only checks kinds of asset that are listed."""
+    claims = record.get("claims", {})
+    worth = claims.get("declared_net_worth")
+    split = claims.get("asset_composition") or {}
+    if not isinstance(worth, (int, float)) or worth <= 0:
+        return []
+    totals = {}
+    for asset in record.get("investments", []):
+        kind = str(asset.get("asset_type") or "").lower()
+        value = asset.get("current_declared_value")
+        key = next((k for prefix, k in _ASSET_KIND_PREFIX.items() if kind.startswith(prefix)), None)
+        if key and isinstance(value, (int, float)):
+            totals[key] = totals.get(key, 0) + value
+    warnings = []
+    for key, listed in totals.items():
+        share = split.get(key)
+        if not isinstance(share, (int, float)):
+            continue
+        declared = share * worth
+        if abs(listed - declared) > 0.15 * max(declared, listed):
+            label = key.replace("_", " ")
+            warnings.append(f"The {label} assets listed are worth {listed:,.0f}, but the declared split puts "
+                            f"{share:.0%} ({declared:,.0f}) of the net worth in {label}.")
     return warnings
 
 
