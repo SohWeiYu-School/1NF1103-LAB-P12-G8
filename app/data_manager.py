@@ -1,6 +1,8 @@
 """
-data_manager.py - the data layer. Everything the system saves goes into one MongoDB
-database (MONGODB_URI in .env, database "sow_risk_db"):
+  data_manager.py - the data layer. Everything is saved to local JSON files first
+  (data/local database/). Nothing goes to MongoDB until the user chooses
+  "Manual Sync to Cloud Database" (sync_json_to_mongodb), which pushes the JSON
+  data and supporting documents to the MongoDB database "sow_risk_db" (MONGODB_URI in .env).
 
     client_cases      one document per client (client_ref)
                         - the client record typed in by the officer (io_manager forms)
@@ -33,6 +35,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
+import shutil
 
 # Load environment variables automatically from .env file
 load_dotenv()
@@ -60,6 +63,8 @@ LOCAL_ASSESSMENTS_JSON = os.path.join(LOCAL_DB_DIR, "ai_assessments.json")
 DB_NAME = "sow_risk_db"
 COLLECTION_NAME = "client_cases"
 ASSESSMENT_COLLECTION_NAME = "ai_assessments"
+
+DOCUMENTS_DIR = os.path.join(DATA_DIR, "documents")
 
 
 def _ensure_data_dir():
@@ -214,7 +219,31 @@ def query_assessments(assessments: list, outcome: str = None) -> list:
         if a.get("outcome") == outcome or a.get("assessment", {}).get("outcome") == outcome
     ]
 
+def mongo_is_online() -> bool:
+    try:
+        MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000,
+                    tlsCAFile=certifi.where()).admin.command("ping")
+        return True
+    except Exception:
+        return False
 
+
+def _upload_local_documents(record: dict, db) -> int:
+    """Push documents that only exist locally to GridFS and remember their file_id."""
+
+
+    uploaded = 0
+    for doc in record.get("supporting_documents", []):
+        path = doc.get("file_path")
+        if doc.get("file_id") or not path:
+            continue
+        full = os.path.join(_BASE_DIR, path)
+        if not os.path.exists(full):
+            continue
+        with open(full, "rb") as f:
+            doc["file_id"] = str(GridFS(db).put(f, filename=doc.get("file_name")))
+        uploaded += 1
+    return uploaded
 # ==============================================================================
 # SYNC FUNCTIONALITY (JSON -> MongoDB Backup)
 # ==============================================================================
@@ -223,43 +252,47 @@ def sync_json_to_mongodb() -> dict:
     # Reads local JSON files and batch upserts all data into MongoDB Atlas
     stats = {"cases_synced": 0, "assessments_synced": 0, "errors": []}
 
-    # Step 1: Push all client cases from sow_cases.json to MongoDB
+    # Stop early if offline instead of waiting 2s per record
+    if not mongo_is_online():
+        stats["errors"].append("Cannot reach MongoDB. Your data is still safe in the local JSON files.")
+        return stats
+
+    # Step 1: Push all client cases (and their documents) to MongoDB
     cases = load_all_records()
     cases_coll = get_collection()
     if cases_coll is not None and cases:
         for record in cases:
             try:
-                # Update record in MongoDB or insert if it doesn't exist
+                if _upload_local_documents(record, cases_coll.database):
+                    save_to_json(record, LOCAL_CASES_JSON)   # keep the new file_id locally too
                 cases_coll.update_one(
                     {"client_ref": record["client_ref"]},
                     {"$set": record},
                     upsert=True
                 )
                 stats["cases_synced"] += 1
-            except PyMongoError as e:
+            except (PyMongoError, OSError) as e:
                 stats["errors"].append(f"Case {record.get('client_ref')}: {e}")
-    else:
-        if cases_coll is None:
-            stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+    elif cases_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
 
-    # Step 2: Push all AI assessments from ai_assessments.json to MongoDB
+    # Step 2: Push all AI assessments to MongoDB
     assessments = load_all_assessments()
     assess_coll = get_assessment_collection()
     if assess_coll is not None and assessments:
         for record in assessments:
             try:
-                # Update record in MongoDB or insert if it doesn't exist
-                assess_coll.update_one(
-                    {"client_ref": record["client_ref"]},
-                    {"$set": record},
-                    upsert=True
-                )
+                # One MongoDB document per assessment (not per client), so history is kept
+                if record.get("assessment_id"):
+                    key = {"assessment_id": record["assessment_id"]}
+                else:
+                    key = {"client_ref": record["client_ref"], "assessed_at": record.get("assessed_at")}
+                assess_coll.update_one(key, {"$set": record}, upsert=True)
                 stats["assessments_synced"] += 1
             except PyMongoError as e:
                 stats["errors"].append(f"Assessment {record.get('client_ref')}: {e}")
-    else:
-        if assess_coll is None:
-            stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
+    elif assess_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
 
     return stats
 
@@ -269,31 +302,36 @@ def sync_json_to_mongodb() -> dict:
 # ==============================================================================
 
 def upload_supporting_document(file_path: str):
-    # Try to upload document binary into MongoDB GridFS if online
+    """Copy the file into data/documents/. Does NOT touch MongoDB (sync does that later)."""
+    if not os.path.exists(file_path):
+        return None
+    os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+    dest = os.path.join(DOCUMENTS_DIR, f"{uuid.uuid4().hex[:8]}_{os.path.basename(file_path)}")
     try:
-        coll = get_collection()
-        if coll is not None and os.path.exists(file_path):
-            fs = GridFS(coll.database)
-            with open(file_path, "rb") as file:
-                file_id = fs.put(file, filename=os.path.basename(file_path))
-            return str(file_id)
-    except Exception:
-        pass
-    # If MongoDB is offline, return local filename string instead
-    return os.path.basename(file_path) if os.path.exists(file_path) else None
+        shutil.copy2(file_path, dest)
+    except OSError:
+        return None
+    return os.path.relpath(dest, _BASE_DIR).replace("\\", "/")   # forward slashes so it works on any OS
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
-    # Check if GridFS file_id is a valid ObjectId
-    if not file_id or not ObjectId.is_valid(file_id):
+    """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
+    if not file_id:
+        return False
+    local = os.path.join(_BASE_DIR, file_id)
+    if os.path.exists(local):
+        try:
+            shutil.copy2(local, output_path)
+            return True
+        except OSError:
+            return False
+    if not ObjectId.is_valid(file_id):
         return False
     try:
         coll = get_collection()
         if coll is None:
             return False
-        # Retrieve binary file from GridFS and write to output path
-        fs = GridFS(coll.database)
-        gridfs_file = fs.get(ObjectId(file_id))
+        gridfs_file = GridFS(coll.database).get(ObjectId(file_id))
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         with open(output_path, "wb") as file:
             file.write(gridfs_file.read())
@@ -382,8 +420,9 @@ def list_sample_cases() -> list:
         return []
     return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
 
-def load_forecasting_case(ref: str) -> dict | None: 
-    return find_client_record(ref)
+def load_forecasting_case(ref: str) -> dict | None:
+    record = find_client_record(ref)
+    return record.get("forecasting_case") if record else None
 
 def load_forecast(ref: str) -> dict | None: 
     return None

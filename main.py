@@ -276,7 +276,16 @@ def assess_client_record(client_record: dict, client: ai_manager.AIClient) -> No
     if data_manager.save_assessment(assessment):
         io_manager.show_message("\nAssessment saved.")
     else:
-        io_manager.show_error("Could not reach the database; the assessment was not saved.")
+        io_manager.show_error("Could not reach the database; the crime scan and benchmark were not saved.")
+
+    # Forecasting
+    case = io_manager.case_from_client_record(client_record)
+    if case is None:
+        return
+    client_record["forecasting_case"] = case
+    data_manager.save_case_record(client_record)
+    assess_case(case, client)
+    io_manager.show_error("Could not reach the database; the assessment was not saved.")
 
 
 # ---------------------------------------------------------------------------
