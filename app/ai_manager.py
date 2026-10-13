@@ -18,7 +18,7 @@ from app.utilities import (
     build_instructions,
     cache_check, cache_dir, cache_write,
     client, extract_json, extract_prompt_version,
-    forecast_model, forecast_settings, has_api_key,
+    forecast_settings, has_api_key,
     load_forecast_schema,
     load_policy, load_prompt, load_schema,
     model,
@@ -228,9 +228,6 @@ def _gemini_search_response(
         return None, None
 
 #Shared function that accepts (AI reponse & Schema) checking if the AI output matches the actaul schema
-def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
-    """Validate an AI response dict against a JSON schema.
-
 def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
     """Check an AI reply against a JSON schema. Returns (True, None) or (False, error)."""
     try:
@@ -1306,7 +1303,6 @@ def run_forecasting(call_name: str, prompt_name: str, values: dict, user_data: d
         logger.error("%s: %s", call_name, result["error"])
         return result
 
-    mdl = forecast_model()
     prompt = _build_prompt(instructions, json.dumps(user_data, indent=2, ensure_ascii=False), schema)
     max_retries = settings["max_retries"]
     last_errors: list[str] = []
@@ -1319,11 +1315,11 @@ def run_forecasting(call_name: str, prompt_name: str, values: dict, user_data: d
             message += ("\n\nYOUR PREVIOUS ANSWER WAS REJECTED because:\n- " + "\n- ".join(last_errors[:settings["max_errors_sent_back"]])
                         + "\nReturn a complete, corrected JSON object.")
         if web_search:
-            raw, _ = _openai_search_response(message, mdl, schema)
+            raw, _ = _ai_search_pipeline(message, schema)
         else:
-            raw = _openai_completion_response(message, mdl)
+            raw = _ai_chat_completion_pipeline(message, schema)
         if raw is None:
-            result["error"] = "the OpenAI request failed (details in logs/app.log)"
+            result["error"] = "the AI request failed (details in logs/app.log)"
             logger.warning("%s: attempt %d failed", call_name, attempt)
             if attempt < max_retries:
                 time.sleep(settings["retry_wait_seconds"] * attempt)
