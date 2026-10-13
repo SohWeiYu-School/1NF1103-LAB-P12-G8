@@ -26,6 +26,7 @@ and validate_case() (from io_manager) checks the result before anything is saved
  
 import datetime
 import io
+import logging
 import os
 import shutil
 import tempfile
@@ -59,6 +60,13 @@ from app.data_manager import (
     load_assessment_by_id,
 )
 from app.io_manager import generate_client_id, validate_case, _number, show_crime_scan_result, show_benchmark_result, show_onboarding
+
+_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"))
+_log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger().addHandler(_log_handler)
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")

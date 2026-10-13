@@ -36,6 +36,8 @@ from typing import Any, Callable
 import jsonschema
 from dotenv import load_dotenv
 from jsonschema import Draft202012Validator
+from google import genai as google_genai
+from google.genai import types as google_types
 from openai import OpenAI
 
 from app import common
@@ -54,6 +56,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Shared Functions
 # ---------------------------------------------------------------------------
+# Single entry point for all chat completion AI calls — tries OpenAI first, falls back to Gemini if OpenAI fails
+def _ai_chat_completion_pipeline(prompt: str, schema: dict | None = None) -> str | None:
+    result = _openai_completion_response(prompt, model(), schema)
+    if result is not None:
+        logger.info("_ai_chat_completion_pipeline: OpenAI completion succeeded")
+        return result
+    logger.warning("_ai_chat_completion_pipeline: OpenAI failed, falling back to Gemini")
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+    return _gemini_completion_response(prompt, gemini_model, schema)
 
 #Purely to call openAI chat completion API. Pass schema to enforce json_schema structured output; omit for basic json_object mode.
 def _openai_completion_response(prompt: str, model: str, schema: dict | None = None) -> str | None:
@@ -84,6 +95,61 @@ def _openai_completion_response(prompt: str, model: str, schema: dict | None = N
         return response.choices[0].message.content
     except Exception as exc:
         logger.warning("_openai_completion_response failed: %s", repr(exc))
+        return None
+
+# Purely to call Google Gemini chat completion API. Pass schema to enforce JSON output shape; omit for plain JSON mode.
+def _convert_schema_for_gemini(node, unsupported: set | None = None):
+    """Recursively convert a JSON Schema dict into Gemini-compatible schema format.
+
+    Strips unsupported meta-fields (from policy.json) and converts nullable type arrays
+    (e.g. ["string", "null"]) to Gemini's {type, nullable: true} form.
+    """
+    if unsupported is None:
+        unsupported = set(load_policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
+    if isinstance(node, list):
+        return [_convert_schema_for_gemini(item, unsupported) for item in node]
+    if not isinstance(node, dict):
+        return node
+    result = {}
+    for k, v in node.items():
+        if k in unsupported:
+            continue
+        if k == "type" and isinstance(v, list):
+            non_null = [t for t in v if t != "null"]
+            if non_null:
+                result["type"] = non_null[0]
+                result["nullable"] = True
+            continue
+        result[k] = _convert_schema_for_gemini(v, unsupported)
+    return result
+
+def _gemini_completion_response(prompt: str, model: str, schema: dict | None = None) -> str | None:
+    """
+    Raw Google Gemini API call (chat completion, no web search).
+    If schema is provided, passes it as response_schema to enforce structured output.
+    Otherwise requests plain JSON via response_mime_type only.
+    Returns the response text, or None if the call fails.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.warning("_gemini_completion_response: GEMINI_API_KEY not set")
+        return None
+    try:
+        gemini_client = google_genai.Client(api_key=api_key)
+        gemini_schema = _convert_schema_for_gemini(schema) if schema else None
+        config = google_types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="application/json",
+            response_schema=gemini_schema,
+        )
+        response = gemini_client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=config,
+        )
+        return response.text
+    except Exception as exc:
+        logger.warning("_gemini_completion_response failed: %s", repr(exc))
         return None
 
 #Purely to call OpenAI Responses API with web search + strict JSON schema output (json_schema works with web_search, json_object does not)
@@ -167,7 +233,7 @@ def get_ai_benchmark(client_data: dict) -> dict | None:
 
     # Step 3: API call + parse + validate + cache (retry once)
     for attempt in range(2):
-        text = _openai_completion_response(prompt, mdl, schema=schema)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             logger.warning("get_ai_benchmark attempt %d: API call failed", attempt + 1)
             continue
@@ -392,6 +458,7 @@ def strip_excerpts(data: dict) -> dict:
 # Typologies Section
 # ---------------------------------------------------------------------------
 
+# TODO: Change name to get_ai_typologies
 # Single entry point for typology AI — main.py calls only this
 def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
     """Orchestrate the full typology AI flow for a given case input.
@@ -441,7 +508,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     for attempt in range(2):
         attempt_warnings: list[str] = []
 
-        text = _openai_completion_response(prompt, mdl, schema=schema)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
@@ -476,6 +543,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
     return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
 
 # Trim AI response to policy max typologies. Called by get_typologies before schema validation.
+
 def trim_typologies(data: dict, max_patterns: int) -> tuple[dict, list[str]]:
     """Trim sector_typologies to max_patterns (from policy.json) before schema validation."""
     typologies = data.get("sector_typologies", [])
@@ -534,6 +602,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
     # Step 3: Cache check
     key, cached = cache_check("declaration", payload, extract_prompt_version(prompt), mdl)
     if cached is not None:
+        logger.info("get_declaration: returning cached result")
         return cached, warnings
 
     # Step 4: API call + parse + validate + cache (retry once)
@@ -541,7 +610,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
     error_type = "api"
 
     for attempt in range(2):
-        text = _openai_completion_response(prompt, mdl)
+        text = _ai_chat_completion_pipeline(prompt, schema)
         if text is None:
             error_type = "api"
             last_error = "API call failed"
