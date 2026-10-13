@@ -170,5 +170,36 @@
   },
   "max_documents": 6,
   "source_max_age_years": 10,
+  "forecasting": {
+    "web_search": false,
+    "max_retries": 3,
+    "retry_wait_seconds": 2,
+    "max_errors_sent_back": 10,
+    "min_events": 3,
+    "max_events": 6,
+    "max_crime_types": 5,
+    "honest_category": "HONEST",
+    "honest_required_signal": "SIG_SALARY_REGULAR",
+    "max_asset_exposures": 4,
+    "sensitivity_range": [-1.0, 3.0],
+    "own_growth_range": [-10.0, 10.0],
+    "market_change_range": [-99.9, 500.0],
+    "scenario_chance_total_range": [95, 105],
+    "all_zero_history_min_years": 5,
+    "declaration_markers": ["<<<BEGIN_DECLARATION>>>", "<<<END_DECLARATION>>>"],
+    "notes_markers": ["<<<BEGIN_OFFICER_NOTES>>>", "<<<END_OFFICER_NOTES>>>"],
+    "honorifics": ["Mr", "Mrs", "Ms", "Miss", "Mdm", "Madam", "Dr", "Sir"],
+    "personal_keys": ["name", "full_name", "client_name", "nationality"],
+    "claimed_figure_keys": [
+      "current_declared_value",
+      "income_produced",
+      "declared_net_worth",
+      "expected_aum",
+      "asset_composition",
+      "current_wealth",
+      "reviews"
+    ]
+  }
+  "source_max_age_years": 10,
   "gemini_unsupported_schema_keys": ["$schema", "$id", "title", "additionalProperties", "required"]
 }

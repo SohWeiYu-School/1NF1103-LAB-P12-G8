@@ -63,7 +63,7 @@ def config_problems() -> list[str]:
         if not vocab.get(key):
             problems.append(f"config/vocabulary.json is missing '{key}'")
     rules = policy()
-    for key in ("policy_version", "tolerance", "fit", "review_interval_months", "routing"):
+    for key in ("policy_version", "tolerance", "fit", "review_interval_months", "routing", "forecasting"):
         if key not in rules:
             problems.append(f"config/policy.json is missing '{key}'")
     return problems

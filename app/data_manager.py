@@ -1,6 +1,8 @@
 """
-data_manager.py - the data layer. Everything the system saves goes into one MongoDB
-database (MONGODB_URI in .env, database "sow_risk_db"):
+  data_manager.py - the data layer. Everything is saved to local JSON files first
+  (data/local database/). Nothing goes to MongoDB until the user chooses
+  "Manual Sync to Cloud Database" (sync_json_to_mongodb), which pushes the JSON
+  data and supporting documents to the MongoDB database "sow_risk_db" (MONGODB_URI in .env).
 
     client_cases      one document per client (client_ref)
                         - the client record typed in by the officer (io_manager forms)
@@ -33,6 +35,7 @@ from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
+import shutil
 
 # Load environment variables automatically from .env file
 load_dotenv()
@@ -60,6 +63,8 @@ LOCAL_ASSESSMENTS_JSON = os.path.join(LOCAL_DB_DIR, "ai_assessments.json")
 DB_NAME = "sow_risk_db"
 COLLECTION_NAME = "client_cases"
 ASSESSMENT_COLLECTION_NAME = "ai_assessments"
+
+DOCUMENTS_DIR = os.path.join(DATA_DIR, "documents")
 
 
 def _ensure_data_dir():
@@ -214,7 +219,31 @@ def query_assessments(assessments: list, outcome: str = None) -> list:
         if a.get("outcome") == outcome or a.get("assessment", {}).get("outcome") == outcome
     ]
 
+def mongo_is_online() -> bool:
+    try:
+        MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000,
+                    tlsCAFile=certifi.where()).admin.command("ping")
+        return True
+    except Exception:
+        return False
 
+
+def _upload_local_documents(record: dict, db) -> int:
+    """Push documents that only exist locally to GridFS and remember their file_id."""
+
+
+    uploaded = 0
+    for doc in record.get("supporting_documents", []):
+        path = doc.get("file_path")
+        if doc.get("file_id") or not path:
+            continue
+        full = os.path.join(_BASE_DIR, path)
+        if not os.path.exists(full):
+            continue
+        with open(full, "rb") as f:
+            doc["file_id"] = str(GridFS(db).put(f, filename=doc.get("file_name")))
+        uploaded += 1
+    return uploaded
 # ==============================================================================
 # SYNC FUNCTIONALITY (JSON -> MongoDB Backup)
 # ==============================================================================
@@ -223,45 +252,158 @@ def sync_json_to_mongodb() -> dict:
     # Reads local JSON files and batch upserts all data into MongoDB Atlas
     stats = {"cases_synced": 0, "assessments_synced": 0, "errors": []}
 
-    # Step 1: Push all client cases from sow_cases.json to MongoDB
+    # Stop early if offline instead of waiting 2s per record
+    if not mongo_is_online():
+        stats["errors"].append("Cannot reach MongoDB. Your data is still safe in the local JSON files.")
+        return stats
+
+    # Step 1: Push all client cases (and their documents) to MongoDB
     cases = load_all_records()
     cases_coll = get_collection()
     if cases_coll is not None and cases:
         for record in cases:
             try:
-                # Update record in MongoDB or insert if it doesn't exist
+                if _upload_local_documents(record, cases_coll.database):
+                    save_to_json(record, LOCAL_CASES_JSON)   # keep the new file_id locally too
                 cases_coll.update_one(
                     {"client_ref": record["client_ref"]},
                     {"$set": record},
                     upsert=True
                 )
                 stats["cases_synced"] += 1
-            except PyMongoError as e:
+            except (PyMongoError, OSError) as e:
                 stats["errors"].append(f"Case {record.get('client_ref')}: {e}")
-    else:
-        if cases_coll is None:
-            stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+    elif cases_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
 
-    # Step 2: Push all AI assessments from ai_assessments.json to MongoDB
+    # Step 2: Push all AI assessments to MongoDB
     assessments = load_all_assessments()
     assess_coll = get_assessment_collection()
     if assess_coll is not None and assessments:
         for record in assessments:
             try:
-                # Update record in MongoDB or insert if it doesn't exist
-                assess_coll.update_one(
-                    {"client_ref": record["client_ref"]},
-                    {"$set": record},
-                    upsert=True
-                )
+                # One MongoDB document per assessment (not per client), so history is kept
+                if record.get("assessment_id"):
+                    key = {"assessment_id": record["assessment_id"]}
+                else:
+                    key = {"client_ref": record["client_ref"], "assessed_at": record.get("assessed_at")}
+                assess_coll.update_one(key, {"$set": record}, upsert=True)
                 stats["assessments_synced"] += 1
             except PyMongoError as e:
                 stats["errors"].append(f"Assessment {record.get('client_ref')}: {e}")
-    else:
-        if assess_coll is None:
-            stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
+    elif assess_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
 
     return stats
+
+
+# ==============================================================================
+# READING UPLOADED DOCUMENTS (for auto-filling the client form)
+# ==============================================================================
+
+# Longest text kept from one document, so one huge file can't crowd out the others
+MAX_DOCUMENT_CHARS = 40_000
+
+# Below this many characters a PDF is treated as scanned and sent to the AI as a file
+MIN_PDF_TEXT_CHARS = 80
+
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".webp": "image/webp", ".gif": "image/gif"}
+TEXT_TYPES = {".txt", ".csv", ".md", ".json"}
+
+
+def _pdf_text(file_path: str) -> str:
+    from pypdf import PdfReader
+    reader = PdfReader(file_path)
+    pages = [f"[Page {number}]\n{page.extract_text() or ''}"
+             for number, page in enumerate(reader.pages, start=1)]
+    return "\n\n".join(pages)
+
+
+def _docx_text(file_path: str) -> str:
+    from docx import Document
+    document = Document(file_path)
+    parts = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+    for table in document.tables:                  # tables often hold the figures
+        for row in table.rows:
+            parts.append(" | ".join(cell.text.strip() for cell in row.cells))
+    return "\n".join(parts)
+
+
+def _xlsx_text(file_path: str) -> str:
+    from openpyxl import load_workbook
+    workbook = load_workbook(file_path, read_only=True, data_only=True)
+    parts = []
+    for sheet in workbook.worksheets:
+        parts.append(f"[Sheet {sheet.title}]")
+        for row in sheet.iter_rows(values_only=True):
+            cells = ["" if cell is None else str(cell) for cell in row]
+            if any(cells):
+                parts.append(" | ".join(cells))
+    workbook.close()
+    return "\n".join(parts)
+
+
+def _base64_file(file_path: str) -> str:
+    import base64
+    with open(file_path, "rb") as handle:
+        return base64.b64encode(handle.read()).decode("ascii")
+
+
+def read_document_for_extraction(file_path: str, file_name: str | None = None) -> dict:
+    """Read one uploaded file so the AI can pull client details out of it.
+
+    Returns {"file_name", "kind", ...}:
+        kind "text"   -> "text": the document's text (PDF, Word, Excel, plain text)
+        kind "image"  -> "mime", "data_b64": a photo or scan
+        kind "pdf"    -> "data_b64": a scanned PDF with no readable text
+        kind "error"  -> "error": why it couldn't be read
+    """
+    name = file_name or os.path.basename(file_path)
+    extension = os.path.splitext(name)[1].lower()
+    try:
+        if extension in IMAGE_TYPES:
+            return {"file_name": name, "kind": "image", "mime": IMAGE_TYPES[extension],
+                    "data_b64": _base64_file(file_path)}
+        if extension == ".pdf":
+            text = _pdf_text(file_path)
+            readable = "".join(line for line in text.splitlines() if not line.startswith("[Page "))
+            if len(readable.strip()) < MIN_PDF_TEXT_CHARS:
+                return {"file_name": name, "kind": "pdf", "data_b64": _base64_file(file_path)}
+        elif extension == ".docx":
+            text = _docx_text(file_path)
+        elif extension in (".xlsx", ".xlsm"):
+            text = _xlsx_text(file_path)
+        elif extension in TEXT_TYPES:
+            with open(file_path, encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+        else:
+            return {"file_name": name, "kind": "error",
+                    "error": f"{name}: this file type can't be read (use PDF, Word, Excel, text or an image)."}
+    except Exception as exc:   # a damaged or password-protected file
+        return {"file_name": name, "kind": "error", "error": f"{name}: could not be read ({exc.__class__.__name__})."}
+
+    if not text.strip():
+        return {"file_name": name, "kind": "error", "error": f"{name}: no text was found in it."}
+    return {"file_name": name, "kind": "text", "text": text[:MAX_DOCUMENT_CHARS]}
+
+
+DOCUMENT_TYPES = {".pdf", ".docx", ".xlsx", ".xlsm"} | TEXT_TYPES | set(IMAGE_TYPES)
+
+
+def list_documents_in_folder(folder: str) -> list[str] | None:
+    """The readable documents directly inside a folder (not sub-folders), sorted by name.
+    Returns None if the folder doesn't exist. Hidden and Office temp files (~$...) are skipped."""
+    folder = os.path.expanduser(folder or "")
+    if not os.path.isdir(folder):
+        return None
+    files = []
+    for name in sorted(os.listdir(folder), key=str.lower):
+        path = os.path.join(folder, name)
+        if (os.path.isfile(path) and not name.startswith((".", "~$"))
+                and os.path.splitext(name)[1].lower() in DOCUMENT_TYPES):
+            files.append(path)
+    return files
 
 
 # ==============================================================================
@@ -269,31 +411,36 @@ def sync_json_to_mongodb() -> dict:
 # ==============================================================================
 
 def upload_supporting_document(file_path: str):
-    # Try to upload document binary into MongoDB GridFS if online
+    """Copy the file into data/documents/. Does NOT touch MongoDB (sync does that later)."""
+    if not os.path.exists(file_path):
+        return None
+    os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+    dest = os.path.join(DOCUMENTS_DIR, f"{uuid.uuid4().hex[:8]}_{os.path.basename(file_path)}")
     try:
-        coll = get_collection()
-        if coll is not None and os.path.exists(file_path):
-            fs = GridFS(coll.database)
-            with open(file_path, "rb") as file:
-                file_id = fs.put(file, filename=os.path.basename(file_path))
-            return str(file_id)
-    except Exception:
-        pass
-    # If MongoDB is offline, return local filename string instead
-    return os.path.basename(file_path) if os.path.exists(file_path) else None
+        shutil.copy2(file_path, dest)
+    except OSError:
+        return None
+    return os.path.relpath(dest, _BASE_DIR).replace("\\", "/")   # forward slashes so it works on any OS
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
-    # Check if GridFS file_id is a valid ObjectId
-    if not file_id or not ObjectId.is_valid(file_id):
+    """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
+    if not file_id:
+        return False
+    local = os.path.join(_BASE_DIR, file_id)
+    if os.path.exists(local):
+        try:
+            shutil.copy2(local, output_path)
+            return True
+        except OSError:
+            return False
+    if not ObjectId.is_valid(file_id):
         return False
     try:
         coll = get_collection()
         if coll is None:
             return False
-        # Retrieve binary file from GridFS and write to output path
-        fs = GridFS(coll.database)
-        gridfs_file = fs.get(ObjectId(file_id))
+        gridfs_file = GridFS(coll.database).get(ObjectId(file_id))
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         with open(output_path, "wb") as file:
             file.write(gridfs_file.read())
@@ -382,8 +529,9 @@ def list_sample_cases() -> list:
         return []
     return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
 
-def load_forecasting_case(ref: str) -> dict | None: 
-    return find_client_record(ref)
+def load_forecasting_case(ref: str) -> dict | None:
+    record = find_client_record(ref)
+    return record.get("forecasting_case") if record else None
 
 def load_forecast(ref: str) -> dict | None: 
     return None
