@@ -516,6 +516,95 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
 
 
 # ============================================================================
+# 5b. Document auto-fill - reads uploaded client documents into form details
+# ============================================================================
+
+# Most documents sent to the AI in one go (each one is a separate part of the message)
+MAX_EXTRACT_DOCUMENTS = 10
+
+
+def build_document_parts(documents: list[dict]) -> list[dict]:
+    """Turn documents read by data_manager.read_document_for_extraction into
+    chat message parts. Text goes between <document> markers so the AI treats it as data."""
+    parts: list[dict] = []
+    for document in documents[:MAX_EXTRACT_DOCUMENTS]:
+        name = document.get("file_name", "document")
+        kind = document.get("kind")
+        if kind == "text":
+            body = wrap_free_text(document.get("text", ""), f'<document name="{name}">', "</document>")
+            parts.append({"type": "text", "text": body})
+        elif kind == "image":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (image below)'})
+            parts.append({"type": "image_url", "image_url": {
+                "url": f"data:{document['mime']};base64,{document['data_b64']}"}})
+        elif kind == "pdf":
+            parts.append({"type": "text", "text": f'<document name="{name}"> (scanned PDF below)'})
+            parts.append({"type": "file", "file": {
+                "filename": name, "file_data": f"data:application/pdf;base64,{document['data_b64']}"}})
+    return parts
+
+
+def _openai_document_response(prompt: str, parts: list[dict], mdl: str, schema: dict) -> str | None:
+    """Chat call with documents attached (text, images, scanned PDFs). Returns the reply text or None."""
+    try:
+        response = client().chat.completions.create(
+            model=mdl,
+            temperature=0,
+            response_format={"type": "json_schema",
+                             "json_schema": {"name": "document_extract", "schema": schema, "strict": False}},
+            messages=[{"role": "system", "content": prompt},
+                      {"role": "user", "content": parts}],
+        )
+        return response.choices[0].message.content
+    except Exception as exc:
+        logger.warning("_openai_document_response failed: %s", repr(exc))
+        return None
+
+
+def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str]]:
+    """Entry point. Read uploaded documents and return (form details or None, warnings).
+
+    The details follow app/schemas/document_extract.schema.json. Nothing is decided here:
+    the officer reviews every pre-filled value before the client is saved.
+    """
+    warnings = [d["error"] for d in documents if d.get("kind") == "error"]
+    readable = [d for d in documents if d.get("kind") in ("text", "image", "pdf")]
+    if len(readable) > MAX_EXTRACT_DOCUMENTS:
+        warnings.append(f"Only the first {MAX_EXTRACT_DOCUMENTS} documents were read.")
+    if not readable:
+        return None, warnings or ["None of the uploaded files could be read."]
+    if not has_api_key():
+        return None, warnings + ["No OPENAI_API_KEY is set, so documents can't be read automatically."]
+
+    prompt = load_prompt("document_extract.txt")
+    schema = load_schema("document_extract.schema.json")
+    parts = build_document_parts(readable)
+    mdl = model()
+
+    last_error = ""
+    for attempt in range(2):
+        text = _openai_document_response(prompt, parts, mdl, schema)
+        if text is None:
+            last_error = "API call failed"
+            continue
+        try:
+            data = json.loads(extract_json(text))
+        except json.JSONDecodeError as exc:
+            last_error = repr(exc)
+            logger.warning("extract_client_details attempt %d JSON error: %s", attempt + 1, last_error)
+            continue
+        valid, err = validate_ai_response(data, schema)
+        if not valid:
+            last_error = err or "schema"
+            logger.warning("extract_client_details attempt %d schema error: %s", attempt + 1, last_error)
+            continue
+        return data, warnings
+
+    logger.error("extract_client_details failed: %s", last_error)
+    return None, warnings + ["The documents could not be read automatically. Details: logs/app.log"]
+
+
+# ============================================================================
 # 6. Forecasting - runs after the benchmark
 # ============================================================================
 
@@ -1040,9 +1129,9 @@ def _build_prompt(instructions: str, user_text: str, schema: dict) -> str:
 
 
 #Call forecasting ai name
-def call_ai(call_name: str, prompt_name: str, values: dict, user_data: dict,
-            schema_name: str, check: CheckFunction | None = None,
-            cached_raw: str | None = None, web_search: bool = False) -> dict:
+def run_forecasting(call_name: str, prompt_name: str, values: dict, user_data: dict,
+                    schema_name: str, check: CheckFunction | None = None,
+                    cached_raw: str | None = None, web_search: bool = False) -> dict:
     """Send one forecasting request and return a checked result. Never raises.
 
     call_name    name of this piece (also its key in the saved replies)
@@ -1155,9 +1244,9 @@ def _crime_categories() -> list[dict]:
 def read_declaration(record: dict, cache: dict, results: dict) -> dict | None:
     """Step 0: free-text declaration -> structured list of claimed sources."""
     jobs, assets = len(common.career_positions(record)), len(record.get("investments", []))
-    result = call_ai("step0_declaration", "declaration", {},
-                     client_facts(record, include_declaration=True), "declaration",
-                     lambda data: check_declaration(data, jobs, assets), cache.get("step0_declaration"))
+    result = run_forecasting("step0_declaration", "declaration", {},
+                             client_facts(record, include_declaration=True), "declaration",
+                             lambda data: check_declaration(data, jobs, assets), cache.get("step0_declaration"))
     results[result["call"]] = result
     return result["data"] if result["ok"] else None
 
@@ -1173,10 +1262,10 @@ def forecast_markets(record: dict, declaration: dict,
 
     # 1a. Which markets matter for this client
     name = "call1_markets.list"
-    listing = call_ai(name, "markets_list", values,
-                      {"client": client_facts(record), "claimed_sources": declaration["claimed_sources"]},
-                      "markets_list", lambda data: check_markets_list(data, years),
-                      cache.get(name), web_search)
+    listing = run_forecasting(name, "markets_list", values,
+                              {"client": client_facts(record), "claimed_sources": declaration["claimed_sources"]},
+                              "markets_list", lambda data: check_markets_list(data, years),
+                              cache.get(name), web_search)
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1186,12 +1275,12 @@ def forecast_markets(record: dict, declaration: dict,
     for market in listing["data"]["relevant_markets"]:
         market_id = market["market_id"]
         name = f"call1_markets.series.{market_id}"
-        piece = call_ai(name, "market_series",
-                        {**values, "market_id": market_id, "market_name": market["name"],
-                         "indicator": market["indicator"]},
-                        {"market": market, "client": client_facts(record)}, "market_series",
-                        lambda data, m=market_id: check_market_series(data, m, list(range(start, end + 1)), years),
-                        cache.get(name), web_search)
+        piece = run_forecasting(name, "market_series",
+                                {**values, "market_id": market_id, "market_name": market["name"],
+                                 "indicator": market["indicator"]},
+                                {"market": market, "client": client_facts(record)}, "market_series",
+                                lambda data, m=market_id: check_market_series(data, m, list(range(start, end + 1)), years),
+                                cache.get(name), web_search)
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1213,14 +1302,14 @@ def forecast_earnings(record: dict, markets: dict,
     for index, job in enumerate(common.career_positions(record)):
         first, last = int(job["start_year"]), common.position_end(job, end)
         name = f"call2_earnings.position.{index}"
-        piece = call_ai(name, "position_pay",
-                        {"position_index": index, "first_year": first, "last_year": last},
-                        {"job": {"position_index": index, **job}, "earlier_pay_typical": earlier_pay,
-                         "markets": _markets_brief(markets),
-                         "market_changes": _market_changes(markets, first, last)},
-                        "position_pay",
-                        lambda data, i=index, y=list(range(first, last + 1)): check_position_pay(data, i, y),
-                        cache.get(name))
+        piece = run_forecasting(name, "position_pay",
+                                {"position_index": index, "first_year": first, "last_year": last},
+                                {"job": {"position_index": index, **job}, "earlier_pay_typical": earlier_pay,
+                                 "markets": _markets_brief(markets),
+                                 "market_changes": _market_changes(markets, first, last)},
+                                "position_pay",
+                                lambda data, i=index, y=list(range(first, last + 1)): check_position_pay(data, i, y),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1230,10 +1319,10 @@ def forecast_earnings(record: dict, markets: dict,
 
     # 2b. Future pay, from his last 3 years of pay and the market outlooks
     name = "call2_earnings.future_pay"
-    piece = call_ai(name, "future_pay", {"forecast_years": _years_text(years)},
-                    {"recent_pay_typical": earlier_pay[-3:], "client": client_facts(record),
-                     "markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets)},
-                    "future_pay", lambda data: check_future_pay(data, years), cache.get(name))
+    piece = run_forecasting(name, "future_pay", {"forecast_years": _years_text(years)},
+                            {"recent_pay_typical": earlier_pay[-3:], "client": client_facts(record),
+                             "markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets)},
+                            "future_pay", lambda data: check_future_pay(data, years), cache.get(name))
     results[name] = piece
     if not piece["ok"]:
         return None
@@ -1243,15 +1332,15 @@ def forecast_earnings(record: dict, markets: dict,
     for index, asset in enumerate(record.get("investments", [])):
         bought = int(asset["year_acquired"])
         name = f"call2_earnings.asset.{index}"
-        piece = call_ai(name, "asset_model",
-                        {"asset_index": index, "bought_year": bought, "end_year": end,
-                         "forecast_years": _years_text(years)},
-                        {"asset": strip_keys({"asset_index": index, **asset}, claimed_figure_keys),
-                         "markets": _markets_brief(markets),
-                         "market_changes": _market_changes(markets, bought, end)},
-                        "asset_model",
-                        lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(data, i, y, market_ids),
-                        cache.get(name))
+        piece = run_forecasting(name, "asset_model",
+                                {"asset_index": index, "bought_year": bought, "end_year": end,
+                                 "forecast_years": _years_text(years)},
+                                {"asset": strip_keys({"asset_index": index, **asset}, claimed_figure_keys),
+                                 "markets": _markets_brief(markets),
+                                 "market_changes": _market_changes(markets, bought, end)},
+                                "asset_model",
+                                lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(data, i, y, market_ids),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1276,16 +1365,16 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
 
     # 3a. The list of types (years are repaired first, then checked)
     name = "call3_types.list"
-    listing = call_ai(name, "person_types", values,
-                      {"client": client_facts(record, include_declaration=True),
-                       "claimed_sources": declaration["claimed_sources"],
-                       "markets": _markets_brief(markets),
-                       "career_outlook": earnings["future_pay"]["career_outlook"],
-                       "crime_categories": _crime_categories()},
-                      "person_types",
-                      lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
-                                                      record, claimed_sources),
-                      cache.get(name))
+    listing = run_forecasting(name, "person_types", values,
+                              {"client": client_facts(record, include_declaration=True),
+                               "claimed_sources": declaration["claimed_sources"],
+                               "markets": _markets_brief(markets),
+                               "career_outlook": earnings["future_pay"]["career_outlook"],
+                               "crime_categories": _crime_categories()},
+                              "person_types",
+                              lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
+                                                              record, claimed_sources),
+                              cache.get(name))
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1302,17 +1391,17 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
                              "source named in enabled_by, at the size that channel could realistically carry.")
         open_years = (person_type["open_from"], person_type["open_to"])
         name = f"call3_types.behaviour.{type_id}"
-        piece = call_ai(name, "type_behaviour",
-                        {**values, "type_id": type_id, "type_name": person_type["name"],
-                         "baseline_note": baseline_note},
-                        {"this_type": person_type, "all_types": _types_brief(types),
-                         "claimed_sources": declaration["claimed_sources"],
-                         "markets": _markets_brief(markets), "client": client_facts(record)},
-                        "type_behaviour",
-                        lambda data, t=type_id, o=open_years: check_type_behaviour(
-                            repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
-                            t, start, end, years, set(markets["series"]), o),
-                        cache.get(name))
+        piece = run_forecasting(name, "type_behaviour",
+                                {**values, "type_id": type_id, "type_name": person_type["name"],
+                                 "baseline_note": baseline_note},
+                                {"this_type": person_type, "all_types": _types_brief(types),
+                                 "claimed_sources": declaration["claimed_sources"],
+                                 "markets": _markets_brief(markets), "client": client_facts(record)},
+                                "type_behaviour",
+                                lambda data, t=type_id, o=open_years: check_type_behaviour(
+                                    repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
+                                    t, start, end, years, set(markets["series"]), o),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1328,13 +1417,13 @@ def forecast_events(record: dict, markets: dict, types: dict,
 
     # 4a. The list of future events
     name = "call4_events.list"
-    listing = call_ai(name, "events",
-                      {"forecast_years": _years_text(years), "min_events": settings["min_events"],
-                       "max_events": settings["max_events"]},
-                      {"markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets),
-                       "person_types": _types_brief(types), "client": client_facts(record)},
-                      "events", lambda data: check_events(data, years, set(markets["series"])),
-                      cache.get(name))
+    listing = run_forecasting(name, "events",
+                              {"forecast_years": _years_text(years), "min_events": settings["min_events"],
+                               "max_events": settings["max_events"]},
+                              {"markets": _markets_brief(markets), "market_outlooks": _market_outlooks(markets),
+                               "person_types": _types_brief(types), "client": client_facts(record)},
+                              "events", lambda data: check_events(data, years, set(markets["series"])),
+                              cache.get(name))
     results[name] = listing
     if not listing["ok"]:
         return None
@@ -1345,14 +1434,14 @@ def forecast_events(record: dict, markets: dict, types: dict,
     for person_type in types["person_types"]:
         type_id = person_type["type_id"]
         name = f"call4_events.reactions.{type_id}"
-        piece = call_ai(name, "type_reactions",
-                        {"type_id": type_id, "type_name": person_type["name"], "event_ids": ", ".join(event_ids)},
-                        {"this_type": person_type, "its_signals": types["behaviour"][type_id]["signals"],
-                         "events": events["events"]},
-                        "type_reactions",
-                        lambda data, t=type_id: check_type_reactions(repair_type_reactions(data, t, event_ids),
-                                                                     t, event_ids),
-                        cache.get(name))
+        piece = run_forecasting(name, "type_reactions",
+                                {"type_id": type_id, "type_name": person_type["name"], "event_ids": ", ".join(event_ids)},
+                                {"this_type": person_type, "its_signals": types["behaviour"][type_id]["signals"],
+                                 "events": events["events"]},
+                                "type_reactions",
+                                lambda data, t=type_id: check_type_reactions(repair_type_reactions(data, t, event_ids),
+                                                                             t, event_ids),
+                                cache.get(name))
         results[name] = piece
         if not piece["ok"]:
             return None
@@ -1418,6 +1507,5 @@ def read_review_notes(review: dict, forecast: dict, cache: dict | None = None) -
     }
     market_ids = set(markets["series"])
     event_ids = {e["event_id"] for e in events}
-    return call_ai(name, "review", {"review_date": review.get("current_date")}, user_data, "review",
-                   lambda data: check_review(data, market_ids, event_ids), (cache or {}).get(name))
-
+    return run_forecasting(name, "review", {"review_date": review.get("current_date")}, user_data, "review",
+                           lambda data: check_review(data, market_ids, event_ids), (cache or {}).get(name))
