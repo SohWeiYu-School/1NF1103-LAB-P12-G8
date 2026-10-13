@@ -495,7 +495,8 @@ def run_menu() -> None:
             stats = data_manager.sync_json_to_mongodb()
             io_manager.show_message(
                 f"Sync complete! Cases synced: {stats['cases_synced']}, "
-                f"Assessments synced: {stats['assessments_synced']}"
+                f"Assessments synced: {stats['assessments_synced']}, "
+                f"Already up to date: {stats['skipped']}"
             )
             if stats["errors"]:
                 for err in stats["errors"]:

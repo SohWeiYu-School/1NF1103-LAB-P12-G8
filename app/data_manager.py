@@ -36,6 +36,7 @@ from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
 import shutil
+import hashlib
 
 from app import utilities
 
@@ -162,17 +163,44 @@ def save_case_record(record: dict) -> bool:
     return save_to_json(record, LOCAL_CASES_JSON)
 
 
-def load_all_records() -> list:
-    # Get all client records strictly from local sow_cases.json
+def load_local_records() -> list:
+    # Local sow_cases.json only (this is what Manual Sync uploads)
     return load_from_json(LOCAL_CASES_JSON)
 
 
+def load_mongo_records() -> list:
+    # Every client archived in MongoDB. Returns [] if offline.
+    try:
+        coll = get_collection()
+        if coll is None:
+            return []
+        return list(coll.find({}, {"_id": 0}))   # drop _id: ObjectId can't be saved to JSON
+    except Exception:
+        return []
+
+
+def load_all_records() -> list:
+    # Local clients first, plus any archived in MongoDB that aren't local
+    records = load_local_records()
+    local_refs = {r.get("client_ref") for r in records}
+    for record in load_mongo_records():
+        if record.get("client_ref") not in local_refs:
+            records.append(record)
+    return records
+
+
 def find_client_record(client_ref: str) -> dict | None:
-    # Search local sow_cases.json for a single client matching client_ref
-    records = load_all_records()
-    for record in records:
-        if record.get("client_ref") == client_ref:
+    # Local first (case-insensitive), then MongoDB
+    wanted = client_ref.strip().upper()
+    for record in load_local_records():
+        if str(record.get("client_ref", "")).upper() == wanted:
             return record
+    try:
+        coll = get_collection()
+        if coll is not None:
+            return coll.find_one({"client_ref": wanted}, {"_id": 0})
+    except Exception:
+        pass
     return None
 
 
@@ -204,10 +232,23 @@ def save_assessment(record: dict) -> bool:
     return append_to_json(record, LOCAL_ASSESSMENTS_JSON)
 
 
-def load_all_assessments() -> list:
-    # Get all AI assessment records strictly from local ai_assessments.json
+def load_local_assessments() -> list:
     return load_from_json(LOCAL_ASSESSMENTS_JSON)
 
+
+def load_all_assessments() -> list:
+    # Local assessments plus any archived in MongoDB that aren't local
+    records = load_local_assessments()
+    local_ids = {r.get("assessment_id") for r in records if r.get("assessment_id")}
+    try:
+        coll = get_assessment_collection()
+        if coll is not None:
+            for record in coll.find({}, {"_id": 0}):
+                if record.get("assessment_id") not in local_ids:
+                    records.append(record)
+    except Exception:
+        pass
+    return records
 
 def query_assessments(assessments: list, outcome: str = None) -> list:
     # Filter a list of assessments by an outcome status string
@@ -246,55 +287,82 @@ def _upload_local_documents(record: dict, db) -> int:
 # ==============================================================================
 # SYNC FUNCTIONALITY (JSON -> MongoDB Backup)
 # ==============================================================================
+SYNC_STATE_JSON = os.path.join(LOCAL_DB_DIR, "sync_state.json")
 
+
+def _load_sync_state() -> dict:
+    state = load_json(SYNC_STATE_JSON, default={})
+    return state if isinstance(state, dict) else {}
+
+
+def _save_sync_state(state: dict) -> None:
+    _ensure_data_dir()
+    try:
+        with open(SYNC_STATE_JSON, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=4)
+    except IOError:
+        pass
+
+
+def _fingerprint(record: dict) -> str:
+    # Same content gives the same fingerprint, so an unchanged record can be skipped
+    return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()
 def sync_json_to_mongodb() -> dict:
-    # Reads local JSON files and batch upserts all data into MongoDB Atlas
-    stats = {"cases_synced": 0, "assessments_synced": 0, "errors": []}
+    # Sends only what is new or changed since the last sync
+    stats = {"cases_synced": 0, "assessments_synced": 0, "skipped": 0, "errors": []}
 
-    # Stop early if offline instead of waiting 2s per record
     if not mongo_is_online():
         stats["errors"].append("Cannot reach MongoDB. Your data is still safe in the local JSON files.")
         return stats
 
-    # Step 1: Push all client cases (and their documents) to MongoDB
-    cases = load_all_records()
+    state = _load_sync_state()
+    cases_state = state.setdefault("cases", {})
+    assess_state = state.setdefault("assessments", {})
+
+    # Step 1: client cases (and their documents)
     cases_coll = get_collection()
-    if cases_coll is not None and cases:
-        for record in cases:
+    if cases_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+    else:
+        for record in load_local_records():
+            ref = record.get("client_ref")
             try:
+                # Upload local-only documents first (this adds file_id to the record)
                 if _upload_local_documents(record, cases_coll.database):
-                    save_to_json(record, LOCAL_CASES_JSON)   # keep the new file_id locally too
-                cases_coll.update_one(
-                    {"client_ref": record["client_ref"]},
-                    {"$set": record},
-                    upsert=True
-                )
+                    save_to_json(record, LOCAL_CASES_JSON)
+                fingerprint = _fingerprint(record)
+                if cases_state.get(ref) == fingerprint:
+                    stats["skipped"] += 1
+                    continue
+                cases_coll.update_one({"client_ref": ref}, {"$set": record}, upsert=True)
+                cases_state[ref] = fingerprint
                 stats["cases_synced"] += 1
             except (PyMongoError, OSError) as e:
-                stats["errors"].append(f"Case {record.get('client_ref')}: {e}")
-    elif cases_coll is None:
-        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+                stats["errors"].append(f"Case {ref}: {e}")
 
-    # Step 2: Push all AI assessments to MongoDB
-    assessments = load_all_assessments()
+    # Step 2: assessments (never edited after saving, so the id alone is enough)
     assess_coll = get_assessment_collection()
-    if assess_coll is not None and assessments:
-        for record in assessments:
+    if assess_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
+    else:
+        for record in load_local_assessments():
+            key = record.get("assessment_id") or _fingerprint(record)
+            if key in assess_state:
+                stats["skipped"] += 1
+                continue
             try:
-                # One MongoDB document per assessment (not per client), so history is kept
                 if record.get("assessment_id"):
-                    key = {"assessment_id": record["assessment_id"]}
+                    match = {"assessment_id": record["assessment_id"]}
                 else:
-                    key = {"client_ref": record["client_ref"], "assessed_at": record.get("assessed_at")}
-                assess_coll.update_one(key, {"$set": record}, upsert=True)
+                    match = {"client_ref": record.get("client_ref"), "assessed_at": record.get("assessed_at")}
+                assess_coll.update_one(match, {"$set": record}, upsert=True)
+                assess_state[key] = True
                 stats["assessments_synced"] += 1
             except PyMongoError as e:
                 stats["errors"].append(f"Assessment {record.get('client_ref')}: {e}")
-    elif assess_coll is None:
-        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
 
+    _save_sync_state(state)
     return stats
-
 
 # ==============================================================================
 # READING UPLOADED DOCUMENTS (for auto-filling the client form)
