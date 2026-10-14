@@ -452,7 +452,10 @@ def use_recorded_replies() -> int:
 def list_assessments() -> None:
     """List saved forecasting decisions (filtered by outcome) and optionally open one."""
     outcomes = ["(all)", "PASSED", "MANUAL_REVIEW", "RISKY", "SERIOUS_RISK"]
-    picked = outcomes[io_manager.ask_choice("Show which outcome?", outcomes)]
+    choice = io_manager.ask_choice("Show which outcome?", outcomes, allow_back=True)
+    if choice is None:
+        return          # 0 = back to the main menu
+    picked = outcomes[choice]
     matches = data_manager.query_assessments(data_manager.load_all_assessments(),
                                              outcome=None if picked == "(all)" else picked)
     io_manager.show_assessment_list(matches)

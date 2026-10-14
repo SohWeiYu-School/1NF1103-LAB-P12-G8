@@ -1263,12 +1263,15 @@ def ask_date(question: str, ask: Ask = read_answer) -> str:
             show_error("Please enter a real date like 2026-09-24.")
 
 
-def ask_choice(question: str, options: list[str], ask: Ask = read_answer) -> int:
-    """Show a numbered list and return the index picked."""
+def ask_choice(question: str, options: list[str], ask: Ask = read_answer, allow_back: bool = False) -> int | None:
+    """Show a numbered list and return the index picked. With allow_back, 0 returns None."""
     show(question)
     for number, option in enumerate(options, start=1):
         show(f"  {number}. {option}")
-    return ask_int("Choose a number", ask, 1, len(options)) - 1
+    if allow_back:
+        show("  0. Back to the main menu")
+    number = ask_int("Choose a number", ask, 0 if allow_back else 1, len(options))
+    return None if number == 0 else number - 1
 
 
 def ask_yes_no(question: str, ask: Ask = read_answer) -> bool:
