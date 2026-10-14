@@ -250,10 +250,13 @@ def get_supporting_documents(upload_fn=None) -> list:
     Ask whether the client has supporting documents.
 
     If yes, open a Tkinter file picker and upload
-    the selected documents to MongoDB GridFS.
+    the selected documents.
     """
 
     print("\n=== Supporting Documents ===")
+
+    if not ask_yes_no("Does the client have any supporting documents?"):
+        return []
 
     if tk is None:
         print("The file picker isn't available on this computer (tkinter is not installed).")
@@ -677,6 +680,9 @@ def edit_client_profile(record):
         career[key] = keep_words(label, career.get(key, ""), LABEL)
     career["employer_size"]        = keep_text("Employer size", career.get("employer_size", ""))
     career["country_of_residence"] = keep_words("Country of residence", career.get("country_of_residence", ""))
+    career["age"] = keep_int("Age", career.get("age", ""), 18, 100)
+    career["career_start_year"] = keep_int("Year first career started",
+                                           career.get("career_start_year", ""), 1940, this_year)
 
     print("\nClient profile updated.")
 
@@ -1092,9 +1098,10 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
                     "Unknown file"
                 )
 
-                file_id = selected_document.get("file_path") or selected_document.get("file_id")
+                file_ref = selected_document.get("file_path")
+                file_id = selected_document.get("file_id")
 
-                if not file_id:
+                if not file_ref and not file_id:
                     print(
                         "\nThis document does not have "
                         "a file reference."
@@ -1128,7 +1135,11 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
                     print("Download cancelled.")
                     continue
 
-                success = download_fn(file_id, output_path) if download_fn else False
+                success = False
+                if download_fn:
+                    # Local copy first, then the MongoDB archive
+                    success = bool(file_ref and download_fn(file_ref, output_path)) \
+                        or bool(file_id and download_fn(file_id, output_path))
 
                 if success:
                     print(
