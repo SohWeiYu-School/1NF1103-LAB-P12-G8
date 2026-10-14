@@ -23,6 +23,14 @@ PROMPT_DIR = os.path.join(APP_DIR, "prompts")
 SCHEMA_DIR = os.path.join(APP_DIR, "schemas")
 
 REPORTING_CURRENCY = "SGD"
+
+PEP_OPTIONS = [
+    "None",
+    "Domestic PEP",
+    "Foreign PEP",
+    "International organisation PEP",
+    "Family member / close associate of a PEP",
+]
 FORECAST_YEARS = 4                        # how many years after the current year we forecast
 SCENARIOS = ("steady", "boom", "downturn")
 RANGE_KEYS = ("low", "typical", "high")   # every AI figure comes as a low / typical / high range
@@ -247,6 +255,20 @@ def quiet_library_logs() -> None:
     """Keep the network libraries' step-by-step DEBUG lines out of logs/app.log (warnings still go in)."""
     for name in NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+
+
+def configure_logging(level: int = logging.INFO) -> None:
+    """Route all logging to logs/app.log. Nothing goes to the console.
+    Network libraries only log warnings so their per-connection DEBUG lines don't flood the file."""
+    log_dir = os.path.join(ROOT_DIR, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    handler = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.handlers.clear()
+    root.addHandler(handler)
+    quiet_library_logs()
 
 
 def has_api_key() -> bool:
