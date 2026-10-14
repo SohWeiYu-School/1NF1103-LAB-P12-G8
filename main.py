@@ -43,17 +43,7 @@ from app import ai_manager, data_manager, io_manager, logic_manager, utilities  
 
 
 def _configure_logging() -> None:
-    """Route all logging to logs/app.log. Nothing goes to the console. The network libraries only
-    log warnings, so their connection-by-connection DEBUG lines don't flood the file."""
-    log_dir = os.path.join(_BASE, "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    handler = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
-    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    root.handlers.clear()
-    root.addHandler(handler)
-    utilities.quiet_library_logs()
+    utilities.configure_logging(logging.DEBUG)
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +174,7 @@ def run_combined_assessment(case: dict, supporting_documents: list[dict] | None 
         bench_ai = ai_manager.get_ai_benchmark(bench_input, logic_manager.economy_brief(partial.get("markets")))
         if bench_ai is not None:
             try:
-                findings = logic_manager.run_benchmark(bench_input, bench_ai)["findings"]
+                findings = logic_manager.run_benchmark(bench_input, bench_ai, utilities.policy())["findings"]
             except (ZeroDivisionError, KeyError, TypeError) as error:
                 notes.append(f"Peer benchmark couldn't be worked out from the AI's reply ({error!r}).")
     if findings is None:
@@ -339,7 +329,7 @@ def new_client_from_documents() -> dict | None:
     notes = list(extracted.get("notes") or []) + list(warnings)
     while True:
         rows = logic_manager.summarise_document_record(record, doc_record)
-        checks = logic_manager.check_document_record(record, date)
+        checks = logic_manager.check_document_record(record, date, utilities.policy())
         io_manager.show_document_summary(rows, paths, notes, checks)
         action = io_manager.ask_document_record_action()
         if action == "discard":
@@ -375,15 +365,10 @@ def new_client_from_documents() -> dict | None:
 # Sample case files and saved cases
 # ---------------------------------------------------------------------------
 
-def is_forecasting_case(case: dict | None) -> bool:
-    """Sample files come in two formats; only the forecasting format can be forecast directly."""
-    return isinstance(case, dict) and "career_history" in case and "client_ref" in case
-
-
 def run_case_file(path: str) -> bool:
     """Assess a case file (the same combined assessment as the menu)."""
     case = data_manager.load_case(path)
-    if case is not None and not is_forecasting_case(case):
+    if case is not None and not data_manager.is_forecasting_case(case):
         io_manager.show(f"\n{os.path.basename(path)}: not in the forecasting format "
                         "(it's a client record), skipped. Use the menu to assess it.")
         return True
@@ -405,18 +390,7 @@ def use_recorded_replies() -> int:
     """Copy the recorded AI replies from tests/golden into the reply cache.
     Only fills gaps, so real replies already saved are never overwritten."""
     golden = os.path.join(utilities.ROOT_DIR, "tests", "golden")
-    copied = 0
-    for path in data_manager.list_sample_cases():
-        name = os.path.splitext(os.path.basename(path))[0]
-        recorded = data_manager.load_json(os.path.join(golden, name, "ai_responses.json"), default={})
-        case = data_manager.load_case(path)
-        if not is_forecasting_case(case) or not isinstance(recorded, dict):
-            continue
-        saved = data_manager.load_raw_replies(case["client_ref"])
-        missing = {piece: {"ok": True, "from_cache": False, "raw": json.dumps(reply), "prompt_version": "recorded"}
-                   for piece, reply in recorded.items() if piece not in saved}
-        copied += data_manager.save_raw_replies(case["client_ref"], missing)
-    return copied
+    return data_manager.copy_recorded_replies(golden)
 
 
 # ---------------------------------------------------------------------------
@@ -442,6 +416,16 @@ def list_assessments() -> None:
             io_manager.show_onboarding(chosen["assessment"])     # saved before the combined verdict
 
 
+def _maybe_assess(client_record: dict) -> None:
+    """Check the rate limit; if clear, run the combined assessment."""
+    allowed, wait = utilities.check_rate_limit("cli")
+    if not allowed:
+        io_manager.show_rate_limit_error(wait)
+    else:
+        utilities.record_assessment("cli")
+        assess_client_record(client_record)
+
+
 def run_menu() -> None:
     records = data_manager.load_all_assessments()   # load everything saved on startup
     io_manager.show_message(f"{len(records)} saved assessment(s) loaded.")
@@ -453,26 +437,16 @@ def run_menu() -> None:
                 upload_fn=data_manager.upload_supporting_document,
             )
             if client_record is not None:
-                allowed, wait = utilities.check_rate_limit("cli")
-                if not allowed:
-                    io_manager.show_rate_limit_error(wait)
-                else:
-                    utilities.record_assessment("cli")
-                    assess_client_record(client_record)
+                _maybe_assess(client_record)
 
         elif choice == "2":
             client_record = new_client_from_documents()
             if client_record is not None:
-                allowed, wait = utilities.check_rate_limit("cli")
-                if not allowed:
-                    io_manager.show_rate_limit_error(wait)
-                else:
-                    utilities.record_assessment("cli")
-                    assess_client_record(client_record)
+                _maybe_assess(client_record)
 
         elif choice == "3":
             io_manager.find_existing_client(
-                load_fn=data_manager.load_all_records,
+                find_fn=data_manager.find_client_record,
                 save_fn=data_manager.save_case_record,
                 download_fn=data_manager.download_supporting_document,
                 upload_fn=data_manager.upload_supporting_document,
@@ -486,12 +460,7 @@ def run_menu() -> None:
             if client_record is None:
                 io_manager.show_error(f"No client found with reference {ref} (or the database can't be reached).")
                 continue
-            allowed, wait = utilities.check_rate_limit("cli")
-            if not allowed:
-                io_manager.show_rate_limit_error(wait)
-            else:
-                utilities.record_assessment("cli")
-                assess_client_record(client_record)
+            _maybe_assess(client_record)
 
         elif choice == "5":
             list_assessments()
