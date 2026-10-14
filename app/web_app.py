@@ -558,6 +558,8 @@ def autofill_form(heading: str, form, files):
         return show_form(heading, values, ["Choose at least one document to read."], documents=documents)
 
     extracted, warnings = ai_manager.extract_client_details(read)
+    if extracted is None:
+        flash("Document reading is not available right now — please try again later.")
     filled, notes = [], list(warnings)
     if extracted is not None:
         found = extracted_to_values(extracted, today())
@@ -619,105 +621,6 @@ def _run_assessment_job(job_id, record, case):
     function the command line runs, then the same save."""
     job = _assessment_jobs[job_id]
 
-    def step(n):
-        job["step_num"] = n
-        job["step"] = ASSESS_STEPS[n - 1]
-
-    try:
-        case_input = _crime_scan_input(record)
-        policy = utilities.policy()
-
-        step(1)
-        research, res_warnings = ai_manager.get_ai_research(case_input)
-        for w in res_warnings:
-            logging.getLogger(__name__).info(w)
-
-        step(2)
-        clean_research = None
-        if research is not None:
-            clean_research, verify_warns = logic_manager.verify_research(research, policy)
-            for w in verify_warns:
-                logging.getLogger(__name__).info(w)
-        time.sleep(4)
-
-        step(3)
-        typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
-        for w in typ_warnings:
-            logging.getLogger(__name__).info(w)
-
-        step(4)
-        if typology_response is not None and clean_research is not None:
-            verified_typs, typ_verify_warns = logic_manager.verify_typology_sources(
-                typology_response.get("sector_typologies", []), clean_research, policy,
-            )
-            for w in typ_verify_warns:
-                logging.getLogger(__name__).info(w)
-            typology_response = {**typology_response, "sector_typologies": verified_typs}
-        time.sleep(4)
-
-        step(5)
-        declaration, decl_warnings = ai_manager.get_declaration(case_input)
-        for w in decl_warnings:
-            logging.getLogger(__name__).info(w)
-
-        step(6)
-        if declaration is not None:
-            declaration, norm_warns = logic_manager.normalize_declaration_jurisdictions(declaration)
-            for w in norm_warns:
-                logging.getLogger(__name__).info(w)
-        time.sleep(4)
-
-        step(7)
-        crime_result = None
-        if typology_response is not None and declaration is not None:
-            crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
-            show_crime_scan_result(crime_result, typology_response, research)
-        time.sleep(4)
-
-        step(8)
-        benchmark = _run_benchmark(record, case_input)
-        if benchmark is not None:
-            show_benchmark_result(benchmark)
-        time.sleep(4)
-
-        step(9)
-        forecast_assessment = None
-        cache = load_raw_replies(client_ref)
-        run = ai_manager.run_onboarding_forecast(record, cache)
-        save_raw_replies(client_ref, run["results"])
-        if run["ok"]:
-            save_forecast(client_ref, run["forecast"])
-            forecast_assessment = logic_manager.assess_onboarding(record, run["forecast"])
-            show_onboarding(forecast_assessment)
-
-        step(10)
-        time.sleep(4)
-        assessment_id = str(uuid.uuid4())
-        save_assessment({
-            "assessment_id": assessment_id,
-            "client_ref":    client_ref,
-            "kind":          "onboarding",
-            "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "crime_scan": {
-                "research":    research,
-                "typologies":  typology_response,
-                "declaration": declaration,
-            },
-            "crime_result": crime_result,
-            "benchmark":    benchmark,
-            "forecast":     forecast_assessment,
-            "assessment":   forecast_assessment,
-        })
-
-        # Per-feature failure flags — feature names passed to flash_ai_unavailable in assess_result
-        ai_warnings = []
-        if crime_result is None:
-            ai_warnings.append("Crime scan")
-        if benchmark is None:
-            ai_warnings.append("Benchmark")
-        if not run["ok"]:
-            ai_warnings.append("Forecasting")
-
     def step(number, label):
         job["step_num"] = number
         job["step"] = label
@@ -725,12 +628,25 @@ def _run_assessment_job(job_id, record, case):
     try:
         result = assessment_flow.run_combined_assessment(case, record.get("supporting_documents"), on_step=step)
         assessment_id = assessment_flow.save_combined_assessment(result, record, on_step=step)
+
+        # Per-feature failure flags — feature names passed to flash_ai_unavailable in assess_result
+        ai_warnings = []
+        if result.get("typologies") is None:
+            ai_warnings.append("Crime scan")
+        if result["benchmark"]["findings"] is None:
+            ai_warnings.append("Benchmark")
+        if result.get("forecast") is None:
+            ai_warnings.append("Forecasting")
+
         job["result"] = {
             "record":        record,
             "report":        result["report"],
             "assessment_id": assessment_id,
             "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "ai_warnings":   ai_warnings,
+            "crime_result":  result.get("crime_result"),
+            "typologies":    result.get("typologies"),
+            "benchmark":     result.get("benchmark"),
         }
         job["status"] = "done"
     except Exception as exc:
@@ -740,11 +656,14 @@ def _run_assessment_job(job_id, record, case):
         job["error"] = str(exc)
 
 
-def show_report(record: dict, report: dict | None, assessed_at: str = "", assessment_id: str | None = None):
+def show_report(record: dict, report: dict | None, assessed_at: str = "", assessment_id: str | None = None,
+                crime_result=None, typologies=None, benchmark=None):
     """The assessment page: the same report the command line prints (logic_manager.verdict_report)."""
     symbols = {entry["mark"]: entry["symbol"] for entry in (report or {}).get("legend", [])}
+    typologies_by_id = {t.get("typology_id"): t for t in (typologies or [])}
     return render_template("assess_result.html", record=record, report=report, symbols=symbols,
-                           assessed_at=assessed_at, assessment_id=assessment_id)
+                           assessed_at=assessed_at, assessment_id=assessment_id,
+                           crime_result=crime_result, typologies_by_id=typologies_by_id, benchmark=benchmark)
 
 
 # ============================================================================
@@ -814,7 +733,11 @@ def view_assessment(assessment_id):
     if saved is None:
         abort(404)
     record = get_record(saved["client_ref"]) or {"client_ref": saved["client_ref"], "name": saved["client_ref"]}
-    return show_report(record, saved.get("report"), saved.get("assessed_at", ""), assessment_id)
+    typologies = (saved.get("crime_scan") or {}).get("typologies", {})
+    typology_list = typologies.get("sector_typologies") if isinstance(typologies, dict) else None
+    return show_report(record, saved.get("report"), saved.get("assessed_at", ""), assessment_id,
+                       crime_result=saved.get("crime_result"), typologies=typology_list,
+                       benchmark=saved.get("benchmark"))
  
  
 @app.route("/client/<client_ref>/edit", methods=["GET", "POST"])
@@ -991,9 +914,10 @@ def assess_result(job_id):
         return redirect(url_for("view_client", client_ref=job["client_ref"]))
     for feature in job["result"].get("ai_warnings", []):
         flash_ai_unavailable(feature)
-    return render_template("assess_result.html", **job["result"])
-    result = job["result"]
-    return show_report(result["record"], result["report"], result["assessed_at"], result["assessment_id"])
+    r = job["result"]
+    return show_report(r["record"], r["report"], r.get("assessed_at", ""), r.get("assessment_id"),
+                       crime_result=r.get("crime_result"), typologies=r.get("typologies"),
+                       benchmark=r.get("benchmark"))
 
 
 @app.route("/client/<client_ref>/review", methods=["GET", "POST"])
@@ -1489,7 +1413,77 @@ ASSESS_RESULT = """{% extends "base.html" %}
   </div>
 </div>
 
+{% set INDICATOR_LABELS = {
+  "counterparty_unnamed": "Money from unnamed counterparty",
+  "gift_or_inheritance_unnamed": "Gift or inheritance from unnamed person",
+  "source_contradicts_occupation": "Source of wealth contradicts occupation",
+  "unvalued_source_present": "Source with no declared amount",
+  "related_party_transaction": "Related party transaction"
+} %}
+{% set CAT_BG    = {"critical":"#fef2f2","high":"#fff7ed","medium":"#fffbeb","partial":"#eff6ff","weak_signal":"#f9fafb","no_match":"#f9fafb"} %}
+{% set CAT_BORDER= {"critical":"#b91c1c","high":"#c2410c","medium":"#b45309","partial":"#1d4f7a","weak_signal":"#9ca3af","no_match":"#d1d5db"} %}
+{% set CAT_LABEL = {"critical":"CRITICAL MATCH","high":"HIGH MATCH","medium":"MEDIUM MATCH","partial":"PARTIAL MATCH","weak_signal":"WEAK SIGNAL","no_match":"NO MATCH"} %}
+
 {% for section in report['sections'] %}
+{% if section['title'] == "Crime - known patterns for his industry" and crime_result %}
+<div class="panel">
+  <h2>{{ section['title'] }}</h2>
+  <div style="display:flex; gap:16px; margin-bottom:18px; font-size:.85rem; border-bottom:1px solid var(--line); padding-bottom:12px">
+    <span style="color:var(--muted)">{{ crime_result.get('match_results', []) | length }} typologies checked</span>
+    <span style="color:#b91c1c; font-weight:600">{{ crime_result.get('match_count', 0) }} matched</span>
+    <span style="color:var(--muted)">{{ (crime_result.get('match_results', []) | length) - crime_result.get('match_count', 0) }} no match</span>
+  </div>
+  {% for m in crime_result.get('match_results', []) %}
+  {% set cat = m.get('category', 'no_match') %}
+  {% set typo = typologies_by_id.get(m.get('typology_id'), {}) %}
+  <div style="padding:14px 16px; border-radius:6px; margin-bottom:10px;
+              background:{{ CAT_BG.get(cat,'#f9fafb') }};
+              border-left:4px solid {{ CAT_BORDER.get(cat,'#d1d5db') }}">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px">
+      <span style="font-size:.7rem; font-weight:700; letter-spacing:.06em; padding:2px 8px; border-radius:3px;
+                   background:{{ CAT_BORDER.get(cat,'#9ca3af') }}; color:#fff">{{ CAT_LABEL.get(cat, cat.upper()) }}</span>
+      <strong style="font-size:.97rem; color:#111">{{ m.get('name', m.get('typology_id')) }}</strong>
+      {% if typo.get('crime_category') %}
+      <span style="font-size:.76rem; color:#6b7280; background:#f3f4f6; padding:1px 7px; border-radius:3px; border:1px solid #e5e7eb">{{ typo['crime_category'].replace('_', ' ') }}</span>
+      {% endif %}
+    </div>
+    {% if typo.get('description') %}
+    <p style="margin:0 0 10px; font-size:.83rem; color:#4a5568; line-height:1.5">{{ typo['description'] }}</p>
+    {% endif %}
+    <div style="display:flex; gap:28px; flex-wrap:wrap">
+      {% if m.get('core_indicators') %}
+      <div>
+        <div style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; margin-bottom:5px">Core</div>
+        {% for ind in m['core_indicators'] %}
+        {% if ind in m.get('core_fired', []) %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#111"><span style="color:#b91c1c; font-weight:700; flex-shrink:0">✓</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% else %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#9ca3af"><span style="flex-shrink:0">—</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if m.get('supporting_indicators') %}
+      <div>
+        <div style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; margin-bottom:5px">Supporting</div>
+        {% for ind in m['supporting_indicators'] %}
+        {% if ind in m.get('supporting_fired', []) %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#111"><span style="color:#b45309; font-weight:700; flex-shrink:0">✓</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% else %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#9ca3af"><span style="flex-shrink:0">—</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% if typo.get('source_quotes') %}{% set q = typo['source_quotes'][0] %}{% if q.get('quote') %}
+    <blockquote style="margin:10px 0 0; padding:8px 12px; border-left:3px solid {{ CAT_BORDER.get(cat,'#d1d5db') }}; background:rgba(255,255,255,.55); font-size:.8rem; color:#4a5568; font-style:italic; line-height:1.5">"{{ q['quote'] }}"{% if q.get('report_id') %}<footer style="margin-top:3px; font-style:normal; font-size:.74rem; color:#9ca3af">[{{ q['report_id'] }}]</footer>{% endif %}</blockquote>
+    {% endif %}{% endif %}
+  </div>
+  {% endfor %}
+  {% if not crime_result.get('match_results') %}<p class="muted">No typologies were checked.</p>{% endif %}
+</div>
+{% else %}
 <div class="panel">
   <h2>{{ section['title'] }}</h2>
   <ul class="report-items">
@@ -1503,16 +1497,8 @@ ASSESS_RESULT = """{% extends "base.html" %}
     {% endfor %}
   </ul>
 </div>
+{% endif %}
 {% endfor %}
-
-  <div class="muted" style="font-size:.85rem; margin-top:4px">
-    Total: {{ crime_result.get('match_results', []) | length }} &nbsp;|&nbsp;
-    Matched: {{ crime_result.get('match_count', 0) }} &nbsp;|&nbsp;
-    Not matched: {{ (crime_result.get('match_results', []) | length) - crime_result.get('match_count', 0) }}
-  </div>
-</div>
-{% else %}
-<div class="panel"><p class="muted">Crime scan is not available right now — please try again later.</p></div>
 {% endif %}
 
 {% if benchmark %}

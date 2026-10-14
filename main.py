@@ -277,7 +277,9 @@ def assess_client_record(client_record: dict) -> dict | None:
     io_manager.show_message(f"\nAssessing {case['client_ref']}: documents, crime scan, forecast and benchmark together.")
     result = run_combined_assessment(case, client_record.get("supporting_documents"), on_step=_show_step)
     saved = save_combined_assessment(result, client_record, on_step=_show_step)
-    io_manager.show_verdict_report(result["report"])
+    io_manager.show_verdict_report(result["report"],
+                                   crime_result=result.get("crime_result"),
+                                   typologies=result.get("typologies"))
     if saved:
         io_manager.show_message("Assessment saved.")
     else:
@@ -407,7 +409,9 @@ def run_case_file(path: str) -> bool:
     result = run_combined_assessment(case, on_step=_show_step)
     if not save_combined_assessment(result, on_step=_show_step):
         io_manager.show_error("Could not save the assessment.")
-    io_manager.show_verdict_report(result["report"], ask_for_evidence=False)
+    io_manager.show_verdict_report(result["report"], ask_for_evidence=False,
+                                   crime_result=result.get("crime_result"),
+                                   typologies=result.get("typologies"))
     forecast, onboarding = result["forecast"], result["forecast_assessment"]
     if forecast is None:
         return False
@@ -568,16 +572,21 @@ def main(arguments: list[str]) -> int:
 
     if "--demo" in arguments:
         io_manager.show(f"Demo mode: {use_recorded_replies()} recorded AI replies loaded from tests/golden.")
-    if "--all-samples" in arguments:
-        paths = data_manager.list_sample_cases()
-        results = [run_case_file(path) for path in paths]
-        return 0 if paths and all(results) else 1
-    if "--case" in arguments:
-        position = arguments.index("--case")
-        if position + 1 >= len(arguments):
-            io_manager.show_error("--case needs a file path")
-            return 1
-        return 0 if run_case_file(arguments[position + 1]) else 1
+    try:
+        if "--all-samples" in arguments:
+            paths = data_manager.list_sample_cases()
+            results = [run_case_file(path) for path in paths]
+            return 0 if paths and all(results) else 1
+        if "--case" in arguments:
+            position = arguments.index("--case")
+            if position + 1 >= len(arguments):
+                io_manager.show_error("--case needs a file path")
+                return 1
+            return 0 if run_case_file(arguments[position + 1]) else 1
+    except Exception:
+        logging.getLogger(__name__).exception("Unexpected error in CLI")
+        io_manager.show_unexpected_error()
+        return 1
 
     try:
         run_menu()

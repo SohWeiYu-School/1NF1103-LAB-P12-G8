@@ -420,7 +420,13 @@
     "title",
     "additionalProperties",
     "required",
-    "contains"
+    "contains",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "minimum",
+    "maximum",
+    "const"
   ],
   "forecasting": {
     "web_search": false,

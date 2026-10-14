@@ -618,7 +618,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
         return data, warnings
 
     logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 def typology_crime_categories() -> dict:
     """{code: description} of the crime categories a typology may belong to (every one but HONEST)."""
