@@ -3,10 +3,11 @@ io_manager.py - the input/output layer: every boundary between the system and th
 
     * Client input and editing (New Client form, Find / Edit Existing Client,
       supporting documents) - saved locally as JSON through data_manager (synced to MongoDB on request)
-    * Crime scan and research output
+    * The combined assessment: progress steps and the one-verdict report (the web app
+      shows the same report, built by logic_manager.verdict_report)
     * Forecasting: turns a saved client record into a forecasting case (asking the
       officer only for what's missing), collects periodic reviews, and prints the
-      onboarding and review reports
+      review reports
     * ALL print() calls in the system live in this file
 
 The forecasting ask_* functions take an `ask` function (normally read_answer, i.e.
@@ -40,10 +41,10 @@ def show_app_menu() -> str:
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
-    print("1. New Client (type in, then crime scan, benchmark and forecasting)")
+    print("1. New Client (type in, then the combined assessment)")
     print("2. New Client from Documents (auto-fill from a folder of documents)")
     print("3. Find / Edit Existing Client")
-    print("4. Assess an Existing Client (crime scan, benchmark and forecasting)")
+    print("4. Assess an Existing Client (crime scan + forecast + benchmark -> one verdict)")
     print("5. Run a Periodic Review")
     print("6. List Saved Assessments")
     print("7. View All Clients")
@@ -63,217 +64,60 @@ def show_error(text: str) -> None:
     #Print an error message.
     print(f"[ERROR] {text}")
 
-def show_research_output(research_response: dict) -> None:
-    """Print a short summary of the research results."""
-    reports = research_response.get("reports", [])
-    print(f"\nResearch: {len(reports)} report(s) found")
-    for r in reports:
-        rid = r.get("report_id", "?")
-        org = r.get("organisation", "")
-        title = r.get("title", "")
-        year = r.get("year", "")
-        print(f"  {rid}  {org} — {title} ({year})")
-    print()
-
-def show_crime_scan_result(result: dict, typology_response: dict | None = None, research: dict | None = None) -> None:
-    """Print a professional typology matching summary for the crime scan."""
-    match_results = result.get("match_results", [])
-    breach_count  = result.get("breach_count", 0)
-    match_count   = result.get("match_count", breach_count)
-    total         = len(match_results)
-    not_matched   = total - match_count
-
-    _CATEGORY_LABEL = {
-        "critical":   "CRITICAL",
-        "high":       "HIGH",
-        "medium":     "MEDIUM",
-        "partial":    "PARTIAL",
-        "weak_signal":"WEAK",
-        "no_match":   "PASS",
-    }
-
-    W = 80
-    print("\n" + "═" * W)
-    print("  SECTOR CRIME SCAN — TYPOLOGY MATCHING")
-    print("═" * W)
-
-    # --- Section 1: Research Reports ---
-    reports = (research or {}).get("reports", [])
-    print(f"\n  RESEARCH REPORTS ({len(reports)})")
-    print("  " + "─" * (W - 2))
-    if reports:
-        for r in reports:
-            rid   = r.get("report_id", "?")
-            org   = r.get("organisation", "Unknown")
-            year  = r.get("year", "")
-            title = r.get("title", "")
-            year_str = f" ({year})" if year else ""
-            print(f"  [{rid}]  {org}{year_str}")
-            print(f"        {title}")
-    else:
-        print("  No research reports retrieved.")
-
-    # Build lookup: typology_id → typology dict (for descriptions + source quotes)
-    typ_lookup: dict = {}
-    if typology_response:
-        for t in typology_response.get("sector_typologies", []):
-            typ_lookup[t.get("typology_id", "")] = t
-
-    # --- Section 2: Typologies ---
-    print(f"\n  TYPOLOGIES ({total} generated)")
-    print("  " + "─" * (W - 2))
-
-    if not match_results:
-        print("  No typologies returned by AI.")
-    else:
-        col_ind    = 32   # indicator name column
-        col_weight = 13   # [CORE] / [SUPPORTING] column
-        col_status = 8    # FIRED / — column
-
-        for i, mr in enumerate(match_results, 1):
-            typ_id   = mr.get("typology_id", "")
-            name     = mr.get("name", typ_id or "?")
-            breached = mr.get("breached", False)
-            category = mr.get("category", "critical" if breached else "no_match")
-            status   = _CATEGORY_LABEL.get(category, category.upper())
-            core_inds  = mr.get("core_indicators", [])
-            core_fired = set(mr.get("core_fired", []))
-            sup_inds   = mr.get("supporting_indicators", [])
-            sup_fired  = set(mr.get("supporting_fired", []))
-            src_ids    = mr.get("source_ids", [])
-            src_str    = f"[{', '.join(src_ids)}]" if src_ids else "—"
-            all_fired  = mr.get("core_fired", []) + mr.get("supporting_fired", [])
-
-            print(f"\n  {i}.  [{status}]  {name}")
-            print(f"      Sources: {src_str}")
-            print(f"      {'Indicator':<{col_ind}}  {'Weight':<{col_weight}}  Status")
-            for ind in core_inds:
-                fired_str = "FIRED" if ind in core_fired else "—"
-                print(f"      {ind.replace('_',' '):<{col_ind}}  {'[CORE]':<{col_weight}}  {fired_str}")
-            for ind in sup_inds:
-                fired_str = "FIRED" if ind in sup_fired else "—"
-                print(f"      {ind.replace('_',' '):<{col_ind}}  {'[SUPPORTING]':<{col_weight}}  {fired_str}")
-
-            if category != "no_match":
-                fired_names = ", ".join(f.replace("_", " ") for f in all_fired)
-                print(f"      → Match ({status}): {fired_names} fired")
-
-        print("\n  " + "─" * (W - 2))
-        print(f"  Total: {total}  |  Matched: {match_count}  |  Not Matched: {not_matched}")
-
-        # --- Details: descriptions + source quotes for matched typologies ---
-        matched = [mr for mr in match_results if mr.get("category", "no_match") != "no_match"]
-        if matched:
-            print(f"\n  DETAILS")
-            print("  " + "─" * (W - 2))
-            for mr in matched:
-                typ_id   = mr.get("typology_id", "")
-                name     = mr.get("name", typ_id or "?")
-                typ_data = typ_lookup.get(typ_id, {})
-                print(f"\n  {name}")
-                desc = typ_data.get("description", "").strip()
-                if desc:
-                    for line in textwrap.wrap(desc, width=W - 4):
-                        print(f"    {line}")
-                for sq in typ_data.get("source_quotes", []):
-                    rid   = sq.get("report_id", "")
-                    quote = sq.get("quote", "").strip()
-                    if quote:
-                        print(f"    [{rid}] \"{quote}\"")
-
-    print("\n" + "═" * W + "\n")
+def show_step(number: int, total: int, label: str) -> None:
+    """One progress line of the combined assessment (the web app shows the same steps)."""
+    print(f"  [{number:>2}/{total}] {label}...")
 
 
-def show_benchmark_result(result: dict) -> None:
-    """Print detailed benchmark check output followed by a summary table."""
-    findings = result.get("findings", [])
-    total    = len(findings)
-    failed   = sum(1 for f in findings if f.get("failed"))
-    passed   = total - failed
-
-    W = 68
-    print("\n" + "═" * W)
-    print("  WEALTH BENCHMARK — CHECK RESULTS")
-    print("═" * W)
-
-    # Detailed per-check output
-    for f in findings:
-        rule   = f.get("rule_id", "").replace("_", " ")
-        status = "FAIL" if f.get("failed") else "PASS"
-        detail = f.get("detail", "")
-        print(f"\n  --- {rule} ---")
-        print(f"  {detail}")
-        print(f"  Result: {status}")
-
-    # Summary table
-    print("\n" + "  " + "─" * (W - 2))
-    col_check  = 26
-    col_result = 10
-    print(f"  {'Check':<{col_check}}{'Result':<{col_result}}Detail")
-    print("  " + "─" * (W - 2))
-    for f in findings:
-        rule   = f.get("rule_id", "").replace("_", " ")
-        status = "FAIL" if f.get("failed") else "PASS"
-        detail = f.get("detail", "")
-        print(f"  {rule:<{col_check}}{status:<{col_result}}{detail}")
-
-    print("\n  " + "─" * (W - 2))
-    print(f"  Total: {total}  |  Failed: {failed}  |  Passed: {passed}")
-    print("═" * W + "\n")
+REPORT_WIDTH = 96
 
 
-def show_ai_output(
-    case_input: dict,
-    typology_response: dict,
-    declaration: dict,
-    research: dict | None = None,
-) -> None:
-    """Print a short summary of AI results for the officer."""
-    client_ref = case_input.get("client_ref", "—")
-    print(f"\n--- Sector Crime Scan ---")
-    print(f"Client: {client_ref} | Fields sent to AI: 5 (safe fields only)")
+def format_verdict_report(report: dict) -> str:
+    """The combined assessment as text: the same header, sections and evidence the web app shows."""
+    head = report["header"]
+    symbols = {entry["mark"]: entry["symbol"] for entry in report["legend"]}
+    rule = "\u2550" * REPORT_WIDTH
+    lines = [rule, f"  COMBINED ASSESSMENT  {head['client_ref']}  {head['name']}  ({head['assessed_on']})", rule,
+             f"  VERDICT:      {head['verdict_label']}",
+             f"  Next step:    {head['next_step']}",
+             f"  Next review:  {head['next_review_date']}",
+             f"  Policy:       {head['policy_version']}", ""]
+    lines += textwrap.wrap(head["summary"], REPORT_WIDTH - 2, initial_indent="  ", subsequent_indent="  ")
+    lines += ["", "  " + "   ".join(f"{e['symbol']} {e['meaning']}" for e in report["legend"])]
 
-    # Build lookup: report_id → "Organisation Year" for display
-    report_lookup: dict[str, str] = {}
-    if research:
-        for r in research.get("reports", []):
-            rid = r.get("report_id", "")
-            org = r.get("organisation", "")
-            year = r.get("year", "")
-            if rid:
-                report_lookup[rid] = f"{org} {year}".strip()
+    def section(title: str, items: list[dict]) -> None:
+        lines.extend(["", f"  {title.upper()}", "  " + "\u2500" * (REPORT_WIDTH - 2)])
+        for item in items:
+            lines.extend(textwrap.wrap(item["text"], REPORT_WIDTH - 2,
+                                       initial_indent=f"  {symbols[item['mark']]} ", subsequent_indent="    "))
+            for sub in item["sub"]:
+                lines.extend(textwrap.wrap(sub, REPORT_WIDTH - 2, initial_indent="      ",
+                                           subsequent_indent="      "))
 
-    typologies = typology_response.get("sector_typologies", []) if typology_response else []
-    print(f"\nSector Crime Scan: {len(typologies)} pattern(s)")
-    for i, t in enumerate(typologies, 1):
-        source_ids = t.get("source_ids", [])
-        outdated_ids = set(t.get("outdated_source_ids", []))
-        resolved = []
-        for rid in source_ids:
-            label = report_lookup.get(rid)
-            base = f"{rid} ({label})" if label else f"{rid} (unknown source)"
-            if rid in outdated_ids:
-                base += ", may be outdated"
-            resolved.append(base)
-        suffix = f" — sources: {', '.join(resolved)}" if resolved else ""
-        print(f"  {i}. {t.get('name', '—')}{suffix}")
+    for part in report["sections"]:
+        section(part["title"], part["items"])
+    lines.extend(["", "  FULL EVIDENCE: " + " \u00b7 ".join(report.get("evidence_titles", [])), rule])
+    return "\n".join(lines)
 
-        corroborated = t.get("corroborated")
-        if corroborated is True:
-            print(f"       Corroborated: 2+ independent organisations")
-        elif corroborated is False:
-            print(f"       Single source organisation")
 
-        for sq in t.get("source_quotes", []):
-            print(f"       [{sq.get('report_id','')}] \"{sq.get('quote','')}\"")
+def format_evidence(report: dict) -> str:
+    """The full evidence behind the verdict (the web app shows the same sections, collapsed)."""
+    rule = "\u2550" * REPORT_WIDTH
+    lines = [rule, f"  FULL EVIDENCE  {report['header']['client_ref']}", rule]
+    for part in report["evidence"]:
+        lines.extend(["", f"  {part['title']}"])
+        for line in part["lines"]:
+            lines.extend(textwrap.wrap(line, REPORT_WIDTH - 2, initial_indent="    ", subsequent_indent="      "))
+    lines.append(rule)
+    return "\n".join(lines)
 
-    sources = declaration.get("sources", [])
-    print(f"\nDeclaration: {len(sources)} source(s) found")
 
-    cache_path = typology_response.get("_cache_path", "") if typology_response else ""
-    if cache_path:
-        print(f"Cache: {cache_path}")
-    print()
+def show_verdict_report(report: dict, ask_for_evidence: bool = True) -> None:
+    """The short report, then (if the officer wants it) the full evidence."""
+    print("\n" + format_verdict_report(report) + "\n")
+    if ask_for_evidence and ask_yes_no("Show the full evidence?"):
+        print("\n" + format_evidence(report) + "\n")
+
 
 def generate_client_id() -> str:
     """Generate a unique client reference ID."""
@@ -648,7 +492,7 @@ def create_new_client(save_fn=None, upload_fn=None):
 
             next_step = ask_choice(
                 "\nWhat would you like to do next?",
-                ["Run the assessment now (crime scan, benchmark and forecasting)",
+                ["Run the combined assessment now (crime scan, forecast and benchmark -> one verdict)",
                  "Return to the main menu"],
             )
             if next_step == 1:
@@ -808,7 +652,7 @@ def ask_after_save(record: dict) -> bool:
     """After a client is saved: view the saved details, run the assessment, or go back.
     Returns True if the assessment should run now."""
     options = ["View the saved client details",
-               "Run the assessment now (crime scan, benchmark and forecasting)",
+               "Run the combined assessment now (documents, crime scan, forecast and benchmark -> one verdict)",
                "Return to the main menu (you can assess later with option 4)"]
     while True:
         choice = ask_choice("\nWhat would you like to do next?", options)
@@ -1825,6 +1669,10 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
                                       "Countries his wealth came from (comma separated)", ask
                                   ).split(",") if c.strip()],
             "pep_status":         _text_or_ask(claims.get("pep_status"), "PEP status (e.g. None)", ask),
+            # not needed by the forecast, but the benchmark uses them (logic_manager.forecasting_case keeps them too)
+            "biggest_wealth_jump":     _number(claims.get("biggest_wealth_jump")),
+            "wealth_jump_years":       _number(claims.get("wealth_jump_years")),
+            "declared_counterparties": list(claims.get("declared_counterparties") or []),
         },
         "sow_declaration": _text_or_ask(record.get("sow_declaration"), "Source of wealth declaration", ask),
         "reviews": [],
@@ -1929,17 +1777,23 @@ def format_assessment_list(records: list[dict]) -> str:
         return "No saved assessments match."
     lines = [f"{'Client':<16} {'Kind':<20} {'Date':<12} Outcome"]
     for record in records:
-        assessment = record["assessment"]
-        date = assessment.get("assessed_on") or assessment.get("review_date", "")
+        verdict = record.get("verdict")
+        assessment = record.get("assessment") or {}
+        if verdict:                                   # the combined assessment: its one verdict
+            date, outcome = verdict.get("assessed_on", ""), verdict.get("verdict")
+        else:
+            date = assessment.get("assessed_on") or assessment.get("review_date", "")
+            outcome = assessment.get("outcome")
         lines.append(f"{record['client_ref']:<16} {record['kind']:<20} {date:<12} "
-                     f"{OUTCOME_LABELS.get(assessment.get('outcome'), '?')}")
+                     f"{OUTCOME_LABELS.get(outcome, '?')}")
     return "\n".join(lines)
 
 
 def show_onboarding(assessment: dict) -> None:
+    """A forecast-only report (assessments saved before the combined verdict)."""
     W = 68
     print("\n" + "═" * W)
-    print("  FORECASTING — ONBOARDING ASSESSMENT")
+    print("  FORECASTING — ONBOARDING ASSESSMENT (saved before the combined verdict)")
     print("═" * W)
     show(format_onboarding(assessment))
     print("═" * W + "\n")
