@@ -73,8 +73,8 @@ listings) from the forecast.
 ### 1. Clone the repo (first time only)
 
 ```bash
-git clone https://github.com/SohWeiYu-School/1NF1103-LAB-P12-Team-8.git
-cd 1NF1103-LAB-P12-Team-8
+git clone https://github.com/SohWeiYu-School/1NF1103-LAB-P12-G8.git
+cd 1NF1103-LAB-P12-G8
 ```
 
 ### 2. Pull the latest changes (do this every time before you start working)
@@ -158,7 +158,7 @@ make test
 ## Project Structure
 
 ```
-1NF1103-LAB-P12-Team-8/
+1NF1103-LAB-P12-G8/
 ├── app/
 │   ├── prompts/          # AI prompt template text files
 │   ├── schemas/          # JSON Schema files for validating AI responses
@@ -166,11 +166,15 @@ make test
 │   ├── ai_manager.py     # AI calls and response caching
 │   ├── data_manager.py   # Saves and loads JSON files
 │   ├── io_manager.py     # All print() and input() calls live here
-│   └── logic_manager.py  # Scoring and decision logic
+│   ├── logic_manager.py  # Scoring and decision logic
+│   ├── utilities.py      # Shared config, cache helpers and AI client
+│   └── web_app.py        # Flask web interface
 ├── config/
 │   └── policy.json       # Risk thresholds and rules
 ├── data/
 │   └── sample/           # Synthetic demo cases for testing
+├── logs/
+│   └── app.log           # All application logs (warnings, errors, AI call info)
 ├── tests/                # All test files
 ├── .dockerignore
 ├── .env.example          # Template showing what variables are needed
@@ -178,22 +182,12 @@ make test
 ├── CLAUDE.md             # Project coding conventions
 ├── Dockerfile            # Instructions for building the Docker image
 ├── main.py               # Entry point
-├── Makefile              # Shortcuts: make run, make build, make dev, make test
 └── requirements.txt      # Python dependencies with pinned versions
 ```
 
----
+## Logging
 
-## Team and Ownership
-
-| Member | Owns |
-|---|---|
-| TBD | `ai_manager` — benchmark call |
-| TBD | `ai_manager` — declaration reading call |
-| TBD | `logic_manager` — affordability and evidence checks |
-| TBD | `logic_manager` — scoring and outcomes |
-| TBD | `data_manager` and `io_manager` — persistence and CLI |
-| TBD | DevOps — Docker, CI, tests |
+Every warning, error and AI call is written to `logs/app.log`. Nothing is printed to the console or terminal by the application itself — all diagnostic output goes to the log file for clean, consistent history. Check `logs/app.log` first whenever something behaves unexpectedly.
 
 ---
 
