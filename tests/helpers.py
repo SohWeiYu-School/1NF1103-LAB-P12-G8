@@ -1,15 +1,14 @@
 """
 helpers.py - shared helpers for the golden and cross-check tests.
 
-The real AI replies are read straight from where the system saves them: the
-ai_raw_replies collection in MongoDB (written when you run the system on a case).
+The real AI replies are read from the local cache where the system saves them
+(data/cache/forecasting/<client_ref>.json, written when you run the system on a case).
 
 Only sample files in the forecasting format (career_history, investments, claims) are
 used. data/sample also holds client records in the New Client form's format
 (case_daniel_tan.json, case_benchmark.json); those go through the menu, not these tests.
 
-Tests that need saved replies are skipped, with a message, until the case has been run
-(or when the database can't be reached).
+Tests that need saved replies are skipped, with a message, until the case has been run.
 """
 
 import json
