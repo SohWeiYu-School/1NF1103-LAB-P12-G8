@@ -82,23 +82,27 @@ def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None,
     io_manager.show_message("\nSearching trusted sources for typology reports...")
     research, res_warnings = ai_manager.get_ai_research(case_input)
     for w in res_warnings:
-        io_manager.show_error(w)
-    if research is not None:
+        logging.getLogger(__name__).info(w)
+    if research is None:
+        io_manager.show_ai_unavailable("Crime scan")
+    else:
         io_manager.show_research_output(research)
 
-    # Step 2: Verify research (TODO: CHECK)
+    # Step 2: Verify research
     if research is not None:
         clean_research, verify_warnings = logic_manager.verify_research(research, policy)
         for w in verify_warnings:
-            io_manager.show_error(w)
+            logging.getLogger(__name__).info(w)
     else:
         clean_research = None
 
-    # Step 3: Typologies (TODO: CHECK)
+    # Step 3: Typologies
     io_manager.show_message("Calling AI for sector typologies...")
     typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
     for w in typ_warnings:
-        io_manager.show_error(w)
+        logging.getLogger(__name__).info(w)
+    if typology_response is None:
+        io_manager.show_ai_unavailable("Crime scan")
 
     # Step 4: Verify typology source citations
     if typology_response is not None and clean_research is not None:
@@ -106,20 +110,22 @@ def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None,
             typology_response.get("sector_typologies", []), clean_research, policy,
         )
         for w in typ_verify_warnings:
-            io_manager.show_error(w)
+            logging.getLogger(__name__).info(w)
         typology_response = {**typology_response, "sector_typologies": verified_typs}
 
     # Step 5: Declaration
     io_manager.show_message("Calling AI to parse declaration...")
     declaration, decl_warnings = ai_manager.get_declaration(case_input)
     for w in decl_warnings:
-        io_manager.show_error(w)
+        logging.getLogger(__name__).info(w)
+    if declaration is None:
+        io_manager.show_ai_unavailable("Crime scan")
 
     # Step 6: Normalise declaration jurisdictions
     if declaration is not None:
         declaration, norm_warnings = logic_manager.normalize_declaration_jurisdictions(declaration)
         for w in norm_warnings:
-            io_manager.show_error(w)
+            logging.getLogger(__name__).info(w)
 
     # Steps 7-8: Match typologies and display result
     crime_result = None
@@ -182,6 +188,9 @@ def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None
         io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
         return None
     ai_data = ai_manager.get_ai_benchmark(benchmark_input)
+    if ai_data is None:
+        io_manager.show_ai_unavailable("Benchmark")
+        return None
     return logic_manager.run_benchmark(benchmark_input, ai_data)
 
 # ---------------------------------------------------------------------------
@@ -197,8 +206,7 @@ def run_forecast_pipeline(case: dict) -> tuple[dict | None, dict | None]:
     data_manager.save_raw_replies(ref, run["results"])
     io_manager.show_ai_progress(run["results"])
     if not run["ok"]:
-        io_manager.show_error(f"Stopped at {run['failed_step']}. Finished replies are saved, "
-                              "so running again carries on from there.")
+        io_manager.show_ai_unavailable("Forecasting")
         return None, None
 
     data_manager.save_forecast(ref, run["forecast"])
@@ -216,7 +224,7 @@ def review_case(case: dict, review: dict,
     data_manager.save_raw_replies(ref, {result["call"]: result})
     io_manager.show_ai_progress({result["call"]: result})
     if not result["ok"]:
-        io_manager.show_error("The review notes could not be read; nothing was decided.")
+        io_manager.show_ai_unavailable("Review notes")
         return None
     assessment = logic_manager.assess_review(case, review, result["data"], forecast, onboarding)
     if not data_manager.save_forecast_assessment(ref, f"review_{review['current_date']}", assessment):
@@ -304,9 +312,10 @@ def new_client_from_documents() -> dict | None:
     documents = [data_manager.read_document_for_extraction(path) for path in paths]
     extracted, warnings = ai_manager.extract_client_details(documents)
     for warning in warnings:
-        io_manager.show_error(warning)
+        logging.getLogger(__name__).info(warning)
     if extracted is None:
-        if not io_manager.ask_yes_no("The documents couldn't be read automatically. Type the details in yourself?"):
+        io_manager.show_ai_unavailable("Document reading")
+        if not io_manager.ask_yes_no("Type the details in yourself?"):
             return None
         extracted = {}
 
@@ -547,7 +556,11 @@ def main(arguments: list[str]) -> int:
             return 1
         return 0 if run_case_file(arguments[position + 1]) else 1
 
-    run_menu()
+    try:
+        run_menu()
+    except Exception:
+        logging.getLogger(__name__).exception("Unexpected error in CLI")
+        io_manager.show_unexpected_error()
     return 0
 
 
