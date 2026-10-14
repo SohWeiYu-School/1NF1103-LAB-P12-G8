@@ -194,40 +194,18 @@ def load_local_records() -> list:
     return [standardise_record(record) for record in load_from_json(LOCAL_CASES_JSON)]
 
 
-def load_mongo_records() -> list:
-    # Every client archived in MongoDB. Returns [] if offline.
-    try:
-        coll = get_collection()
-        if coll is None:
-            return []
-        return list(coll.find({}, {"_id": 0}))   # drop _id: ObjectId can't be saved to JSON
-    except Exception:
-        return []
-
-
 def load_all_records() -> list:
-    # Local clients first, plus any archived in MongoDB that aren't local
-    records = load_local_records()
-    local_refs = {r.get("client_ref") for r in records}
-    for record in load_mongo_records():
-        if record.get("client_ref") not in local_refs:
-            records.append(standardise_record(record))
-    return records
+    # Every client, from the local sow_cases.json only. MongoDB is a backup that Manual Sync
+    # writes to; the app never reads clients back from it.
+    return load_local_records()
 
 
 def find_client_record(client_ref: str) -> dict | None:
-    # Local first (case-insensitive), then MongoDB
+    # One client from the local sow_cases.json (case-insensitive), or None
     wanted = client_ref.strip().upper()
     for record in load_local_records():
         if str(record.get("client_ref", "")).upper() == wanted:
             return record
-    try:
-        coll = get_collection()
-        if coll is not None:
-            found = coll.find_one({"client_ref": wanted}, {"_id": 0})
-            return standardise_record(found) if found else None
-    except Exception:
-        pass
     return None
 
 
@@ -264,18 +242,9 @@ def load_local_assessments() -> list:
 
 
 def load_all_assessments() -> list:
-    # Local assessments plus any archived in MongoDB that aren't local
-    records = load_local_assessments()
-    local_ids = {r.get("assessment_id") for r in records if r.get("assessment_id")}
-    try:
-        coll = get_assessment_collection()
-        if coll is not None:
-            for record in coll.find({}, {"_id": 0}):
-                if record.get("assessment_id") not in local_ids:
-                    records.append(record)
-    except Exception:
-        pass
-    return records
+    # Every saved assessment, from the local ai_assessments.json only (never from MongoDB)
+    return load_local_assessments()
+
 
 def query_assessments(assessments: list, outcome: str = None) -> list:
     # Filter a list of assessments by an outcome status string
@@ -518,38 +487,28 @@ def upload_supporting_document(file_path: str):
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
-    """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
+    """Copy a supporting document from its local copy in data/documents/ (never from MongoDB).
+    file_id is the local path saved with the client."""
     if not file_id:
         return False
     local = os.path.join(utilities.ROOT_DIR, file_id)
-    if os.path.exists(local):
-        try:
-            shutil.copy2(local, output_path)
-            return True
-        except OSError:
-            return False
-    if not ObjectId.is_valid(file_id):
+    if not os.path.isfile(local):
         return False
     try:
-        coll = get_collection()
-        if coll is None:
-            return False
-        gridfs_file = GridFS(coll.database).get(ObjectId(file_id))
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        with open(output_path, "wb") as file:
-            file.write(gridfs_file.read())
+        shutil.copy2(local, output_path)
         return True
-    except Exception:
+    except OSError:
         return False
 
 
 def read_supporting_documents(entries: list[dict] | None) -> list[dict]:
     """Read every supporting document saved with a client, the same way the auto-fill reads
     uploads (read_document_for_extraction), under the file name the officer uploaded it as.
-    Works for local copies (before sync) and GridFS ids (after sync)."""
+    Reads the local copies only."""
     read = []
     for entry in entries or []:
-        file_id = entry.get("file_id") or entry.get("file_path")
+        file_id = entry.get("file_path") or entry.get("file_id")     # the local copy first
         name = os.path.basename(str(entry.get("file_name") or file_id or "document"))
         folder = tempfile.mkdtemp()
         try:
