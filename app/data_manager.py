@@ -36,6 +36,7 @@ from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
 import shutil
+import tempfile
 
 from app import utilities
 
@@ -238,10 +239,10 @@ def query_assessments(assessments: list, outcome: str = None) -> list:
     # Filter a list of assessments by an outcome status string
     if not outcome:
         return assessments
-    return [
-        a for a in assessments
-        if a.get("outcome") == outcome or a.get("assessment", {}).get("outcome") == outcome
-    ]
+    # A combined assessment's outcome is its one verdict; older records only have the forecast's
+    def outcome_of(a: dict):
+        return a.get("outcome") or (a.get("assessment") or {}).get("outcome")
+    return [a for a in assessments if outcome_of(a) == outcome]
 
 def mongo_is_online() -> bool:
     try:
@@ -471,6 +472,26 @@ def download_supporting_document(file_id: str, output_path: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def read_supporting_documents(entries: list[dict] | None) -> list[dict]:
+    """Read every supporting document saved with a client, the same way the auto-fill reads
+    uploads (read_document_for_extraction), under the file name the officer uploaded it as.
+    Works for local copies (before sync) and GridFS ids (after sync)."""
+    read = []
+    for entry in entries or []:
+        file_id = entry.get("file_id") or entry.get("file_path")
+        name = os.path.basename(str(entry.get("file_name") or file_id or "document"))
+        folder = tempfile.mkdtemp()
+        try:
+            path = os.path.join(folder, name)
+            if download_supporting_document(str(file_id or ""), path):
+                read.append(read_document_for_extraction(path, name))
+            else:
+                read.append({"file_name": name, "kind": "error", "error": f"{name}: the saved copy couldn't be found."})
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+    return read
 
 
 # Compatibility stub functions required by main.py
