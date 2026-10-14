@@ -63,6 +63,12 @@ def show_error(text: str) -> None:
     #Print an error message.
     print(f"[ERROR] {text}")
 
+def show_ai_unavailable(feature: str = "Assessment") -> None:
+    print(f"{feature} is not available right now — please try again later.")
+
+def show_unexpected_error() -> None:
+    print("An unexpected error occurred — please try again or contact support.")
+
 def show_rate_limit_error(seconds_left: int) -> None:
     print(f"[RATE LIMIT] Assessment already running or recently completed.")
     print(f"             Please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before starting another assessment.")
@@ -1854,7 +1860,7 @@ def show_ai_progress(results: dict) -> None:
     """One line per AI request: where the reply came from and whether it passed the checks."""
     for name, result in results.items():
         source = "saved reply" if result["from_cache"] else f"API, {result['attempts']} attempt(s)"
-        status = "ok" if result["ok"] else f"FAILED - {result['error']}"
+        status = "ok" if result["ok"] else "FAILED"
         show(f"  {name:<40} {source:<20} {status}")
 
 
