@@ -8,7 +8,7 @@ import copy
 import json
 import os
 
-from app import data_manager, io_manager, logic_manager, web_app
+from app import data_manager, io_manager, logic_manager, utilities, web_app
 
 FOLDER = os.path.join(os.path.dirname(__file__), "documents", "marcus_lim")
 TODAY = "2026-10-13"
@@ -105,10 +105,10 @@ def test_forecasting_case_uses_the_saved_values_without_asking():
 
 def test_the_split_matches_the_listed_assets():
     record = cli_record(expected_reply())
-    assert logic_manager.check_document_record(record, TODAY) == []
+    assert logic_manager.check_document_record(record, TODAY, utilities.policy()) == []
 
     misread = logic_manager.set_path(record, ["investments", 0, "current_declared_value"], 19000000)
-    warnings = logic_manager.check_document_record(misread, TODAY)
+    warnings = logic_manager.check_document_record(misread, TODAY, utilities.policy())
     assert any("property assets listed are worth" in w for w in warnings)
 
 

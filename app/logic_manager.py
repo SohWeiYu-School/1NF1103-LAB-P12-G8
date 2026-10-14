@@ -75,61 +75,34 @@ def calculate_liquidity(client_data, ai_data):
     return result2
 
 
+_COMPOSITION_PARTS = [
+    ("COMPOSITION_PROPERTY",  "property",        "expected_property",        "Property"),
+    ("COMPOSITION_EQUITIES",  "listed_equities",  "expected_listed_equities", "Listed equities"),
+    ("COMPOSITION_BUSINESS",  "private_business", "expected_private_business","Private business"),
+    ("COMPOSITION_CASH",      "cash",             "expected_cash",            "Cash"),
+]
+
+
 def calculate_composition(client_data, ai_data):
+    results = []
+    for rule_id, client_key, ai_key, label in _COMPOSITION_PARTS:
+        declared = client_data[client_key]
+        expected = ai_data[ai_key]
+        diff = abs(declared - expected)
+        results.append({"rule_id": rule_id, "failed": diff > LIMITS["composition"],
+                        "detail": f"{label}: declared {declared}%, expected {expected}%, diff {diff}%"})
+    return results
 
-    # Property
-    declared_property = client_data["property"]
-    expected_property = ai_data["expected_property"]
 
-    difference_property = abs(declared_property - expected_property) #abs - absolute value, so it removes the negative sign
-
-    # Listed Equities
-    declared_listed = client_data["listed_equities"]
-    expected_listed = ai_data["expected_listed_equities"]
-
-    difference_listed = abs(declared_listed - expected_listed)
-
-    # Private Business
-    declared_business = client_data["private_business"]
-    expected_business = ai_data["expected_private_business"]
-
-    difference_business = abs(declared_business - expected_business)
-
-    # Cash
-    declared_cash = client_data["cash"]
-    expected_cash = ai_data["expected_cash"]
-
-    difference_cash = abs(declared_cash - expected_cash)
-
-    prop_failed     = difference_property  > LIMITS["composition"]
-    listed_failed   = difference_listed    > LIMITS["composition"]
-    business_failed = difference_business  > LIMITS["composition"]
-    cash_failed     = difference_cash      > LIMITS["composition"]
-
-    return [
-        {"rule_id": "COMPOSITION_PROPERTY",  "failed": prop_failed,
-         "detail": f"Property: declared {declared_property}%, expected {expected_property}%, diff {difference_property}%"},
-        {"rule_id": "COMPOSITION_EQUITIES",  "failed": listed_failed,
-         "detail": f"Listed equities: declared {declared_listed}%, expected {expected_listed}%, diff {difference_listed}%"},
-        {"rule_id": "COMPOSITION_BUSINESS",  "failed": business_failed,
-         "detail": f"Private business: declared {declared_business}%, expected {expected_business}%, diff {difference_business}%"},
-        {"rule_id": "COMPOSITION_CASH",      "failed": cash_failed,
-         "detail": f"Cash: declared {declared_cash}%, expected {expected_cash}%, diff {difference_cash}%"},
-    ]
-
-#=============================================================================#
 def calculate_velocity(client_data, ai_data):
+    jump = client_data.get("biggest_wealth_jump")
+    years = client_data.get("wealth_jump_years")
+    expected = ai_data.get("expected_velocity")
+    if jump is None or years is None or years <= 0 or expected is None or expected <= 0:
+        return None, None          # (ratio, per_year) — None means skipped
+    per_year = jump / years
+    return per_year / expected, per_year
 
-    actual = client_data["biggest_wealth_jump"]
-    years = client_data["wealth_jump_years"]
-    expected = ai_data["expected_velocity"]
-
-    actual_velocity = actual / years
-    result3 = actual_velocity / expected
-
-    return result3
-
-#=============================================================================#
 def calculate_counterparties(declared, expected):
     unknown = []
 
@@ -216,8 +189,8 @@ def benchmark_input(record: dict, case_input: dict) -> tuple[dict, list[str]]:
     return data, missing
 
 
-def run_benchmark(client_data: dict, ai_data: dict):
-    """Run all six benchmark checks for a client."""
+def run_benchmark(client_data: dict, ai_data: dict, policy: dict | None = None):
+    """Run all benchmark checks for a client."""
 
     if ai_data is None:
         return None
@@ -226,54 +199,42 @@ def run_benchmark(client_data: dict, ai_data: dict):
 
     # 1. TOTAL WEALTH CHECK
     result1 = calculate_total_wealth(client_data, ai_data)
-    tw_failed = result1 > LIMITS["total_wealth"]
-    findings.append({"rule_id": "TOTAL_WEALTH", "failed": tw_failed,
+    findings.append({"rule_id": "TOTAL_WEALTH", "failed": result1 > LIMITS["total_wealth"],
                      "detail": f"Declared {client_data['declared_net_worth']:,}, expected {ai_data['expected_wealth']:,}, ratio {round(result1, 2)}"})
 
     # 2. LIQUIDITY CHECK
     result2 = calculate_liquidity(client_data, ai_data)
-    liq_failed = result2 > LIMITS["liquidity"]
-    findings.append({"rule_id": "LIQUIDITY", "failed": liq_failed,
+    findings.append({"rule_id": "LIQUIDITY", "failed": result2 > LIMITS["liquidity"],
                      "detail": f"Declared {client_data['listed_equities'] + client_data['cash']}%, expected {ai_data['expected_liquidity']}%, ratio {round(result2, 2)}"})
 
     # 3. ASSET COMPOSITION CHECK
     findings += calculate_composition(client_data, ai_data)
 
     # 4. VELOCITY CHECK
-    jump = client_data.get("biggest_wealth_jump")
-    years = client_data.get("wealth_jump_years")
-    expected_velocity = ai_data.get("expected_velocity")
-
-    if (
-        jump is not None
-        and years is not None
-        and years > 0
-        and expected_velocity is not None
-        and expected_velocity > 0
-    ):
-        actual_velocity = jump / years
-        result3 = actual_velocity / expected_velocity
-        vel_failed = result3 > LIMITS["velocity"]
-        findings.append({"rule_id": "VELOCITY", "failed": vel_failed,
-                         "detail": f"Actual velocity {round(actual_velocity, 2)}, expected {expected_velocity}, ratio {round(result3, 2)}"})
-    else:
+    ratio, per_year = calculate_velocity(client_data, ai_data)
+    if ratio is None:
         findings.append({"rule_id": "VELOCITY", "failed": False,
                          "detail": "Skipped — missing or invalid wealth timeline data"})
+    else:
+        findings.append({"rule_id": "VELOCITY", "failed": ratio > LIMITS["velocity"],
+                         "detail": f"Actual velocity {round(per_year, 2)}, expected {ai_data.get('expected_velocity')}, ratio {round(ratio, 2)}"})
 
-    # 5. COUNTERPARTIES CHECK
+    # 5. COUNTERPARTIES CHECK — service providers (banks, law firms, etc.) are excluded
     declared_counterparties = client_data.get("declared_counterparties", [])
+    if policy:
+        words = policy.get("verdict", {}).get("service_provider_words", [])
+        declared_counterparties = [c for c in declared_counterparties
+                                   if not any(re.search(rf"\b{re.escape(w)}\b", c.lower()) for w in words)]
     expected_counterparties = ai_data.get("expected_counterparties", [])
     unknown_counterparties = calculate_counterparties(declared_counterparties, expected_counterparties)
-    cp_failed = len(unknown_counterparties) > LIMITS["counterparties"]
-    findings.append({"rule_id": "COUNTERPARTIES", "failed": cp_failed,
+    findings.append({"rule_id": "COUNTERPARTIES", "failed": len(unknown_counterparties) > LIMITS["counterparties"],
                      "detail": f"Unknown counterparties: {unknown_counterparties or 'none'}"})
 
     # 6. JURISDICTION CHECK
     declared_countries = client_data.get("declared_countries", [])
     expected_countries = ai_data.get("expected_jurisdiction", [])
     unknown_countries = calculate_jurisdiction(declared_countries, expected_countries)
-    jur_failed = len(unknown_countries) > LIMITS["jurisdiction"]
-    findings.append({"rule_id": "JURISDICTION", "failed": jur_failed,
+    findings.append({"rule_id": "JURISDICTION", "failed": len(unknown_countries) > LIMITS["jurisdiction"],
                      "detail": f"Unknown countries: {unknown_countries or 'none'}"})
 
     return {"findings": findings}
@@ -613,55 +574,6 @@ def match_typologies(
         })
     return matches
 
-
-# Count breached dimensions and map to an escalation outcome (PASSED → SERIOUS_RISK).
-def decide_outcome(findings: list[dict], policy: dict) -> str:
-    """Count breached dimensions and return the escalation outcome."""
-    thresholds = policy.get("thresholds", {})
-    counts_as_breach = thresholds.get("typology_full_match_counts_as_breach", True)
-    outcome_rules = policy.get("outcome_rules", {})
-    serious = outcome_rules.get("serious_risk_min_breaches", 4)
-    risky = outcome_rules.get("risky_min_breaches", 2)
-    manual = outcome_rules.get("manual_review_min_breaches", 1)
-
-    breach_count = 0
-    for f in findings:
-        if f.get("dimension") != "typology":
-            breach_count += 1
-        elif f.get("rule_id") == "TYP-01" and counts_as_breach:
-            breach_count += 1
-        # TYP-02 never counts as a breach on its own
-
-    if breach_count >= serious:
-        return "SERIOUS_RISK"
-    if breach_count >= risky:
-        return "RISKY"
-    if breach_count >= manual:
-        return "MANUAL_REVIEW"
-    return "PASSED"
-
-
-# Build a deduplicated list of required documents; non-typology findings take priority.
-def build_document_requests(findings: list[dict], policy: dict) -> list[str]:
-    """Collect document requests from findings, typology docs ranked last."""
-    documents: list[str] = []
-
-    # Non-typology findings first (higher priority)
-    for f in findings:
-        if f.get("dimension") == "typology":
-            continue
-        for doc in f.get("documents", []):
-            if doc not in documents:
-                documents.append(doc)
-
-    # TYP-01 typology documents appended last (lower priority)
-    for f in findings:
-        if f.get("rule_id") == "TYP-01":
-            for doc in f.get("documents", []):
-                if doc not in documents:
-                    documents.append(doc)
-
-    return documents
 
 
 # ---------------------------------------------------------------------------
@@ -1609,10 +1521,6 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
 # ============================================================================
 
 COMPOSITION_KEYS = ["property", "listed_equities", "private_business", "cash"]
-PEP_STATUSES = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
-                "Family member / close associate of a PEP"]
-
-
 def _age_from_birth(date_of_birth, today: str) -> int | None:
     """Whole years between date_of_birth and today, or None if either can't be read."""
     try:
@@ -1809,7 +1717,7 @@ def finish_document_record(record: dict) -> dict:
     return record
 
 
-def check_document_record(record: dict, today: str) -> list[str]:
+def check_document_record(record: dict, today: str, policy: dict | None = None) -> list[str]:
     """Things worth a second look in a record filled from documents. Empty list = nothing spotted."""
     warnings = []
     this_year = int(today[:4])
@@ -1838,16 +1746,11 @@ def check_document_record(record: dict, today: str) -> list[str]:
                if isinstance(a.get("current_declared_value"), (int, float)))
     if isinstance(worth, (int, float)) and held > worth * 1.2:
         warnings.append(f"The listed assets are worth {held:,.0f}, well above the declared net worth {worth:,.0f}.")
-    warnings += _split_against_assets(record)
+    warnings += _split_against_assets(record, policy or {})
     return warnings
 
 
-# asset_type starts with the kind of asset ("Property - Condo"), as the form, the CLI and the documents auto-fill write it
-_ASSET_KIND_PREFIX = {"property": "property", "listed equities": "listed_equities",
-                       "private business": "private_business"}
-
-
-def _split_against_assets(record: dict) -> list[str]:
+def _split_against_assets(record: dict, policy: dict) -> list[str]:
     """Does the declared wealth split agree with the assets listed? Catches a value or a percentage
     read wrongly from the documents (or typed wrongly). Only checks kinds of asset that are listed."""
     claims = record.get("claims", {})
@@ -1857,10 +1760,10 @@ def _split_against_assets(record: dict) -> list[str]:
         return []
     totals = {}
     for asset in record.get("investments", []):
-        kind = str(asset.get("asset_type") or "").lower()
+        kind = str(asset.get("asset_type") or "")
         value = asset.get("current_declared_value")
-        key = next((k for prefix, k in _ASSET_KIND_PREFIX.items() if kind.startswith(prefix)), None)
-        if key and isinstance(value, (int, float)):
+        key = asset_category(kind, policy) if policy.get("asset_categories") else None
+        if key and key != "other" and isinstance(value, (int, float)):
             totals[key] = totals.get(key, 0) + value
     warnings = []
     for key, listed in totals.items():
@@ -1988,7 +1891,6 @@ BENCHMARK_LABELS = {
     "COMPOSITION_BUSINESS": "Asset mix: private business", "COMPOSITION_CASH": "Asset mix: cash",
     "COUNTERPARTIES": "Counterparties", "JURISDICTION": "Countries", "PEP_STATUS": "PEP status",
 }
-BENCHMARK_THEMES = {"COUNTERPARTIES": "people", "JURISDICTION": "countries", "PEP_STATUS": "pattern"}
 # Benchmark checks worked out from the forecast's honest story, so they can't "agree" with it
 FORECAST_DERIVED = ("UNEXPLAINED_GAP", "PEP_STATUS", "PEER_BENCHMARK")
 COMPOSITION_RULES = {"COMPOSITION_PROPERTY": "property", "COMPOSITION_EQUITIES": "listed_equities",
@@ -1996,8 +1898,6 @@ COMPOSITION_RULES = {"COMPOSITION_PROPERTY": "property", "COMPOSITION_EQUITIES":
 
 # Status of one check: failed (counts), weak (a loose end), explained (failed on its own, but
 # another feature explains it, so it doesn't count), passed, skipped (couldn't run), info.
-COUNTS = ("failed",)
-
 
 def _sgd(value) -> str:
     """12345.6 -> 'S$12,346'. Anything that isn't a number -> 'n/a'."""
@@ -2693,9 +2593,9 @@ def benchmark_checks(case: dict, bench_input: dict | None, ai_data: dict | None,
         words = settings["service_provider_words"]
         providers = [c for c in bench_input.get("declared_counterparties", [])
                      if any(re.search(rf"\b{re.escape(w)}\b", c.lower()) for w in words)]
+        # Service providers were already excluded by run_benchmark — unknown comes from its finding
         unknown = calculate_counterparties([c for c in bench_input.get("declared_counterparties", [])
                                             if c not in providers], ai_data.get("expected_counterparties", []))
-        by_rule["COUNTERPARTIES"] = {**by_rule["COUNTERPARTIES"], "failed": len(unknown) > LIMITS["counterparties"]}
         sources = (declaration or {}).get("claimed_sources", [])
 
         def backed(name: str) -> bool:

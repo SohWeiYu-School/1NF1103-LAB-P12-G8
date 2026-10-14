@@ -48,12 +48,8 @@ from app.data_manager import (
     load_all_records,
     upload_supporting_document,
     download_supporting_document,
-    save_assessment,
     load_all_assessments,
     sync_json_to_mongodb,
-    load_raw_replies,
-    save_raw_replies,
-    save_forecast,
     load_client_assessments,
     load_assessment_by_id,
     read_document_for_extraction,
@@ -67,16 +63,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 import main as assessment_flow  # noqa: E402
 
-_log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
-os.makedirs(_log_dir, exist_ok=True)
-_log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"), encoding="utf-8")
-_log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
-_root_logger = logging.getLogger()
-_root_logger.setLevel(logging.INFO)
-_root_logger.handlers.clear()
-_root_logger.addHandler(_log_handler)
+utilities.configure_logging()
 logging.getLogger("werkzeug").setLevel(logging.WARNING)  # suppress per-request access logs, keep startup URL
-utilities.quiet_library_logs()      # same as the command line: no network-library noise in the log
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
@@ -93,8 +81,7 @@ _assessment_jobs = {}  # job_id -> {status, step_num, step, result, error, clien
 # kind: text | int | money | percent | date | textarea | pep | payment | countries
 # ============================================================================
  
-PEP_OPTIONS = ["None", "Domestic PEP", "Foreign PEP",
-               "International organisation PEP", "Family member / close associate"]
+PEP_OPTIONS = utilities.PEP_OPTIONS
 PAYMENT_OPTIONS = ["cash", "loan", "asset_sale"]
  
 CLIENT_FIELDS = [
@@ -288,7 +275,7 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
     if client["age"].isdigit() and 18 <= int(client["age"]) <= 120:
         age = int(client["age"])
     else:
-        _p("Age must be a whole number between 18 and 120.", "client.age", "Must be 18“120.")
+        _p("Age must be a whole number between 18 and 120.", "client.age", "Must be 18-120.")
         age = 0
  
     # ---- career history ----
@@ -566,7 +553,7 @@ def autofill_form(heading: str, form, files):
         # the same second-look checks the command line shows after reading documents
         date = today()
         record, _ = logic_manager.record_from_documents(extracted, "", date)
-        notes += logic_manager.check_document_record(logic_manager.finish_document_record(record), date)
+        notes += logic_manager.check_document_record(logic_manager.finish_document_record(record), date, utilities.policy())
     if extracted is not None and filled:
         flash(f"Read {len(read)} document(s) and filled {len(filled)} box(es), highlighted in yellow. "
               "Check every highlighted value before saving.")

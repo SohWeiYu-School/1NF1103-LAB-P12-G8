@@ -8,11 +8,8 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 import jsonschema
-from dotenv import load_dotenv
-from jsonschema import Draft202012Validator
 from google import genai as google_genai
 from google.genai import types as google_types
-from openai import OpenAI
 
 from app import utilities
 from app.utilities import (
@@ -25,8 +22,6 @@ from app.utilities import (
     model,
 )
 
-
-load_dotenv()  # read the API key and model names from .env
 
 logger = logging.getLogger(__name__)
 
@@ -534,7 +529,6 @@ def strip_excerpts(data: dict) -> dict:
     return data
 
 
-# TODO: Change name to get_ai_typologies
 # Single entry point for typology AI — main.py calls only this
 def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict | None, list[str]]:
     """Entry point. Returns (typologies dict or None, warnings).
@@ -652,13 +646,7 @@ def build_typology_reports(research: dict, report_fields: list) -> list[dict]:
 
 
 # ============================================================================
-# 5. Declaration - read ONCE, by the forecast's Step 0 (read_declaration below).
-#    logic_manager.crime_declaration turns that reading into the crime scan's
-#    warning-sign rows, so the declaration is no longer read a second time here.
-# ============================================================================
-
-# ============================================================================
-# 5b. Document auto-fill - reads uploaded client documents into form details
+# 5. Document auto-fill - reads uploaded client documents into form details
 # ============================================================================
 
 # Most documents sent to the AI in one go (each one is a separate part of the message)
