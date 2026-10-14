@@ -1,27 +1,20 @@
 """
-  data_manager.py - the data layer. Everything is saved to local JSON files first
-  (data/local database/). Nothing goes to MongoDB until the user chooses
-  "Manual Sync to Cloud Database" (sync_json_to_mongodb), which pushes the JSON
-  data and supporting documents to the MongoDB database "sow_risk_db" (MONGODB_URI in .env).
+data_manager.py - the data layer.
 
-    client_cases      one document per client (client_ref)
-                        - the client record typed in by the officer (io_manager forms)
-                        - forecasting_case: the client in the forecasting format
-                        - outcome, routing, next_review_date, last_assessed_on:
-                          the latest forecasting decision, so filter_cases_by_outcome works
-    ai_assessments    one document per client (client_ref)
-                        - crime_scan, benchmark          (crime scan and benchmark results)
-                        - forecast                       (the combined AI forecast, Calls 1-4)
-                        - forecast_decisions.onboarding  (the onboarding decision)
-    ai_raw_replies    one document per AI request (client_ref + call): the AI's exact reply,
-                      reused on reruns so they are free and give identical answers
-    GridFS            uploaded supporting documents
+Primary storage — local JSON files (data/local database/):
+    sow_cases.json        one entry per client, written on every save
+    ai_assessments.json   one entry per assessment, appended on every run
 
-Only the sample client files that ship with the project (data/sample/*.json) are read
-from disk; they are input, nothing is written there.
+Backup — MongoDB Atlas, pushed only when the officer chooses
+"Manual Sync to Cloud Database" (sync_json_to_mongodb):
+    sow_risk_db.client_cases      mirrors sow_cases.json
+    sow_risk_db.ai_assessments    mirrors ai_assessments.json
+    GridFS                        uploaded supporting documents
 
-Every function returns False / None / [] / {} if the database can't be reached,
-instead of crashing.
+Forecasting reply cache — local files (data/cache/forecasting/<client_ref>.json):
+    raw AI replies reused on re-runs so they are free and give identical answers.
+
+Every function returns False / None / [] / {} on error instead of crashing.
 """
 
 import json
@@ -29,8 +22,6 @@ import logging
 import os
 import uuid
 import certifi
-from dotenv import load_dotenv
-from bson import ObjectId
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
@@ -41,9 +32,6 @@ import hashlib
 from app import utilities
 
 logger = logging.getLogger(__name__)
-
-# Load environment variables automatically from .env file
-load_dotenv()
 
 # ==============================================================================
 # PATHS & DATABASE SETTINGS
@@ -130,29 +118,22 @@ def save_to_json(record: dict, filepath: str) -> bool:
 # MONGODB CONNECTION HELPERS (Backup Target)
 # ==============================================================================
 
+def _mongo_client():
+    """One MongoDB client for each call (connections are short-lived sync operations)."""
+    return MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000, tlsCAFile=certifi.where())
+
+
 def get_collection():
-    # Connect to MongoDB client_cases collection for backup sync operations
     try:
-        client = MongoClient(
-            os.getenv("MONGODB_URI"),
-            serverSelectionTimeoutMS=2000,  # Wait a maximum of 2 seconds to connect
-            tlsCAFile=certifi.where()        # Provide SSL certificates to prevent connection errors
-        )
-        return client[DB_NAME][COLLECTION_NAME]
+        return _mongo_client()[DB_NAME][COLLECTION_NAME]
     except Exception as exc:
         logger.warning("get_collection: MongoDB connection failed: %s", repr(exc))
         return None
 
 
 def get_assessment_collection():
-    # Connect to MongoDB ai_assessments collection for backup sync operations
     try:
-        client = MongoClient(
-            os.getenv("MONGODB_URI"),
-            serverSelectionTimeoutMS=2000,
-            tlsCAFile=certifi.where()
-        )
-        return client[DB_NAME][ASSESSMENT_COLLECTION_NAME]
+        return _mongo_client()[DB_NAME][ASSESSMENT_COLLECTION_NAME]
     except Exception as exc:
         logger.warning("get_assessment_collection: MongoDB connection failed: %s", repr(exc))
         return None
@@ -212,12 +193,6 @@ def find_client_record(client_ref: str) -> dict | None:
     return None
 
 
-def filter_cases_by_outcome(outcome: str) -> list:
-    # Get client cases from local sow_cases.json that match a specific outcome
-    all_records = load_all_records()
-    return [r for r in all_records if r.get("outcome") == outcome]
-
-
 def append_to_json(record: dict, filepath: str) -> bool:
     # Append a record to a JSON file without overwriting existing entries
     _ensure_data_dir()
@@ -261,8 +236,7 @@ def query_assessments(assessments: list, outcome: str = None) -> list:
 
 def mongo_is_online() -> bool:
     try:
-        MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000,
-                    tlsCAFile=certifi.where()).admin.command("ping")
+        _mongo_client().admin.command("ping")
         return True
     except Exception as exc:
         logger.warning("mongo_is_online: %s", repr(exc))
@@ -566,11 +540,32 @@ def save_raw_replies(ref: str, replies: dict) -> int:
         return 0
     return count
 
-def save_forecast(ref: str, forecast: dict) -> bool: 
+
+def save_forecast(ref: str, forecast: dict) -> bool:
     return True
 
-def save_case(case: dict) -> bool: 
-    return save_case_record(case)
+
+def is_forecasting_case(case: dict | None) -> bool:
+    """Sample files come in two formats; only the forecasting format can be assessed directly."""
+    return isinstance(case, dict) and "career_history" in case and "client_ref" in case
+
+
+def copy_recorded_replies(golden_dir: str) -> int:
+    """Copy AI replies from tests/golden into the reply cache. Only fills gaps — existing replies
+    are never overwritten. Returns the number of pieces copied."""
+    copied = 0
+    for path in list_sample_cases():
+        name = os.path.splitext(os.path.basename(path))[0]
+        recorded = load_json(os.path.join(golden_dir, name, "ai_responses.json"), default={})
+        case = load_case(path)
+        if not is_forecasting_case(case) or not isinstance(recorded, dict):
+            continue
+        saved = load_raw_replies(case["client_ref"])
+        missing = {piece: {"ok": True, "from_cache": False, "raw": json.dumps(reply), "prompt_version": "recorded"}
+                   for piece, reply in recorded.items() if piece not in saved}
+        copied += save_raw_replies(case["client_ref"], missing)
+    return copied
+
 
 def load_case(path: str) -> dict | None:
     # Read a sample case file from a given file path
@@ -600,14 +595,6 @@ def list_sample_cases() -> list:
         return []
     return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
 
-def load_assessment(ref: str, kind: str = "onboarding") -> dict | None:
-    # Return the most recent assessment for a client reference
-    matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
-    if not matches:
-        return None
-    return max(matches, key=lambda a: a.get("assessed_at", ""))
-
-
 def load_client_assessments(ref: str) -> list:
     # Return all assessments for a client, newest first
     matches = [a for a in load_all_assessments() if a.get("client_ref") == ref]
@@ -626,10 +613,3 @@ def load_assessment_by_id(assessment_id: str) -> dict | None:
 # LOCAL TEST HARNESS (Only runs when data_manager.py is executed directly)
 # ==============================================================================
 
-if __name__ == "__main__":
-    # Safe inspection test: Prints local JSON counts without injecting dummy records
-    print("Checking local JSON records...")
-    records = load_all_records()
-    print(f"Total client records found in sow_cases.json: {len(records)}")
-    for r in records:
-        print(f" - {r.get('client_ref')}: {r.get('name', r.get('client_profile', {}).get('full_name', 'Unnamed'))}")
