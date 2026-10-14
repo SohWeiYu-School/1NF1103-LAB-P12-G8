@@ -1,9 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "person_types (v2: honest + standard crime categories)",
+  "title": "person_types (v3: honest + crime types built from the researched typologies)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["person_types"],
+  "required": [
+    "person_types"
+  ],
   "properties": {
     "person_types": {
       "type": "array",
@@ -11,29 +13,90 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["type_id", "category", "name", "route", "why_it_applies",
-                     "enabled_by_position_index", "enabled_by_asset_index", "enabled_by_source_id",
-                     "open_from", "open_to", "rule_out_documents"],
+        "required": [
+          "type_id",
+          "category",
+          "name",
+          "route",
+          "why_it_applies",
+          "enabled_by_position_index",
+          "enabled_by_asset_index",
+          "enabled_by_source_id",
+          "open_from",
+          "open_to",
+          "rule_out_documents"
+        ],
         "properties": {
-          "type_id": {"type": "string", "pattern": "^T[0-9]+$"},
-          "category": {"x-vocab": "crime_categories"},
-          "name": {"type": "string", "minLength": 3},
-          "route": {"type": "string", "minLength": 10},
-          "why_it_applies": {"type": "string", "minLength": 10},
-          "enabled_by_position_index": {"type": ["integer", "null"], "minimum": 0},
-          "enabled_by_asset_index": {"type": ["integer", "null"], "minimum": 0},
-          "enabled_by_source_id": {"type": ["string", "null"]},
-          "open_from": {"type": "integer"},
-          "open_to": {"type": "integer"},
+          "type_id": {
+            "type": "string",
+            "pattern": "^T[0-9]+$"
+          },
+          "category": {
+            "x-vocab": "crime_categories"
+          },
+          "typology_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3
+          },
+          "route": {
+            "type": "string",
+            "minLength": 10
+          },
+          "why_it_applies": {
+            "type": "string",
+            "minLength": 10
+          },
+          "enabled_by_position_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "enabled_by_asset_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "enabled_by_source_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "open_from": {
+            "type": "integer"
+          },
+          "open_to": {
+            "type": "integer"
+          },
           "rule_out_documents": {
             "type": "array",
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["document_code", "also_rules_out"],
+              "required": [
+                "document_code",
+                "also_rules_out"
+              ],
               "properties": {
-                "document_code": {"x-vocab": "document_codes"},
-                "also_rules_out": {"type": "array", "items": {"type": "string"}}
+                "document_code": {
+                  "x-vocab": "document_codes"
+                },
+                "also_rules_out": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }

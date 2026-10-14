@@ -1,5 +1,7 @@
-# prompt_version: declaration-v1
+# prompt_version: declaration-v2
 # Step 0: turn the client's free-text declaration into a list of claimed sources.
+# v2: also reads the counterparty and whether the source fits his jobs, so this ONE reading
+#     serves the forecast AND the crime scan's warning signs.
 
 TASK: Read the Source of Wealth declaration and list every source of money it claims.
 
@@ -13,4 +15,10 @@ TASK: Read the Source of Wealth declaration and list every source of money it cl
 - linked_position_index: the position_index in career_history this source comes from, or null.
 - linked_asset_index: the asset_index in assets this source comes from or paid for, or null.
 - quote: the exact words of the declaration you took it from.
+- counterparty: the person or organisation the money came from (employer, buyer, company,
+  relative, ...) exactly as the declaration names them, or null if it names nobody.
+  "My uncle" with no name is null; "my uncle Lim Ah Kow" is "Lim Ah Kow (uncle)".
+- occupation_mismatch: true only if this kind of source is unusual for someone with his
+  jobs in career_history (for example large offshore business dividends for a civil
+  servant); otherwise false.
 Include sources that are only mentioned in passing.

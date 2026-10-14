@@ -4,28 +4,34 @@ managers never import each other's work, everything is passed through here.
 
     python main.py                          interactive menu
     python main.py --case data/sample/case_001.json
-                                            forecast one sample case (and its reviews)
-    python main.py --all-samples            forecast every sample case in the forecasting format
+                                            assess one sample case (and run its reviews)
+    python main.py --all-samples            assess every sample case in the forecasting format
     python main.py --all-samples --demo     the same, using the recorded AI replies in tests/golden
                                             (for machines with no API key, e.g. CI)
-    python main.py --crime-scan-sample      crime scan of data/sample/case_daniel_tan.json
 
-Flow for a client (menu options 1, 2 and 4):
-    1. io_manager      New Client form -> saved to MongoDB (client_cases)
-       or option 2:    a folder of documents -> data_manager reads them -> ai_manager fills in
-                       the details -> io_manager asks for what's missing and shows a summary to check
-    2. Crime scan      ai_manager: research, sector typologies, declaration reading
-    3. Benchmark       logic_manager.run_benchmark (AI expected values -> PASS / FAIL)
-       -> crime scan + benchmark saved to MongoDB (ai_assessments)
-    4. Forecasting     io_manager turns the client record into a forecasting case
-                       -> ai_manager forecasts (Calls 1-4) -> logic_manager decides
-                       -> forecast, decision and AI replies saved to MongoDB
+ONE assessment, shared with the web app (app/web_app.py calls run_combined_assessment and
+save_combined_assessment below, so the command line and the web app give the same verdict
+and the same report):
+
+    The client record -> the case (logic_manager.forecasting_case; the CLI asks for anything missing)
+     1    Documents           every supporting document is read: what they SHOW (the documents layer),
+                              compared later with what the client DECLARED
+     2-5  Crime scan context  research reports -> verified -> sector typologies -> verified quotes
+     6-10 Forecast            declaration (read ONCE, shared with the crime scan) -> economy ->
+                              pay + assets -> person types BUILT FROM the typologies -> behaviour + events
+                              (pay is then set to what his tax notices / employment letter show)
+     11   Benchmark           peers in the same economy (the forecast's markets go to the benchmark AI)
+     12   Test every story    crime warning signs per person type, benchmark checks cross-checked
+                              against the forecast, forecast checks, documents vs declaration
+     13   ONE verdict         logic_manager.combined_verdict -> logic_manager.verdict_report
+     14   Save                one assessment record (verdict, report and the evidence behind them)
 """
 
 import json
 import logging
 import os
 import sys
+import uuid
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -35,176 +41,248 @@ load_dotenv(os.path.join(_BASE, ".env"))  # read .env before ai_manager reads it
 
 from app import ai_manager, data_manager, io_manager, logic_manager, utilities  # noqa: E402
 
-SAMPLE_CLIENT_PATH = os.path.join(_BASE, "data", "sample", "case_daniel_tan.json")
-SAMPLE_BENCHMARK_PATH = os.path.join(_BASE, "data", "sample", "case_benchmark.json")
-
 
 def _configure_logging() -> None:
-    """Route all logging (including httpx) to logs/app.log. Nothing goes to the console."""
+    """Route all logging to logs/app.log. Nothing goes to the console. The network libraries only
+    log warnings, so their connection-by-connection DEBUG lines don't flood the file."""
     log_dir = os.path.join(_BASE, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    handler = logging.FileHandler(os.path.join(log_dir, "app.log"))
+    handler = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     root.handlers.clear()
     root.addHandler(handler)
+    utilities.quiet_library_logs()
 
 
 # ---------------------------------------------------------------------------
-# 1-2. Sector Crime Scan
+# The combined assessment (used by the command line AND the web app)
 # ---------------------------------------------------------------------------
 
-# Adapts the full client record into the flat dict that the crime scan pipeline expects.
-def crime_scan_input(client_record: dict) -> dict:
-    """Map the client record (flat structure) to the crime scan input."""
-    career = client_record["career"]
-    sow = client_record["sow_declaration"]
-    return {
-        "client_ref":           client_record["client_ref"],
-        "occupation":           career["occupation"],
-        "industry":             career["industry"],
-        "age":                  utilities.whole_number(career["age"]),
-        "career_start_year":    utilities.whole_number(career["career_start_year"]),
-        "country":              career["country_of_residence"],
-        "country_of_residence": career["country_of_residence"],
-        "declaration_text":     sow if isinstance(sow, str) else sow.get("declaration_text", ""),
-    }
+# The steps both the command line and the web app's loading page show, in order
+ASSESSMENT_STEPS = [
+    "Reading the submitted documents",
+    "Searching trusted sources for typology reports",
+    "Checking the research sources",
+    "Describing sector typologies",
+    "Checking the typology quotes",
+    "Reading the source of wealth declaration",
+    "Forecasting the economy",
+    "Forecasting pay and assets",
+    "Building person types from the typologies",
+    "Forecasting behaviour and future events",
+    "Comparing with peers in the same economy",
+    "Testing every story",
+    "Deciding the verdict",
+    "Saving the assessment",
+]
+_FORECAST_STEP = {"step0_declaration": 6, "call1_markets": 7, "call2_earnings": 8,
+                  "call3_types": 9, "call4_events": 10}
 
 
-# Orchestrates the full crime scan: research → verify → typologies → declaration → match → display.
-def run_crime_scan_pipeline(case_input: dict) -> tuple[dict | None, dict | None, dict | None, dict | None]:
-    """Research, verify, match typologies and parse declaration.
-    Returns (research, typologies, declaration, crime_result)."""
-    policy = utilities.policy()
-
-    # Step 1: Research
-    io_manager.show_message("\nSearching trusted sources for typology reports...")
-    research, res_warnings = ai_manager.get_ai_research(case_input)
-    for w in res_warnings:
-        io_manager.show_error(w)
-    if research is not None:
-        io_manager.show_research_output(research)
-
-    # Step 2: Verify research (TODO: CHECK)
-    if research is not None:
-        clean_research, verify_warnings = logic_manager.verify_research(research, policy)
-        for w in verify_warnings:
-            io_manager.show_error(w)
-    else:
-        clean_research = None
-
-    # Step 3: Typologies (TODO: CHECK)
-    io_manager.show_message("Calling AI for sector typologies...")
-    typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
-    for w in typ_warnings:
-        io_manager.show_error(w)
-
-    # Step 4: Verify typology source citations
-    if typology_response is not None and clean_research is not None:
-        verified_typs, typ_verify_warnings = logic_manager.verify_typology_sources(
-            typology_response.get("sector_typologies", []), clean_research, policy,
-        )
-        for w in typ_verify_warnings:
-            io_manager.show_error(w)
-        typology_response = {**typology_response, "sector_typologies": verified_typs}
-
-    # Step 5: Declaration
-    io_manager.show_message("Calling AI to parse declaration...")
-    declaration, decl_warnings = ai_manager.get_declaration(case_input)
-    for w in decl_warnings:
-        io_manager.show_error(w)
-
-    # Step 6: Normalise declaration jurisdictions
-    if declaration is not None:
-        declaration, norm_warnings = logic_manager.normalize_declaration_jurisdictions(declaration)
-        for w in norm_warnings:
-            io_manager.show_error(w)
-
-    # Steps 7-8: Match typologies and display result
-    crime_result = None
-    if typology_response is not None and declaration is not None:
-        io_manager.show_ai_output(case_input, typology_response, declaration)
-        crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
-        io_manager.show_crime_scan_result(crime_result, typology_response, research)
-
-    return research, typology_response, declaration, crime_result
+def today() -> str:
+    """Every assessment is dated today (the command line and the web app both use this)."""
+    return datetime.now().date().isoformat()
 
 
-def _run_sample_assessment() -> None:
-    """Crime scan of the hardcoded sample client (python main.py --crime-scan-sample)."""
-    client_record = data_manager.load_case(SAMPLE_CLIENT_PATH)
-    if client_record is None:
-        io_manager.show_error(f"Could not read the sample client: {SAMPLE_CLIENT_PATH}")
-        return
-    run_crime_scan_pipeline(crime_scan_input(client_record))
-
-
-# ---------------------------------------------------------------------------
-# 3. Benchmark
-# ---------------------------------------------------------------------------
-
-# Orchestrates the benchmark: builds input, calls AI for expected values, runs logic checks, returns findings.
-def run_benchmark_pipeline(client_record: dict, case_input: dict) -> dict | None:
-    """The benchmark check on the declared net worth and asset split."""
-    claims = client_record.get("claims", {})
-    comp   = claims.get("asset_composition", {})
-
-    def _comp_pct(val) -> int | None:
-        """Convert fraction (0.1) or percentage (10) to whole-number percentage."""
-        n = utilities.whole_number(val)
-        if n is None:
+def prepare_case(client_record: dict) -> dict | None:
+    """The case to assess, built exactly as the web app builds it. The command line only asks
+    the officer for what can't be read from the record."""
+    case, missing = logic_manager.forecasting_case(client_record, today())
+    if case is None:
+        io_manager.show_error("Needed before the assessment can run: " + ", ".join(missing))
+        case = io_manager.case_from_client_record(client_record)
+        if case is None:
             return None
-        # If stored as fraction (0-1), multiply by 100
-        raw = val if val is not None else 0
-        try:
-            f = float(raw)
-            return round(f * 100) if f <= 1.0 else n
-        except (TypeError, ValueError):
-            return n
+    problems = io_manager.validate_case(case)
+    if problems:
+        io_manager.show_case_problems(case["client_ref"], problems)
+        return None
+    return case
 
-    benchmark_input = {
-        **case_input,
-        "declared_net_worth":      utilities.whole_number(claims.get("declared_net_worth")),
-        "listed_equities":         _comp_pct(comp.get("listed_equities")),
-        "cash":                    _comp_pct(comp.get("cash")),
-        "property":                _comp_pct(comp.get("property")),
-        "private_business":        _comp_pct(comp.get("private_business")),
-        "biggest_wealth_jump":     float(claims["biggest_wealth_jump"]) if claims.get("biggest_wealth_jump") is not None else None,
-        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
-        "declared_counterparties": claims.get("declared_counterparties", []),
-        "declared_countries":      claims.get("wealth_countries", []),
+
+def run_combined_assessment(case: dict, supporting_documents: list[dict] | None = None, on_step=None) -> dict:
+    """Documents, crime scan, forecast and benchmark as ONE assessment, then ONE verdict.
+
+    supporting_documents: the client record's saved documents; every one is read.
+
+    on_step(number, label) is told each step in ASSESSMENT_STEPS as it starts (the command
+    line prints it, the web app's loading page shows it). Nothing is printed here.
+    """
+    def step(number: int) -> None:
+        if on_step is not None:
+            on_step(number, ASSESSMENT_STEPS[number - 1])
+
+    policy = utilities.policy()
+    ref = case["client_ref"]
+    notes: list[str] = []
+    not_run: list[str] = []
+    crime_input = logic_manager.crime_scan_input(case)
+
+    # 1. Documents: what every submitted document shows (compared later with what he declared)
+    step(1)
+    files = [str(d.get("file_name") or "document") for d in supporting_documents or []]
+    extracted = None
+    if files:
+        extracted, warnings = ai_manager.extract_client_details(
+            data_manager.read_supporting_documents(supporting_documents))
+        notes += warnings
+        if extracted is None:
+            not_run.append("Reading the submitted documents")
+    evidence = logic_manager.document_evidence(extracted, files, policy)
+
+    # 2-5. Crime scan context: what published reports say about his industry
+    step(2)
+    research, warnings = ai_manager.get_ai_research(crime_input)
+    notes += warnings
+    step(3)
+    clean_research = None
+    if research is not None:
+        clean_research, warnings = logic_manager.verify_research(research, policy)
+        notes += warnings
+    step(4)
+    typology_response, warnings = ai_manager.get_typologies(crime_input, research)
+    notes += warnings
+    step(5)
+    typologies = None
+    if typology_response is None:
+        not_run.append("The crime scan (sector typologies)")
+    else:
+        typologies = typology_response.get("sector_typologies", [])
+        if clean_research is not None:
+            typologies, warnings = logic_manager.verify_typology_sources(typologies, clean_research, policy)
+            notes += warnings
+
+    # 6-10. Forecast: the declaration is read once here, and the crime types are built from the typologies
+    run = ai_manager.run_onboarding_forecast(case, data_manager.load_raw_replies(ref), typologies,
+                                             on_step=lambda stage: step(_FORECAST_STEP[stage]))
+    data_manager.save_raw_replies(ref, run["results"])
+    partial = run["partial"]
+    forecast = run["forecast"] if run["ok"] else None
+    stopped_at = None
+    if forecast is None:
+        stopped_at = (f"{logic_manager.describe_piece(case, run.get('failed_piece'))} "
+                      f"({run.get('failed_error') or 'unknown error'})")
+        not_run.append("The forecast")
+        notes.append(f"The forecast stopped at {stopped_at}. Finished AI replies are saved, "
+                     "so running again carries on from there.")
+    else:
+        data_manager.save_forecast(ref, forecast)
+    # his real pay, from his tax notices / employment letter, replaces the AI's guess
+    pay_adjustments = []
+    if forecast is not None:
+        forecast, pay_adjustments = logic_manager.calibrate_pay(case, forecast, evidence["documented_pay"], policy)
+
+    # 11. Benchmark: peers in the same economy (the forecast's markets, never his own figures)
+    step(11)
+    bench_input, unreadable = logic_manager.benchmark_input(case, crime_input)
+    bench_ai = findings = None
+    if unreadable:
+        notes.append(f"Peer benchmark skipped: can't read {', '.join(unreadable)} from the case.")
+    else:
+        bench_ai = ai_manager.get_ai_benchmark(bench_input, logic_manager.economy_brief(partial.get("markets")))
+        if bench_ai is not None:
+            try:
+                findings = logic_manager.run_benchmark(bench_input, bench_ai)["findings"]
+            except (ZeroDivisionError, KeyError, TypeError) as error:
+                notes.append(f"Peer benchmark couldn't be worked out from the AI's reply ({error!r}).")
+    if findings is None:
+        not_run.append("The peer benchmark")
+
+    # 12. Test every story
+    step(12)
+    forecast_assessment = logic_manager.assess_onboarding(case, forecast) if forecast else None
+    declaration = partial.get("declaration")
+    crime_decl, warnings = logic_manager.crime_declaration(declaration, policy)
+    notes += warnings
+    crime_result = None
+    if typologies is not None and crime_decl is not None:
+        crime_decl, warnings = logic_manager.normalize_declaration_jurisdictions(crime_decl)
+        notes += warnings
+        crime_result = logic_manager.assess_typology_case(crime_input, {"sector_typologies": typologies},
+                                                          crime_decl, policy)
+    elif typologies is not None:
+        not_run.append("The crime scan's warning signs (the declaration couldn't be read)")
+
+    # 13. One verdict, and the report both front ends show
+    step(13)
+    verdict = logic_manager.combined_verdict(case, {
+        "research": clean_research if clean_research is not None else research,
+        "typologies": typologies, "crime_result": crime_result, "declaration": declaration,
+        "benchmark_input": bench_input, "benchmark_ai": bench_ai, "benchmark_findings": findings,
+        "forecast": forecast, "forecast_assessment": forecast_assessment,
+        "markets": partial.get("markets"), "evidence": evidence, "pay_adjustments": pay_adjustments,
+        "failed_step": stopped_at, "not_run": not_run, "notes": notes,
+    }, policy)
+    return {
+        "case": case,
+        "research": research,
+        "typology_response": typology_response,
+        "typologies": typologies,
+        "declaration": declaration,
+        "crime_declaration": crime_decl,
+        "crime_result": crime_result,
+        "benchmark": {"input": bench_input, "expected": bench_ai, "findings": findings},
+        "forecast": forecast,
+        "forecast_assessment": forecast_assessment,
+        "evidence": evidence,
+        "verdict": verdict,
+        "report": logic_manager.verdict_report(verdict),
     }
 
-    unreadable = [k for k in ("declared_net_worth", "listed_equities", "cash", "property", "private_business")
-                  if benchmark_input[k] is None]
-    if unreadable:
-        io_manager.show_error(f"Benchmark skipped: can't read {', '.join(unreadable)} from the client record.")
+
+def save_combined_assessment(result: dict, client_record: dict | None = None,
+                             on_step=None) -> str | None:
+    """Save the assessment as ONE record (and the case on the client record, when given).
+    Returns the assessment id, or None if it couldn't be saved."""
+    if on_step is not None:
+        on_step(len(ASSESSMENT_STEPS), ASSESSMENT_STEPS[-1])
+    case = result["case"]
+    verdict = result["verdict"]
+    if client_record is not None:
+        client_record["forecasting_case"] = case
+        client_record.update(outcome=verdict["verdict"], routing=verdict["next_step"],
+                             next_review_date=verdict["next_review_date"], last_assessed_on=verdict["assessed_on"])
+        data_manager.save_case_record(client_record)
+    assessment_id = str(uuid.uuid4())
+    saved = data_manager.save_assessment({
+        "assessment_id": assessment_id,
+        "client_ref": case["client_ref"],
+        "kind": "onboarding",
+        "assessed_at": datetime.now(timezone.utc).isoformat(),
+        "outcome": result["verdict"]["verdict"],
+        "verdict": result["verdict"],
+        "report": result["report"],
+        "crime_scan": {"research": result["research"], "typologies": result["typology_response"],
+                       "declaration": result["crime_declaration"]},
+        "crime_result": result["crime_result"],
+        "benchmark": result["benchmark"],
+        "document_evidence": result["evidence"],
+        "forecast": result["forecast_assessment"],
+        "assessment": result["forecast_assessment"],
+    })
+    return assessment_id if saved else None
+
+
+def _show_step(number: int, label: str) -> None:
+    io_manager.show_step(number, len(ASSESSMENT_STEPS), label)
+
+
+def assess_client_record(client_record: dict) -> dict | None:
+    """The command line's assessment of a saved client: the same flow and report as the web app."""
+    case = prepare_case(client_record)
+    if case is None:
         return None
-    ai_data = ai_manager.get_ai_benchmark(benchmark_input)
-    return logic_manager.run_benchmark(benchmark_input, ai_data)
-
-# ---------------------------------------------------------------------------
-# 4. Forecasting
-# ---------------------------------------------------------------------------
-
-def run_forecast_pipeline(case: dict) -> tuple[dict | None, dict | None]:
-    """Forecast and decide one case. Returns (forecast, onboarding assessment)."""
-    ref = case["client_ref"]
-    cache = data_manager.load_raw_replies(ref)
-    io_manager.show(f"\nForecasting {ref} ({len(cache)} saved AI replies found)...")
-    run = ai_manager.run_onboarding_forecast(case, cache)
-    data_manager.save_raw_replies(ref, run["results"])
-    io_manager.show_ai_progress(run["results"])
-    if not run["ok"]:
-        io_manager.show_error(f"Stopped at {run['failed_step']}. Finished replies are saved, "
-                              "so running again carries on from there.")
-        return None, None
-
-    data_manager.save_forecast(ref, run["forecast"])
-    assessment = logic_manager.assess_onboarding(case, run["forecast"])
-    io_manager.show_onboarding(assessment)
-    return run["forecast"], assessment
+    io_manager.show_message(f"\nAssessing {case['client_ref']}: documents, crime scan, forecast and benchmark together.")
+    result = run_combined_assessment(case, client_record.get("supporting_documents"), on_step=_show_step)
+    saved = save_combined_assessment(result, client_record, on_step=_show_step)
+    io_manager.show_verdict_report(result["report"])
+    if saved:
+        io_manager.show_message("Assessment saved.")
+    else:
+        io_manager.show_error("Could not save the assessment.")
+    return result
 
 
 def review_case(case: dict, review: dict,
@@ -223,59 +301,6 @@ def review_case(case: dict, review: dict,
         io_manager.show_error("Could not reach the database; the review below was not saved.")
     io_manager.show_review(assessment)
     return assessment
-
-
-# ---------------------------------------------------------------------------
-# The whole flow for a client from the form: crime scan -> benchmark -> forecasting
-# ---------------------------------------------------------------------------
-
-def assess_client_record(client_record: dict) -> None:
-    """Crime scan, benchmark and forecasting for a saved client, saved as one assessment."""
-    ref = client_record["client_ref"]
-
-    # Crime scan
-    try:
-        case_input = crime_scan_input(client_record)
-    except KeyError as missing:
-        io_manager.show_error(f"Crime scan and benchmark skipped: the client record has no {missing}.")
-        case_input = None
-    research = typology_response = declaration = crime_result = benchmark = None
-    if case_input is not None:
-        research, typology_response, declaration, crime_result = run_crime_scan_pipeline(case_input)
-        # Benchmark
-        benchmark = run_benchmark_pipeline(client_record, case_input)
-        if benchmark is not None:
-            io_manager.show_benchmark_result(benchmark)
-
-    # Forecasting (the officer is asked only for anything the forecast needs that's missing)
-    forecast_assessment = None
-    case = io_manager.case_from_client_record(client_record)
-    if case is not None:
-        client_record["forecasting_case"] = case
-        data_manager.save_case_record(client_record)
-        _, forecast_assessment = run_forecast_pipeline(case)
-        if forecast_assessment is not None:
-            data_manager.save_forecast_assessment(ref, "onboarding", forecast_assessment)
-
-    # Save one combined record (crime scan + benchmark + forecast)
-    assessment = {
-        "client_ref":  ref,
-        "kind":        "onboarding",
-        "assessed_at": datetime.now(timezone.utc).isoformat(),
-        "crime_scan": {
-            "research":    research,
-            "typologies":  typology_response,
-            "declaration": declaration,
-        },
-        "crime_result": crime_result,
-        "benchmark":    benchmark,
-        "forecast":     forecast_assessment,
-        "assessment":   forecast_assessment,
-    }
-    if data_manager.save_assessment(assessment):
-        io_manager.show_message("\nAssessment saved.")
-    else:
-        io_manager.show_error("Could not save the assessment.")
 
 
 # ---------------------------------------------------------------------------
@@ -311,8 +336,8 @@ def new_client_from_documents() -> dict | None:
         extracted = {}
 
     # 3. Build the record and ask for anything missing
-    today = datetime.now().date().isoformat()
-    doc_record, _ = logic_manager.record_from_documents(extracted, io_manager.generate_client_id(), today)
+    date = today()
+    doc_record, _ = logic_manager.record_from_documents(extracted, io_manager.generate_client_id(), date)
     record = doc_record
     missing = logic_manager.missing_client_fields(record)
     io_manager.show_missing_intro(len(missing))
@@ -325,7 +350,7 @@ def new_client_from_documents() -> dict | None:
     notes = list(extracted.get("notes") or []) + list(warnings)
     while True:
         rows = logic_manager.summarise_document_record(record, doc_record)
-        checks = logic_manager.check_document_record(record, today)
+        checks = logic_manager.check_document_record(record, date)
         io_manager.show_document_summary(rows, paths, notes, checks)
         action = io_manager.ask_document_record_action()
         if action == "discard":
@@ -367,7 +392,7 @@ def is_forecasting_case(case: dict | None) -> bool:
 
 
 def run_case_file(path: str) -> bool:
-    """Forecast a case file and run every review stored in it."""
+    """Assess a case file (the same combined assessment as the menu) and run every review stored in it."""
     case = data_manager.load_case(path)
     if case is not None and not is_forecasting_case(case):
         io_manager.show(f"\n{os.path.basename(path)}: not in the forecasting format "
@@ -377,11 +402,14 @@ def run_case_file(path: str) -> bool:
     if problems:
         io_manager.show_case_problems(path, problems)
         return False
-    forecast, onboarding = run_forecast_pipeline(case)
+    io_manager.show_message(f"\nAssessing {case['client_ref']} ({os.path.basename(path)}).")
+    result = run_combined_assessment(case, on_step=_show_step)
+    if not save_combined_assessment(result, on_step=_show_step):
+        io_manager.show_error("Could not save the assessment.")
+    io_manager.show_verdict_report(result["report"], ask_for_evidence=False)
+    forecast, onboarding = result["forecast"], result["forecast_assessment"]
     if forecast is None:
         return False
-    if not data_manager.save_forecast_assessment(case["client_ref"], "onboarding", onboarding):
-        io_manager.show_error("Could not reach the database; the decision was not saved.")
     for review in case.get("reviews", []):
         if review_case(case, review, forecast, onboarding) is None:
             return False
@@ -431,8 +459,10 @@ def list_assessments() -> None:
     if matches and io_manager.ask_yes_no("Open one in full?"):
         labels = [f"{m['client_ref']}  {m['kind']}" for m in matches]
         chosen = matches[io_manager.ask_choice("Which one?", labels)]
-        if chosen["kind"] == "onboarding":
-            io_manager.show_onboarding(chosen["assessment"])
+        if chosen.get("report"):
+            io_manager.show_verdict_report(chosen["report"])     # the combined assessment
+        elif chosen["kind"] == "onboarding":
+            io_manager.show_onboarding(chosen["assessment"])     # saved before the combined verdict
         else:
             io_manager.show_review(chosen["assessment"])
 
@@ -517,9 +547,6 @@ def main(arguments: list[str]) -> int:
     if not ai_manager.has_api_key():
         io_manager.show_error("No OPENAI_API_KEY set: only saved AI replies can be used.")
 
-    if "--crime-scan-sample" in arguments:
-        _run_sample_assessment()
-        return 0
     if "--demo" in arguments:
         io_manager.show(f"Demo mode: {use_recorded_replies()} recorded AI replies loaded from tests/golden.")
     if "--all-samples" in arguments:
