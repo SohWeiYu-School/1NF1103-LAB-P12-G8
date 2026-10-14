@@ -15,7 +15,6 @@ from app.ai_manager import (
     build_typology_reports,
     extract_api_sources,
     get_ai_research,
-    get_declaration,
     get_typologies,
     strip_excerpts,
     trim_reports,
@@ -85,6 +84,7 @@ def _valid_typology(typology_id: str = "test_typology") -> dict:
     return {
         "typology_id": typology_id,
         "name": "Test typology name",
+        "crime_category": "TRADE_BASED_ML",
         "description": "First sentence about the pattern. Second sentence.",
         "source_ids": ["R1"],
         "source_quotes": [
@@ -729,22 +729,6 @@ def test_missing_source_quotes_fails_schema():
     del t["source_quotes"]
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=_valid_typology_response(typologies=[t]), schema=TYPOLOGY_SCHEMA)
-
-
-# ===========================================================================
-# 27. get_declaration — cache hit skips API call
-# ===========================================================================
-
-def test_declaration_cache_hit_makes_no_api_call():
-    cached_response = {"sources": [], "model": "gpt-4o"}
-
-    with patch("app.ai_manager.cache_check", return_value=("fake-key", cached_response)), \
-         patch("app.ai_manager._ai_chat_completion_pipeline") as mock_pipeline:
-        result, warnings = get_declaration({"declaration_text": "I earned my wealth from employment."})
-
-    mock_pipeline.assert_not_called()
-    assert result == cached_response
-    assert warnings == []
 
 
 # ===========================================================================
