@@ -68,6 +68,7 @@ _log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"))
 _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(_log_handler)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)  # suppress per-request access logs, keep startup URL
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
@@ -623,6 +624,20 @@ def get_record(client_ref: str):
         if record.get("client_ref") == client_ref:
             return record
     return None
+
+
+# ---------------------------------------------------------------------------
+# Flash helpers — mirrors io_manager display functions for the web layer
+# ---------------------------------------------------------------------------
+
+def flash_ai_unavailable(feature: str = "Assessment") -> None:
+    flash(f"{feature} is not available right now — please try again later.")
+
+def flash_rate_limit_error(seconds_left: int) -> None:
+    flash(f"Rate limit: please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before running another assessment.")
+
+def flash_unexpected_error() -> None:
+    flash("An unexpected error occurred — please try again or contact support.")
  
  
 def show_form(heading: str, values: dict, problems: list, field_errors: dict = None,
@@ -652,27 +667,6 @@ def _crime_scan_input(record):
     }
 
 
-def _run_crime_scan(case_input):
-    policy = utilities.policy()
-    research, _ = ai_manager.get_ai_research(case_input)
-    clean_research = None
-    if research is not None:
-        clean_research, _ = logic_manager.verify_research(research, policy)
-    typology_response, _ = ai_manager.get_typologies(case_input, research)
-    if typology_response is not None and clean_research is not None:
-        verified_typs, _ = logic_manager.verify_typology_sources(
-            typology_response.get("sector_typologies", []), clean_research, policy,
-        )
-        typology_response = {**typology_response, "sector_typologies": verified_typs}
-    declaration, _ = ai_manager.get_declaration(case_input)
-    if declaration is not None:
-        declaration, _ = logic_manager.normalize_declaration_jurisdictions(declaration)
-    crime_result = None
-    if typology_response is not None and declaration is not None:
-        crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
-    return research, typology_response, declaration, crime_result
-
-
 def _run_benchmark(record, case_input):
     claims = record.get("claims") or {}
     comp   = claims.get("asset_composition") or {}
@@ -693,6 +687,8 @@ def _run_benchmark(record, case_input):
            ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
         return None
     ai_data = ai_manager.get_ai_benchmark(benchmark_input)
+    if ai_data is None:
+        return None
     return logic_manager.run_benchmark(benchmark_input, ai_data)
 
 
@@ -708,31 +704,43 @@ def _run_assessment_job(job_id, client_ref, record):
         policy = utilities.policy()
 
         step(1)
-        research, _ = ai_manager.get_ai_research(case_input)
+        research, res_warnings = ai_manager.get_ai_research(case_input)
+        for w in res_warnings:
+            logging.getLogger(__name__).info(w)
 
         step(2)
         clean_research = None
         if research is not None:
-            clean_research, _ = logic_manager.verify_research(research, policy)
+            clean_research, verify_warns = logic_manager.verify_research(research, policy)
+            for w in verify_warns:
+                logging.getLogger(__name__).info(w)
         time.sleep(4)
 
         step(3)
-        typology_response, _ = ai_manager.get_typologies(case_input, research)
+        typology_response, typ_warnings = ai_manager.get_typologies(case_input, research)
+        for w in typ_warnings:
+            logging.getLogger(__name__).info(w)
 
         step(4)
         if typology_response is not None and clean_research is not None:
-            verified_typs, _ = logic_manager.verify_typology_sources(
+            verified_typs, typ_verify_warns = logic_manager.verify_typology_sources(
                 typology_response.get("sector_typologies", []), clean_research, policy,
             )
+            for w in typ_verify_warns:
+                logging.getLogger(__name__).info(w)
             typology_response = {**typology_response, "sector_typologies": verified_typs}
         time.sleep(4)
 
         step(5)
-        declaration, _ = ai_manager.get_declaration(case_input)
+        declaration, decl_warnings = ai_manager.get_declaration(case_input)
+        for w in decl_warnings:
+            logging.getLogger(__name__).info(w)
 
         step(6)
         if declaration is not None:
-            declaration, _ = logic_manager.normalize_declaration_jurisdictions(declaration)
+            declaration, norm_warns = logic_manager.normalize_declaration_jurisdictions(declaration)
+            for w in norm_warns:
+                logging.getLogger(__name__).info(w)
         time.sleep(4)
 
         step(7)
@@ -777,6 +785,15 @@ def _run_assessment_job(job_id, client_ref, record):
             "assessment":   forecast_assessment,
         })
 
+        # Per-feature failure flags — feature names passed to flash_ai_unavailable in assess_result
+        ai_warnings = []
+        if crime_result is None:
+            ai_warnings.append("Crime scan")
+        if benchmark is None:
+            ai_warnings.append("Benchmark")
+        if not run["ok"]:
+            ai_warnings.append("Forecasting")
+
         job["result"] = {
             "record":        record,
             "crime_result":  crime_result,
@@ -785,12 +802,14 @@ def _run_assessment_job(job_id, client_ref, record):
             "forecast":      forecast_assessment,
             "assessment_id": assessment_id,
             "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "ai_warnings":   ai_warnings,
         }
         job["status"] = "done"
 
     except Exception as exc:
+        logging.getLogger(__name__).error("_run_assessment_job %s failed: %s", job_id, repr(exc))
         job["status"] = "error"
-        job["error"] = str(exc)
+        job["error"] = "Assessment is not available right now — please try again later."
 
 
 # ============================================================================
@@ -979,13 +998,14 @@ def assess_client(client_ref):
     if record is None:
         abort(404)
     if not ai_manager.has_api_key():
-        flash("No API key configured — assessment cannot run.")
+        logging.getLogger(__name__).warning("assess_client: no API key configured (client_ref=%s)", client_ref)
+        flash_ai_unavailable("Assessment")
         return redirect(url_for("view_client", client_ref=client_ref))
 
     user_key = request.remote_addr or "unknown"
     allowed, seconds_left = utilities.check_rate_limit(user_key)
     if not allowed:
-        flash(f"Rate limit: please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before running another assessment.")
+        flash_rate_limit_error(seconds_left)
         return redirect(url_for("view_client", client_ref=client_ref))
 
     utilities.record_assessment(user_key)
@@ -1035,8 +1055,10 @@ def assess_result(job_id):
     if job["status"] == "running":
         return redirect(url_for("assess_loading", job_id=job_id))
     if job["status"] == "error":
-        flash(f"Assessment failed: {job.get('error', 'Unknown error')}")
+        flash_unexpected_error()
         return redirect(url_for("view_client", client_ref=job["client_ref"]))
+    for feature in job["result"].get("ai_warnings", []):
+        flash_ai_unavailable(feature)
     return render_template("assess_result.html", **job["result"])
 
 
@@ -1046,7 +1068,8 @@ def review_client(client_ref):
     if record is None:
         abort(404)
     if not ai_manager.has_api_key():
-        flash("No API key configured — review cannot run.")
+        logging.getLogger(__name__).warning("review_client: no API key configured (client_ref=%s)", client_ref)
+        flash_ai_unavailable("Review")
         return redirect(url_for("view_client", client_ref=client_ref))
 
     saved = _load_assessment(client_ref)
@@ -1587,7 +1610,7 @@ ASSESS_RESULT = """{% extends "base.html" %}
   </div>
 </div>
 {% else %}
-<div class="panel"><p class="muted">Crime scan could not be completed (check API key).</p></div>
+<div class="panel"><p class="muted">Crime scan is not available right now — please try again later.</p></div>
 {% endif %}
 
 {% if benchmark %}
