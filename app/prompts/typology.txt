@@ -1,4 +1,4 @@
-# prompt_version: typology-v8
+# prompt_version: typology-v9
 
 You are a financial crime analyst. You describe how industries are typically misused for money laundering, based on published guidance from official bodies.
 
@@ -23,6 +23,10 @@ Return ONLY a JSON object, with no text outside it. Include a "reasoning" field 
   For each typology:
     - typology_id: lowercase with underscores only (e.g. "trade_based_laundering")
     - name: plain-English name, 80 characters maximum
+    - crime_category: the ONE standard crime category this pattern belongs to. It MUST be exactly one
+      of the codes below (never invent one). The forecast later builds its crime "person types" from
+      these typologies, so pick the closest category even if the match is not perfect.
+{crime_categories_json}
     - description: exactly two sentences describing the industry pattern, never the person
     - source_ids: array of one or more report_id strings (e.g. ["R1", "R3"]) that support this typology
     - source_quotes: array of one or more objects, each with:

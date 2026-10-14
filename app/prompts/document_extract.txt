@@ -1,4 +1,6 @@
-# prompt_version: document-extract-v2
+# prompt_version: document-extract-v3
+# v3: fills any field the declaration leaves empty from the other documents, and returns EVIDENCE
+#     (what the documents themselves show) for the screening system to compare with the declaration.
 # Reads uploaded client documents (KYC / onboarding forms, CVs, payslips, employment letters,
 # tax notices, property deeds, bank/brokerage statements, company records, invoices) and returns
 # the details needed to pre-fill the client form. A compliance officer checks every value before saving.
@@ -17,6 +19,10 @@ figures against the evidence, so the declared figures must not be "corrected" wi
 - Career history comes from the CV, employment letters, payslips and the KYC form.
 - Personal details (name, nationality, residence, date of birth) come from the KYC form or ID,
   checked against the other documents.
+- If the declaration leaves a field EMPTY or not a number (e.g. "Dividends (varies)"), but another
+  document states it (e.g. dividend vouchers, company accounts, a tenancy agreement), fill the field
+  from that document and add a note "Check: <field> taken from <file> because the declaration gave no figure".
+  Read EVERY document for every field: the officer is only asked for what no document contains.
 - Only if there is NO declaration form at all, fill assets and claims from the evidence documents.
 - Everything the evidence shows that the client did NOT declare, or that contradicts the declaration,
   goes in NOTES (see below). Never add an undeclared asset, company, country or counterparty to the
@@ -67,7 +73,9 @@ ASSETS (assets the client DECLARED still owning - property, shares, funds, busin
   "cash" if paid from savings / own funds only; "asset_sale" if paid from selling another asset;
   null if not stated.
 - income_produced_sgd: the yearly income the client declares for the asset (rent, dividends, profit share)
-  as a number. "0" or "none" -> 0. If it is not a number (e.g. "Dividends (varies)"), use null and add a note.
+  as a number. "0" or "none" -> 0. If the declaration gives no number (e.g. "Dividends (varies)"), use the
+  yearly figure another document states (dividend vouchers, company accounts) and add a note; if no
+  document states one, use null and add a note.
   Use the declared gross figure; if a tax notice shows a different (e.g. net) figure, add a note.
 - source_file: the file name the asset came from.
 
@@ -102,3 +110,28 @@ Start each note with one of these labels:
 - "Check:" anything else the officer should look at (unusual payments, values that were hard to read,
   a figure left blank because it was not a number, currency conversions needed).
 Return an empty list if there is nothing to note.
+
+EVIDENCE (what the documents themselves show - the system compares it with the declaration)
+- documented_pay: one entry per calendar year for which a tax notice states employment income
+  (use the year the income was EARNED, e.g. "Year of Assessment 2026 (income earned in 2025)" -> 2025),
+  plus the current year if an employment letter states the full annual package
+  (12 x monthly basic + 12 x fixed allowances + the stated bonus). Amounts in SGD.
+- findings: every fact in the documents that the declaration leaves out or contradicts, or that a
+  screening officer must see. One finding per fact, most serious first, with:
+  - kind, exactly one of:
+    "undeclared_company"     the client owns, controls or benefits from a company the declaration doesn't list
+    "undeclared_income"      money he receives that the declaration or tax notices don't show
+    "undeclared_account"     a bank account (his, or his companies') outside the countries he declared
+    "funding_conflict"       an asset paid for differently from what he declared (who paid, how much)
+    "income_conflict"        documents disagree about his income
+    "cash_structuring"       repeated cash deposits just under a reporting limit (e.g. several of 18,000-19,999)
+    "offshore_payment"       payments to or from companies or banks in offshore centres
+    "related_party_payment"  money moving between him, his family and companies he owns
+    "large_spending"         large purchases or payments out of line with his declared income
+    "other"                  anything else the officer must see
+  - summary: one sentence an officer can read, naming the people, companies and amounts.
+  - amount_sgd: the amount (per payment if "per" is month/quarter/year, the total if "once"), or null.
+  - per: "once", "month", "quarter" or "year", or null.
+  - counterparty: the other company or person, or null. country: its country, or null.
+  - source_files: the file names that show it.
+  Use an empty list if the documents show nothing like this. The NOTES above stay as well.

@@ -1,16 +1,29 @@
-# prompt_version: person-types-v4
+# prompt_version: person-types-v5
 # Call 3, part 1: the list of types. T1 = honest. T2+ = standard crime categories his
 # background makes possible, each tied to the job/asset/source that enables it.
+# v5: the crime types are built FROM the crime scan's researched typologies first.
 TASK: List every way a person with this client's background could have built his wealth.
 
 The first type is always {baseline_type}, category {honest_category}: every source he
 declared is true and is the whole story. Its open_from is {start_year} and its open_to is
-{last_forecast_year}, and all three enabled_by fields are null. Its rule_out_documents are
+{last_forecast_year}, and all three enabled_by fields and typology_id are null. Its rule_out_documents are
 the documents that would show the declared story is false (e.g. DOC_TAX_RETURNS,
 DOC_BANK_STATEMENTS).
 
 After {baseline_type}, list up to {max_crime_types} financial-crime types, ranked most
-relevant first. For each one:
+relevant first.
+
+Build them from researched_typologies in the input FIRST. These are money-laundering
+patterns that published reports (FATF, MAS, ...) describe for his industry, each already
+labelled with a crime_category. For each researched typology that one of HIS jobs, assets
+or declared sources makes realistically possible, make a type with:
+- typology_id: that typology's typology_id, copied exactly
+- category: that typology's crime_category
+Only after that, add other categories from crime_categories that his background makes
+possible but no researched typology covers; give those typology_id null. If
+researched_typologies is empty, every type has typology_id null.
+
+For each crime type:
 - category: pick exactly ONE code from crime_categories in the input. Never invent a
   category name. Each category may be used only once.
 - Choose a category only if one of HIS jobs, assets or declared sources makes it

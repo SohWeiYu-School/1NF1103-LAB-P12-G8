@@ -51,6 +51,15 @@
           },
           "quote": {
             "type": "string"
+          },
+          "counterparty": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occupation_mismatch": {
+            "type": "boolean"
           }
         },
         "required": [

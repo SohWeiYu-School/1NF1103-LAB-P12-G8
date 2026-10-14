@@ -1,4 +1,5 @@
-
+# prompt_version: benchmark-v2
+# v2: the expected values use the economy the client lived through (from the forecast's Call 1).
 You are a financial analyst specialising in Singapore wealth profiles.
 
 Given the client profile below, estimate reasonable expected financial
@@ -7,9 +8,16 @@ benchmark values for this client.
 Client information:
 {client_data}
 
-Use the client's age, nationality, country of residence, occupation,
-career start year, employment years, properties, investments and industry
-to estimate the expected values.
+Economy this client lived through (yearly % change of each market from his
+first working year to now, and the countries' risk listings). It holds no
+figures about the client:
+{economy}
+
+Use the client's age, country of residence, occupation, career start year,
+employment years and industry to estimate the expected values. Adjust them
+for the economy above: a person in a market that boomed would reasonably
+have more wealth (and more of it in that market) than one in a market that
+shrank. If the economy says "not available", use typical conditions.
 
 The benchmark should represent what would reasonably be expected for a
 client with this profile.
@@ -37,4 +45,4 @@ Generate the following:
 - expected_cash: expected cash percentage as a number from 0 to 100
 - expected_velocity: expected annual wealth accumulation in SGD per year, returned as a positive numerical value representing how much wealth a client with this profile could reasonably accumulate in one year. Do not return a percentage or a total accumulated over multiple years.
 - expected_counterparties: For expected_counterparties, return a list of reasonable expected counterparties based on the client's profile.
-- expected_jurisdiction: For expected_jurisdiction, return a list of reasonable expected countries/jurisdictions based on the client's profile.
+- expected_jurisdiction: For expected_jurisdiction, return a list of reasonable expected countries/jurisdictions based on the client's profile, as full country names (e.g. "Singapore", "Hong Kong").
