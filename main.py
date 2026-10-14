@@ -499,14 +499,7 @@ def run_menu() -> None:
         elif choice == "7":
             io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
             stats = data_manager.sync_json_to_mongodb()
-            io_manager.show_message(
-                f"Sync complete! Cases synced: {stats['cases_synced']}, "
-                f"Assessments synced: {stats['assessments_synced']}, "
-                f"Already up to date: {stats['skipped']}"
-            )
-            if stats["errors"]:
-                for err in stats["errors"]:
-                    io_manager.show_error(err)
+            io_manager.show_sync_result(stats)
 
         elif choice == "8":
             io_manager.show_message("\nGoodbye.")

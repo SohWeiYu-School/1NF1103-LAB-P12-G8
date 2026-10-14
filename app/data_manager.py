@@ -25,6 +25,7 @@ instead of crashing.
 """
 
 import json
+import logging
 import os
 import uuid
 import certifi
@@ -38,6 +39,8 @@ import tempfile
 import hashlib
 
 from app import utilities
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables automatically from .env file
 load_dotenv()
@@ -86,7 +89,7 @@ def load_from_json(filepath: str) -> list:
             # Return data if it is a list, otherwise return empty list
             return data if isinstance(data, list) else []
     except (json.JSONDecodeError, IOError) as e:
-        # Catch file read or decode errors
+        logger.warning("load_from_json: could not read %s: %s", filepath, repr(e))
         return []
 
 
@@ -119,6 +122,7 @@ def save_to_json(record: dict, filepath: str) -> bool:
             json.dump(records, f, indent=4, ensure_ascii=False)
         return True
     except IOError as e:
+        logger.error("save_to_json: could not write %s: %s", filepath, repr(e))
         return False
 
 
@@ -135,8 +139,8 @@ def get_collection():
             tlsCAFile=certifi.where()        # Provide SSL certificates to prevent connection errors
         )
         return client[DB_NAME][COLLECTION_NAME]
-    except Exception:
-        # Return None if database is offline or URI is not set
+    except Exception as exc:
+        logger.warning("get_collection: MongoDB connection failed: %s", repr(exc))
         return None
 
 
@@ -149,7 +153,8 @@ def get_assessment_collection():
             tlsCAFile=certifi.where()
         )
         return client[DB_NAME][ASSESSMENT_COLLECTION_NAME]
-    except Exception:
+    except Exception as exc:
+        logger.warning("get_assessment_collection: MongoDB connection failed: %s", repr(exc))
         return None
 
 
@@ -222,7 +227,8 @@ def append_to_json(record: dict, filepath: str) -> bool:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(records, f, indent=4, ensure_ascii=False)
         return True
-    except IOError:
+    except IOError as exc:
+        logger.error("append_to_json: could not write %s: %s", filepath, repr(exc))
         return False
 
 
@@ -258,7 +264,8 @@ def mongo_is_online() -> bool:
         MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=2000,
                     tlsCAFile=certifi.where()).admin.command("ping")
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("mongo_is_online: %s", repr(exc))
         return False
 
 
@@ -294,8 +301,8 @@ def _save_sync_state(state: dict) -> None:
     try:
         with open(SYNC_STATE_JSON, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=4)
-    except IOError:
-        pass
+    except IOError as exc:
+        logger.warning("_save_sync_state: could not write sync state: %s", repr(exc))
 
 
 def _fingerprint(record: dict) -> str:
@@ -306,6 +313,7 @@ def sync_json_to_mongodb() -> dict:
     stats = {"cases_synced": 0, "assessments_synced": 0, "skipped": 0, "errors": []}
 
     if not mongo_is_online():
+        logger.warning("sync_json_to_mongodb: MongoDB is not reachable — sync aborted")
         stats["errors"].append("Cannot reach MongoDB. Your data is still safe in the local JSON files.")
         return stats
 
@@ -332,6 +340,7 @@ def sync_json_to_mongodb() -> dict:
                 cases_state[ref] = fingerprint
                 stats["cases_synced"] += 1
             except (PyMongoError, OSError) as e:
+                logger.error("sync_json_to_mongodb: case %s failed: %s", ref, repr(e))
                 stats["errors"].append(f"Case {ref}: {e}")
 
     # Step 2: assessments (never edited after saving, so the id alone is enough)
@@ -353,6 +362,7 @@ def sync_json_to_mongodb() -> dict:
                 assess_state[key] = True
                 stats["assessments_synced"] += 1
             except PyMongoError as e:
+                logger.error("sync_json_to_mongodb: assessment %s failed: %s", record.get("client_ref"), repr(e))
                 stats["errors"].append(f"Assessment {record.get('client_ref')}: {e}")
 
     _save_sync_state(state)
@@ -442,6 +452,7 @@ def read_document_for_extraction(file_path: str, file_name: str | None = None) -
             return {"file_name": name, "kind": "error",
                     "error": f"{name}: this file type can't be read (use PDF, Word, Excel, text or an image)."}
     except Exception as exc:   # a damaged or password-protected file
+        logger.warning("read_document_for_extraction: %s: %s", name, repr(exc))
         return {"file_name": name, "kind": "error", "error": f"{name}: could not be read ({exc.__class__.__name__})."}
 
     if not text.strip():
@@ -479,7 +490,8 @@ def upload_supporting_document(file_path: str):
     dest = os.path.join(DOCUMENTS_DIR, f"{uuid.uuid4().hex[:8]}_{os.path.basename(file_path)}")
     try:
         shutil.copy2(file_path, dest)
-    except OSError:
+    except OSError as exc:
+        logger.warning("upload_supporting_document: copy failed for %s: %s", file_path, repr(exc))
         return None
     return os.path.relpath(dest, utilities.ROOT_DIR).replace("\\", "/")   # forward slashes so it works on any OS
 
@@ -496,7 +508,8 @@ def download_supporting_document(file_id: str, output_path: str) -> bool:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         shutil.copy2(local, output_path)
         return True
-    except OSError:
+    except OSError as exc:
+        logger.warning("download_supporting_document: copy failed for %s: %s", file_id, repr(exc))
         return False
 
 
@@ -529,7 +542,8 @@ def load_raw_replies(ref: str) -> dict:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, dict) else {}
-    except (json.JSONDecodeError, IOError):
+    except (json.JSONDecodeError, IOError) as exc:
+        logger.warning("load_raw_replies: could not read cache for %s: %s", ref, repr(exc))
         return {}
 
 
@@ -547,7 +561,8 @@ def save_raw_replies(ref: str, replies: dict) -> int:
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2, ensure_ascii=False)
-    except IOError:
+    except IOError as exc:
+        logger.warning("save_raw_replies: could not write cache for %s: %s", ref, repr(exc))
         return 0
     return count
 
@@ -568,7 +583,8 @@ def load_json(path: str, default=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except (ValueError, OSError):
+    except (ValueError, OSError) as exc:
+        logger.warning("load_json: could not read %s: %s", path, repr(exc))
         return default
 
 

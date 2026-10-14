@@ -71,9 +71,10 @@ _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 os.makedirs(_log_dir, exist_ok=True)
 _log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"), encoding="utf-8")
 _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
-_log_handler.setLevel(logging.INFO)
-logging.getLogger().setLevel(logging.INFO)
-logging.getLogger().addHandler(_log_handler)
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+_root_logger.handlers.clear()
+_root_logger.addHandler(_log_handler)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)  # suppress per-request access logs, keep startup URL
 utilities.quiet_library_logs()      # same as the command line: no network-library noise in the log
 
@@ -925,14 +926,24 @@ def list_assessments_view():
 @app.route("/sync", methods=["POST"])
 def sync_to_cloud():
     stats = sync_json_to_mongodb()
-    if stats["errors"]:
-        for err in stats["errors"]:
-            flash(f"Sync error: {err}")
-    else:
+    cases = stats["cases_synced"]
+    assessments = stats["assessments_synced"]
+    skipped = stats["skipped"]
+    errors = stats["errors"]
+    synced = cases + assessments
+
+    if not errors:
+        msg = f"Sync complete — {cases} case(s) and {assessments} assessment(s) pushed to cloud."
+        if skipped:
+            msg += f" {skipped} already up to date."
+        flash(msg)
+    elif synced > 0:
         flash(
-            f"Sync complete — {stats['cases_synced']} case(s) and "
-            f"{stats['assessments_synced']} assessment(s) pushed to cloud."
+            f"Partial sync — {cases} case(s) and {assessments} assessment(s) pushed to cloud. "
+            "Some records could not be synced — please try again later or contact your administrator."
         )
+    else:
+        flash("Sync unsuccessful — please try again later or contact your administrator.")
     return redirect(url_for("home"))
 
 

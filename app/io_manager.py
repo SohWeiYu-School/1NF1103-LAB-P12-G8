@@ -72,6 +72,25 @@ def show_rate_limit_error(seconds_left: int) -> None:
     print(f"[RATE LIMIT] Assessment already running or recently completed.")
     print(f"             Please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before starting another assessment.")
 
+def show_sync_result(stats: dict) -> None:
+    cases = stats.get("cases_synced", 0)
+    assessments = stats.get("assessments_synced", 0)
+    skipped = stats.get("skipped", 0)
+    errors = stats.get("errors", [])
+    synced = cases + assessments
+
+    if not errors:
+        print(f"\nSync complete — {cases} case(s) and {assessments} assessment(s) pushed to cloud.")
+        if skipped:
+            print(f"               {skipped} record(s) already up to date — skipped.")
+    elif synced > 0:
+        print(f"\nPartial sync — {cases} case(s) and {assessments} assessment(s) pushed to cloud.")
+        if skipped:
+            print(f"               {skipped} record(s) already up to date — skipped.")
+        print("Some records could not be synced — please try again later or contact your administrator.")
+    else:
+        print("\nSync unsuccessful — please try again later or contact your administrator.")
+
 def show_research_output(research_response: dict) -> None:
     """Print a short summary of the research results."""
     reports = research_response.get("reports", [])

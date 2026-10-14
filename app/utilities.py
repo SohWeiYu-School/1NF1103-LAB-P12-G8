@@ -240,7 +240,7 @@ def client() -> OpenAI:
 
 
 # Network libraries that log every connection step at DEBUG level
-NOISY_LOGGERS = ("httpx", "httpcore", "httpx2", "httpcore2", "openai", "urllib3", "google_genai", "hpack")
+NOISY_LOGGERS = ("httpx", "httpcore", "httpx2", "httpcore2", "openai", "urllib3", "google_genai", "hpack", "pymongo")
 
 
 def quiet_library_logs() -> None:
