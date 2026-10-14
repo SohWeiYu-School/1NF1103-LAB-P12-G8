@@ -244,7 +244,11 @@ def save_combined_assessment(result: dict, client_record: dict | None = None,
         client_record["forecasting_case"] = case
         client_record.update(outcome=verdict["verdict"], routing=verdict["next_step"],
                              next_review_date=verdict["next_review_date"], last_assessed_on=verdict["assessed_on"])
-        data_manager.save_case_record(client_record)
+        if not data_manager.save_case_record(client_record):
+            logging.getLogger(__name__).error(
+                "save_combined_assessment: could not save client record for %s",
+                case.get("client_ref")
+            )
     assessment_id = str(uuid.uuid4())
     saved = data_manager.save_assessment({
         "assessment_id": assessment_id,
