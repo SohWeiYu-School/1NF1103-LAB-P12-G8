@@ -191,7 +191,8 @@
     "$id",
     "title",
     "additionalProperties",
-    "required"
+    "required",
+    "contains"
   ],
   "forecasting": {
     "web_search": false,

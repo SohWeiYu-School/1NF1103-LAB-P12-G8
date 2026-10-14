@@ -399,13 +399,28 @@ def research_post_process(
     """
     warnings: list[str] = []
     api_sources = extract_api_sources(response) if response is not None else []
+    # Gemini fallback: grounding chunks often unavailable with structured output.
+    # Use the report URLs themselves so verify_research can still apply domain trust (Rule 2).
+    if not api_sources and response is not None and not hasattr(response, "output"):
+        api_sources = [
+            {"url": r["url"], "title": r.get("title", r["url"])}
+            for r in data.get("reports", [])
+            if r.get("url")
+        ]
+        if api_sources:
+            logger.info("research_post_process: Gemini grounding metadata unavailable — using report URLs as api_sources")
     if not api_sources:
         warnings.append("Research: web search returned no sources — results may not be grounded.")
     data = add_report_ids(data)
     data = strip_excerpts(data)
     data["api_sources"] = api_sources
     data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
-    data["model"] = mdl
+    # Record the actual model that responded, not always the OpenAI model name
+    if response is not None and not hasattr(response, "output"):
+        actual_mdl = os.getenv("GEMINI_SEARCH_MODEL", "gemini-3.8-flash")
+    else:
+        actual_mdl = mdl
+    data["model"] = actual_mdl
     cache_write(key, data, kind)
     data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
     return data, warnings
@@ -449,6 +464,27 @@ def extract_api_sources(response) -> list[dict]:
     """List the pages the web search really opened, as {url, title}, no repeats."""
     seen: set[str] = set()
     sources: list[dict] = []
+
+    if not hasattr(response, "output"):
+        # Gemini GenerateContentResponse — extract from grounding metadata
+        try:
+            candidates = getattr(response, "candidates", [])
+            logger.debug("extract_api_sources (gemini): %d candidates", len(candidates))
+            for candidate in candidates:
+                grounding = getattr(candidate, "grounding_metadata", None)
+                chunks = getattr(grounding, "grounding_chunks", [])
+                logger.debug("extract_api_sources (gemini): %d grounding_chunks", len(chunks))
+                for chunk in chunks:
+                    web = getattr(chunk, "web", None)
+                    url = getattr(web, "uri", None)
+                    if url and url not in seen:
+                        seen.add(url)
+                        title = getattr(web, "title", None) or url
+                        sources.append({"url": url, "title": title})
+        except Exception as exc:
+            logger.warning("extract_api_sources (gemini): error reading grounding metadata: %s", repr(exc))
+        logger.debug("extract_api_sources (gemini): found %d sources", len(sources))
+        return sources
 
     for item in response.output:
         # First place to look: the sources of each search call

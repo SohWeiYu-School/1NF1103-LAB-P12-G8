@@ -66,6 +66,7 @@ _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 os.makedirs(_log_dir, exist_ok=True)
 _log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"))
 _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+_log_handler.setLevel(logging.INFO)
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(_log_handler)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)  # suppress per-request access logs, keep startup URL
