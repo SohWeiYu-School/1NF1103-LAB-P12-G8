@@ -241,7 +241,7 @@ git push -u origin feature/your-feature-name
 
 1. Go to the repo on GitHub
 2. You'll see a banner saying your branch was recently pushed — click **"Compare & pull request"**
-3. Write a short description of what you changed
+3. Write a short description of what you changedu 
 4. Assign a teammate to review it
 5. Click **"Create pull request"**
 

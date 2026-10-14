@@ -18,7 +18,7 @@ It reads and writes the SAME record layout the forecasting uses:
     investments [ {asset_type, country, year_acquired, price_paid, ...} ],
     claims {declared_net_worth, expected_aum, asset_composition{...},
             wealth_countries [...], pep_status},
-    sow_declaration (text), reviews []
+    sow_declaration (text)
  
 The form shows text; build_record() turns it back into numbers / lists / fractions,
 and validate_case() (from io_manager) checks the result before anything is saved.
@@ -51,11 +51,9 @@ from app.data_manager import (
     save_assessment,
     load_all_assessments,
     sync_json_to_mongodb,
-    save_forecast_assessment,
     load_raw_replies,
     save_raw_replies,
     save_forecast,
-    load_assessment as _load_assessment,
     load_client_assessments,
     load_assessment_by_id,
     read_document_for_extraction,
@@ -425,7 +423,6 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
         _p("The source of wealth declaration must be at least 50 characters.",
            "sow.sow_declaration", f"Too short ({sow_len}/50 characters minimum).")
 
-    record.setdefault("reviews", [])
     record.setdefault("supporting_documents", [])
     return record, problems, field_errors
  
@@ -920,29 +917,6 @@ def assess_result(job_id):
                        benchmark=r.get("benchmark"))
 
 
-@app.route("/client/<client_ref>/review", methods=["GET", "POST"])
-def review_client(client_ref):
-    record = get_record(client_ref)
-    if record is None:
-        abort(404)
-    if not ai_manager.has_api_key():
-        logging.getLogger(__name__).warning("review_client: no API key configured (client_ref=%s)", client_ref)
-        flash_ai_unavailable("Review")
-        return redirect(url_for("view_client", client_ref=client_ref))
-
-    saved = _load_assessment(client_ref)
-    if saved is None or saved.get("assessment") is None:
-        flash("Run a full assessment first before adding a periodic review.")
-        return redirect(url_for("view_client", client_ref=client_ref))
-
-    if request.method == "POST":
-        # Raw forecast data is not yet persisted between sessions (stub).
-        flash("Periodic reviews require forecast data to be persisted between sessions — coming soon.")
-        return redirect(url_for("view_client", client_ref=client_ref))
-
-    return render_template("review_form.html", record=record, today=today())
-
-
 @app.route("/assessments")
 def list_assessments_view():
     return render_template("assessments.html", assessments=load_all_assessments())
@@ -1294,7 +1268,6 @@ VIEW = """{% extends "base.html" %}
   <form method="post" action="{{ url_for('assess_client', client_ref=record.get('client_ref', '')) }}" style="margin:0">
     <button type="submit">Run Assessment</button>
   </form>
-  <a class="button secondary" href="{{ url_for('review_client', client_ref=record.get('client_ref', '')) }}">Periodic Review</a>
   <span style="flex:1"></span>
   <a class="button secondary" href="{{ url_for('home') }}" style="color:var(--muted); border-color:var(--line)">← Back</a>
 </div>
@@ -1520,30 +1493,6 @@ ASSESS_RESULT = """{% extends "base.html" %}
 {% endblock %}
 """
 
-REVIEW_FORM = """{% extends "base.html" %}
-{% block content %}
-<h1>Periodic Review — {{ record.get('name', '') }}
-  <span class="muted" style="font-size:1rem">{{ record.get('client_ref', '') }}</span>
-</h1>
-<div class="panel">
-  <form method="post">
-    <div class="grid">
-      <label>Review date
-        <input type="date" name="current_date" value="{{ today }}">
-      </label>
-    </div>
-    <label class="wide" style="margin-top:12px">Review notes
-      <textarea name="notes" rows="6" placeholder="Describe any changes to the client's circumstances..."></textarea>
-    </label>
-    <div class="actions" style="margin-top:16px">
-      <button type="submit">Submit Review</button>
-      <a class="button secondary" href="{{ url_for('view_client', client_ref=record.get('client_ref', '')) }}">Cancel</a>
-    </div>
-  </form>
-</div>
-{% endblock %}
-"""
-
 ASSESSMENTS = """{% extends "base.html" %}
 {% block content %}
 <h1>Saved Assessments</h1>
@@ -1693,7 +1642,6 @@ app.jinja_env.loader = DictLoader({
     "client_view.html":   VIEW,
     "assess_loading.html": ASSESS_LOADING,
     "assess_result.html": ASSESS_RESULT,
-    "review_form.html":   REVIEW_FORM,
     "assessments.html":   ASSESSMENTS,
     "error.html":         ERROR,
 })

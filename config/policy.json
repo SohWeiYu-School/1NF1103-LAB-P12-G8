@@ -78,15 +78,13 @@
     "typical_band": 0.1,
     "asset_value": 0.15,
     "asset_income": 0.25,
-    "review_growth": 0.1,
     "signal_amount": 0.25
   },
   "fit": {
     "weight_net_worth": 0.5,
     "weight_affordability": 0.3,
     "weight_assets": 0.2,
-    "minimum_fit": 0.7,
-    "miss_weight": 0.2
+    "minimum_fit": 0.7
   },
   "review_interval_months": {
     "PASSED": 24,
@@ -476,10 +474,6 @@
       "<<<BEGIN_DECLARATION>>>",
       "<<<END_DECLARATION>>>"
     ],
-    "notes_markers": [
-      "<<<BEGIN_OFFICER_NOTES>>>",
-      "<<<END_OFFICER_NOTES>>>"
-    ],
     "honorifics": [
       "Mr",
       "Mrs",
@@ -499,10 +493,6 @@
     "declaration_markers": [
       "<<<BEGIN_DECLARATION>>>",
       "<<<END_DECLARATION>>>"
-    ],
-    "notes_markers": [
-      "<<<BEGIN_OFFICER_NOTES>>>",
-      "<<<END_OFFICER_NOTES>>>"
     ],
     "honorifics": [
       "Mr",

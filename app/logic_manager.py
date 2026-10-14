@@ -18,9 +18,6 @@ The sections run in this order for a new client:
          5. Stability test: re-run the decision with every forecast 10% lower and higher
          6. Forward paths, event impacts, divergence dates, monitoring ranges,
             ranked documents, next review date
-       Review (assess_review):
-         Which scenario happened, growth vs each type's forecast, payments vs each type's
-         forecast, income that rose while its market fell, and a running score per type.
 
 The forecasting section calls no AI: it only does arithmetic on the forecasts and decides
 with fixed rules from config/policy.json, so the same forecast and the same client always
@@ -1606,218 +1603,6 @@ def assess_onboarding(record: dict, forecast: dict, policy: dict | None = None) 
 
 
 # ============================================================================
-# Periodic review
-# ============================================================================
-
-def detect_scenario(market_moves: list[dict], forecast: dict, year: int) -> str:
-    """The scenario whose forecast is closest to what the markets actually did."""
-    outlook = market_outlook(forecast)
-    chances = scenario_chances(forecast).get(year, {s: 1 / 3 for s in utilities.SCENARIOS})
-    distance = {}
-    for scenario in utilities.SCENARIOS:
-        gaps = [abs(move["change_pct"] - outlook[move["market_id"]][year][scenario]["typical"])
-                for move in market_moves
-                if move["change_pct"] is not None and year in outlook.get(move["market_id"], {})]
-        distance[scenario] = sum(gaps) / len(gaps) if gaps else None
-    known = [s for s in utilities.SCENARIOS if distance[s] is not None]
-    if not known:
-        return max(utilities.SCENARIOS, key=lambda s: chances[s])
-    # closest first; a tie goes to the scenario the AI thought more likely
-    return min(known, key=lambda s: (distance[s], -chances[s]))
-
-
-def payments_in_sgd(inflows: list[dict]) -> list[dict]:
-    """Each payment converted to SGD: amount x exchange rate x times received."""
-    rows = []
-    for inflow in inflows:
-        total = None
-        if inflow["amount"] is not None and inflow["fx_rate_to_sgd"] is not None:
-            total = round(inflow["amount"] * inflow["fx_rate_to_sgd"] * inflow["times_received"])
-        rows.append({"signal_code": inflow["signal_code"], "amount_sgd": total, "currency": inflow["currency"],
-                     "times_received": inflow["times_received"],
-                     "counterparty_country": inflow["counterparty_country"], "quote": inflow["quote"]})
-    return rows
-
-
-def explains_payment(behaviour: dict, payment: dict, year: int, tolerance: float) -> bool:
-    """Did this type forecast a payment like this, this year, of up to this size?"""
-    for signal in behaviour["signals"]:
-        if signal["signal_code"] != payment["signal_code"]:
-            continue
-        if not signal["first_year"] <= year <= signal["last_year"]:
-            continue
-        if payment["amount_sgd"] is None or payment["amount_sgd"] <= signal["amount_per_year"]["high"] * (1 + tolerance):
-            return True
-    return False
-
-
-def income_against_market(record: dict, forecast: dict, payments: list[dict], market_moves: list[dict],
-                          scenario: str, year: int, policy: dict) -> list[dict]:
-    """Asset income above its forecast while a market the asset follows fell."""
-    fell = {m["market_id"] for m in market_moves if m["change_pct"] is not None and m["change_pct"] < 0}
-    paths = all_asset_paths(record, forecast, year, scenario)
-    models = sorted(forecast["earnings"]["assets"], key=lambda a: a["asset_index"])
-    tolerance = policy["tolerance"]["asset_income"]
-    by_category: dict[str, dict] = {}
-    for asset, model, path in zip(record.get("investments", []), models, paths):
-        category = asset_category(asset["asset_type"], policy)
-        entry = by_category.setdefault(category, {"ceiling": 0.0, "markets_fell": set()})
-        entry["ceiling"] += path["income"][year]["optimistic"] * (1 + tolerance)
-        entry["markets_fell"] |= {e["market_id"] for e in model["exposures"]
-                                  if e["market_id"] in fell and e["sensitivity"]["typical"] > 0}
-    hits = []
-    for category, entry in by_category.items():
-        code = policy["income_signal_by_category"].get(category)
-        received = sum(p["amount_sgd"] or 0 for p in payments if p["signal_code"] == code)
-        if received > entry["ceiling"] and entry["markets_fell"]:
-            hits.append({"signal_code": code, "received": received, "ceiling": round(entry["ceiling"]),
-                         "markets_fell": sorted(entry["markets_fell"])})
-    return hits
-
-
-def review_fit(type_id: str, forecast: dict, growth_range: dict, actual_growth: float,
-               payments: list[dict], counter_hits: list[dict], market_moves: list[dict],
-               events_seen: list[str], year: int, policy: dict) -> dict:
-    """How well this review's evidence fits one type. Each part is 1 if it fits, lower if not."""
-    behaviour = forecast["types"]["behaviour"][type_id]
-    miss = policy["fit"]["miss_weight"]
-    tolerance = policy["tolerance"]
-
-    low, high = growth_range["cautious"], growth_range["optimistic"]
-    wealth_fits = (low - abs(low) * tolerance["review_growth"] <= actual_growth
-                   <= high + abs(high) * tolerance["review_growth"])
-
-    explained = [p for p in payments if explains_payment(behaviour, p, year, tolerance["signal_amount"])]
-    payment_share = len(explained) / len(payments) if payments else 1.0
-
-    # Income rising while its market fell: does this type forecast money that does that?
-    fell = {m["market_id"] for m in market_moves if m["change_pct"] is not None and m["change_pct"] < 0}
-    rises_when_markets_fall = (not set(behaviour["linked_market_ids"]) & fell
-                               or behaviour["market_fall_response"]["typical"] >= 0)
-    market_fits = all(explains_payment(behaviour, {"signal_code": hit["signal_code"], "amount_sgd": hit["received"]},
-                                       year, tolerance["signal_amount"]) and rises_when_markets_fall
-                      for hit in counter_hits)
-
-    observed = {p["signal_code"] for p in payments}
-    shares = []
-    for reaction in forecast["events"]["reactions"][type_id]["reactions"]:
-        if reaction["event_id"] in events_seen and reaction["signals"]:
-            shares.append(len(observed & set(reaction["signals"])) / len(reaction["signals"]))
-    event_share = sum(shares) / len(shares) if shares else 1.0
-
-    parts = {"wealth": 1.0 if wealth_fits else miss,
-             "payments": max(payment_share, miss),
-             "market": 1.0 if market_fits else miss,
-             "events": max(event_share, miss)}
-    product = 1.0
-    for value in parts.values():
-        product *= value
-    return {"type_id": type_id, "parts": {k: round(v, 3) for k, v in parts.items()}, "fit": round(product, 4)}
-
-
-def decide_review(a: bool, b: bool, c: bool, d: bool) -> str:
-    """The review rule. A: wealth outside the honest range. B: another type now scores higher.
-    C: income rose while its market fell. D: a payment outside the normal ranges."""
-    count = sum([a, b, c])
-    if count == 3:
-        return SERIOUS_RISK
-    if count == 2:
-        return RISKY
-    if count == 1 or d:
-        return MANUAL_REVIEW
-    return PASSED
-
-
-def assess_review(record: dict, review: dict, review_data: dict, forecast: dict,
-                  onboarding: dict, policy: dict | None = None) -> dict:
-    """Compare what actually happened with each type's forecast and decide."""
-    policy = policy or utilities.policy()
-    start, onboarding_year = utilities.career_years(record)
-    year = utilities.current_year(review)
-    market_moves = review_data["market_moves"]
-    scenario = detect_scenario(market_moves, forecast, year)
-
-    # Growth since onboarding vs each type's forecast for the scenario that happened
-    savings_rows = career_savings(forecast, start, onboarding_year)
-    paths = forward_paths(record, forecast, savings_rows, scenario)
-    actual_growth = review["current_wealth"] - record["claims"]["declared_net_worth"]
-    growth = {t: band(*(p[year][b] - p[onboarding_year][b] for b in BANDS)) for t, p in paths.items()}
-
-    payments = payments_in_sgd(review_data["inflows"])
-    counter_hits = income_against_market(record, forecast, payments, market_moves, scenario, year, policy)
-
-    # Payments outside the normal ranges, or from a country with no link to him
-    ranges = onboarding["monitoring_ranges"]
-    linked = {same_country(job.get("country", ""), policy) for job in utilities.career_positions(record)}
-    linked |= {same_country(a.get("country", ""), policy) for a in record.get("investments", [])}
-    linked |= {same_country(c, policy) for c in record["claims"]["wealth_countries"]}
-    unusual = []
-    for payment in payments:
-        normal = ranges.get(payment["signal_code"])
-        if normal is None:
-            unusual.append(f"{payment['signal_code']}: not expected for the honest version")
-        elif payment["amount_sgd"] is not None and payment["amount_sgd"] > normal["amount_max"]:
-            unusual.append(f"{payment['signal_code']}: {payment['amount_sgd']:,.0f} is above {normal['amount_max']:,.0f}")
-        elif payment["times_received"] > normal["count_max"]:
-            unusual.append(f"{payment['signal_code']}: {payment['times_received']} payments, normal is up to {normal['count_max']}")
-        if same_country(payment["counterparty_country"], policy) not in linked:
-            unusual.append(f"{payment['signal_code']}: from {payment['counterparty_country']}, a country with no link to him")
-
-    # Running score per type: previous score x this review's fit, rescaled to add up to 1
-    fits = {t: review_fit(t, forecast, growth[t], actual_growth, payments, counter_hits, market_moves,
-                          review_data["events_seen"], year, policy) for t in paths}
-    previous = {row["type_id"]: row["score"] for row in onboarding["types"]}
-    raw_scores = {t: previous.get(t, 0.0) * fits[t]["fit"] for t in fits}
-    total = sum(raw_scores.values())
-    scores = {t: round(v / total, 3) if total else round(1 / len(raw_scores), 3) for t, v in raw_scores.items()}
-
-    t1_growth = growth[utilities.BASELINE_TYPE]
-    tolerance = policy["tolerance"]["review_growth"]
-    a = not (t1_growth["cautious"] - abs(t1_growth["cautious"]) * tolerance <= actual_growth
-             <= t1_growth["optimistic"] + abs(t1_growth["optimistic"]) * tolerance)
-    leader = max(scores, key=lambda t: (scores[t], t == utilities.BASELINE_TYPE))
-    b = leader != utilities.BASELINE_TYPE and scores[leader] > scores[utilities.BASELINE_TYPE]
-    c = bool(counter_hits)
-    d = bool(unusual)
-    outcome = decide_review(a, b, c, d)
-
-    findings = [
-        {"rule_id": "A_GROWTH", "failed": a,
-         "detail": f"Wealth grew {actual_growth:,.0f} since onboarding; the honest version ({scenario} year) "
-                   f"grows {t1_growth['cautious']:,.0f} to {t1_growth['optimistic']:,.0f}."},
-        {"rule_id": "B_OTHER_TYPE_LEADS", "failed": b,
-         "detail": f"Highest running score: {leader} ({scores[leader]:.0%}); honest: "
-                   f"{scores[utilities.BASELINE_TYPE]:.0%}."},
-        {"rule_id": "C_INCOME_AGAINST_MARKET", "failed": c,
-         "detail": "; ".join(f"{h['signal_code']} {h['received']:,.0f} (forecast up to {h['ceiling']:,.0f}) "
-                             f"while {', '.join(h['markets_fell'])} fell" for h in counter_hits) or "none"},
-        {"rule_id": "D_UNUSUAL_PAYMENTS", "failed": d, "detail": "; ".join(unusual) or "none"},
-    ]
-    candidates = [t for t in scores if scores[t] >= scores[utilities.BASELINE_TYPE]]
-    documents = []
-    if outcome != PASSED and len(candidates) > 1:
-        names = utilities.vocabulary().get("document_codes", {})
-        for document in rank_documents(forecast, candidates)[:policy["max_documents"]]:
-            documents.append({"document_code": document["document_code"],
-                              "document": names.get(document["document_code"], ""),
-                              "reason": f"rules out {', '.join(document['rules_out'])}"})
-
-    return {
-        "case_ref": record["client_ref"],
-        "review_date": review["current_date"],
-        "policy_version": policy["policy_version"],
-        "outcome": outcome,
-        "routing": policy["routing"][outcome],
-        "scenario": scenario,
-        "findings": findings,
-        "payments": payments,
-        "type_scores": [{"type_id": t, "previous": previous.get(t, 0.0), "review_fit": fits[t]["fit"],
-                         "parts": fits[t]["parts"], "score": scores[t]} for t in scores],
-        "documents": documents,
-        "next_review_date": add_months(review["current_date"], policy["review_interval_months"][outcome]),
-    }
-
-# ============================================================================
 # 4. New client from documents (CLI) - turning the AI's reading of the client's
 #    documents into a client record, and finding what's still missing.
 #    Pure functions: no printing, no files, no AI.
@@ -1900,7 +1685,6 @@ def record_from_documents(extracted: dict, client_ref: str, today: str) -> tuple
             "declared_counterparties": list(claims.get("declared_counterparties") or []),
         },
         "sow_declaration": extracted.get("sow_declaration"),
-        "reviews": [],
         "supporting_documents": [],
     }
     found = [".".join(str(part) for part in item["path"])
@@ -2408,7 +2192,6 @@ def forecasting_case(record: dict, today: str) -> tuple[dict | None, list[str]]:
                                         if str(c).strip()],
         },
         "sow_declaration": sow,
-        "reviews": [],
     }
     missing = list(dict.fromkeys(missing))
     return (None, missing) if missing else (case, [])

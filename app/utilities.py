@@ -154,7 +154,6 @@ def forecast_settings() -> dict:
 
     Free-text wrappers, so the model treats the text as data, not instructions:
         declaration_markers    [open, close] around the client's declaration
-        notes_markers          [open, close] around the officer's review notes
 
     FORECAST_WEB_SEARCH=on/off in .env overrides web_search, so market figures can be checked
     online without editing policy.json.
@@ -191,10 +190,8 @@ def build_instructions(prompt_name: str, values: dict, web_search: bool = False)
     """System rules + the task prompt, filled in. Returns (prompt_version, instructions)."""
     settings = forecast_settings()
     declaration_open, declaration_close = settings["declaration_markers"]
-    notes_open, notes_close = settings["notes_markers"]
     shared = {"currency": REPORTING_CURRENCY,
-              "declaration_open": declaration_open, "declaration_close": declaration_close,
-              "notes_open": notes_open, "notes_close": notes_close}
+              "declaration_open": declaration_open, "declaration_close": declaration_close}
     _, system_text = load_forecast_prompt("system")
     version, task_text = load_forecast_prompt(prompt_name)
     parts = [fill_placeholders(system_text, shared), fill_placeholders(task_text, {**shared, **values})]

@@ -10,7 +10,7 @@ Skipped until the case has been run and the expected files exist.
 
 import pytest
 
-from tests.helpers import CASE_IDS, decisions, read_golden
+from tests.helpers import CASE_IDS, decision, read_golden
 
 
 def first_difference(expected: object, actual: object, path: str = "") -> str | None:
@@ -41,24 +41,15 @@ def first_difference(expected: object, actual: object, path: str = "") -> str | 
 @pytest.mark.parametrize("case_id", CASE_IDS)
 def test_onboarding_matches_approved_decision(case_id: str) -> None:
     expected = read_golden(case_id, "expected_onboarding.json")
-    actual, _ = decisions(case_id)
-    difference = first_difference(expected, actual)
-    assert difference is None, difference
-
-
-@pytest.mark.parametrize("case_id", CASE_IDS)
-def test_review_matches_approved_decision(case_id: str) -> None:
-    expected = read_golden(case_id, "expected_review.json")
-    _, actual = decisions(case_id)
-    assert actual is not None, "the review couldn't be rebuilt from the saved replies"
+    actual = decision(case_id)
     difference = first_difference(expected, actual)
     assert difference is None, difference
 
 
 @pytest.mark.parametrize("case_id", CASE_IDS)
 def test_same_replies_give_the_same_decision(case_id: str) -> None:
-    first, _ = decisions(case_id)
-    second, _ = decisions(case_id)
+    first = decision(case_id)
+    second = decision(case_id)
     assert first == second
 
 

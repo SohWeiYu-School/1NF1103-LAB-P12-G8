@@ -4,7 +4,7 @@ managers never import each other's work, everything is passed through here.
 
     python main.py                          interactive menu
     python main.py --case data/sample/case_001.json
-                                            assess one sample case (and run its reviews)
+                                            assess one sample case
     python main.py --all-samples            assess every sample case in the forecasting format
     python main.py --all-samples --demo     the same, using the recorded AI replies in tests/golden
                                             (for machines with no API key, e.g. CI)
@@ -287,24 +287,6 @@ def assess_client_record(client_record: dict) -> dict | None:
     return result
 
 
-def review_case(case: dict, review: dict,
-                forecast: dict, onboarding: dict) -> dict | None:
-    """Read a review's notes with the AI and decide against the saved forecast."""
-    ref = case["client_ref"]
-    review = {"client_ref": ref, **review}
-    result = ai_manager.read_review_notes(review, forecast, data_manager.load_raw_replies(ref))
-    data_manager.save_raw_replies(ref, {result["call"]: result})
-    io_manager.show_ai_progress({result["call"]: result})
-    if not result["ok"]:
-        io_manager.show_ai_unavailable("Review notes")
-        return None
-    assessment = logic_manager.assess_review(case, review, result["data"], forecast, onboarding)
-    if not data_manager.save_forecast_assessment(ref, f"review_{review['current_date']}", assessment):
-        io_manager.show_error("Could not reach the database; the review below was not saved.")
-    io_manager.show_review(assessment)
-    return assessment
-
-
 # ---------------------------------------------------------------------------
 # New client from a folder of documents (menu option 2)
 # ---------------------------------------------------------------------------
@@ -395,7 +377,7 @@ def is_forecasting_case(case: dict | None) -> bool:
 
 
 def run_case_file(path: str) -> bool:
-    """Assess a case file (the same combined assessment as the menu) and run every review stored in it."""
+    """Assess a case file (the same combined assessment as the menu)."""
     case = data_manager.load_case(path)
     if case is not None and not is_forecasting_case(case):
         io_manager.show(f"\n{os.path.basename(path)}: not in the forecasting format "
@@ -412,24 +394,7 @@ def run_case_file(path: str) -> bool:
     io_manager.show_verdict_report(result["report"], ask_for_evidence=False,
                                    crime_result=result.get("crime_result"),
                                    typologies=result.get("typologies"))
-    forecast, onboarding = result["forecast"], result["forecast_assessment"]
-    if forecast is None:
-        return False
-    for review in case.get("reviews", []):
-        if review_case(case, review, forecast, onboarding) is None:
-            return False
-    return True
-
-
-def saved_case_forecast(ref: str) -> tuple[dict | None, dict | None, dict | None]:
-    """The case, forecast and onboarding decision saved for a client, if all three exist."""
-    case = data_manager.load_forecasting_case(ref)
-    if case is None:
-        for path in data_manager.list_sample_cases():
-            candidate = data_manager.load_case(path)
-            if is_forecasting_case(candidate) and candidate["client_ref"] == ref:
-                case = candidate
-    return case, data_manager.load_forecast(ref), data_manager.load_assessment(ref, "onboarding")
+    return result["forecast"] is not None
 
 
 def use_recorded_replies() -> int:
@@ -469,10 +434,8 @@ def list_assessments() -> None:
         chosen = matches[io_manager.ask_choice("Which one?", labels)]
         if chosen.get("report"):
             io_manager.show_verdict_report(chosen["report"])     # the combined assessment
-        elif chosen["kind"] == "onboarding":
-            io_manager.show_onboarding(chosen["assessment"])     # saved before the combined verdict
         else:
-            io_manager.show_review(chosen["assessment"])
+            io_manager.show_onboarding(chosen["assessment"])     # saved before the combined verdict
 
 
 def run_menu() -> None:
@@ -527,23 +490,13 @@ def run_menu() -> None:
                 assess_client_record(client_record)
 
         elif choice == "5":
-            ref = io_manager.ask_client_ref()
-            if ref is None:
-                continue
-            case, forecast, onboarding = saved_case_forecast(ref)
-            if not (case and forecast and onboarding):
-                io_manager.show_error(f"{ref} hasn't been assessed yet. Use option 4 first.")
-                continue
-            review_case(case, io_manager.collect_review(case), forecast, onboarding)
-
-        elif choice == "6":
             list_assessments()
 
-        elif choice == "7":
+        elif choice == "6":
             io_manager.show_client_list(data_manager.load_all_records())
             io_manager.read_answer("Press Enter to continue...")
 
-        elif choice == "8":
+        elif choice == "7":
             io_manager.show_message("\n--- Synchronizing Local Data to Cloud Database ---")
             stats = data_manager.sync_json_to_mongodb()
             io_manager.show_message(
@@ -555,7 +508,7 @@ def run_menu() -> None:
                 for err in stats["errors"]:
                     io_manager.show_error(err)
 
-        elif choice == "9":
+        elif choice == "8":
             io_manager.show_message("\nGoodbye.")
             break
 
