@@ -17,25 +17,32 @@
   "additionalProperties": false,
   "properties": {
     "expected_wealth": {
-      "type": "number"
+      "type": "number",
+      "minimum": 1
     },
     "expected_liquidity": {
-      "type": "number"
+      "type": "number",
+      "minimum": 1
     },
     "expected_property": {
-    "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "expected_listed_equities": {
-        "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "expected_private_business": {
-        "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "expected_cash": {
-        "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "expected_velocity": {
-      "type": "number"
+      "type": "number",
+      "minimum": 0
     },
     "expected_counterparties": {
       "type": "array",
