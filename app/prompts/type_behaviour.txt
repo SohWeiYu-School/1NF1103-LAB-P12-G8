@@ -1,4 +1,4 @@
-# prompt_version: type-behaviour-v3
+# prompt_version: type-behaviour-v4
 # Call 3, step 2: what ONE type's money and bank activity would look like.
 # v2: types are T1 (honest) or a standard crime category tied to the job/asset/source
 #     that enables it (see this_type in the input).
@@ -25,6 +25,8 @@ DIFFERENT about this type.
   type, include the signals that are typical of its category (for example trade invoice
   mismatches for trade-based money laundering, high-risk jurisdiction flows for sanctions
   evasion, government contract links for bribery).
+- If the input has researched_pattern, this type was built from a published typology: make the
+  extra money and signals follow the method that pattern describes.
 - linked_market_ids: the markets (market_id from the list) this type's extra money depends on.
 - market_fall_response: the % change in this type's extra money when those markets fall 1%
   (positive if the money RISES when they fall, negative if it falls with them).

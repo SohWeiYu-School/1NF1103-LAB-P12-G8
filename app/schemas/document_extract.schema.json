@@ -4,98 +4,436 @@
   "title": "Document extract",
   "description": "Client details the AI read out of uploaded documents, used to pre-fill the client form. Every value is null when the documents don't state it.",
   "type": "object",
-  "required": ["client", "jobs", "assets", "composition", "claims", "sow_declaration", "notes"],
+  "required": [
+    "client",
+    "jobs",
+    "assets",
+    "composition",
+    "claims",
+    "sow_declaration",
+    "notes"
+  ],
   "additionalProperties": false,
   "properties": {
     "client": {
       "type": "object",
-      "required": ["name", "nationality", "country_of_residence", "date_of_birth", "age"],
+      "required": [
+        "name",
+        "nationality",
+        "country_of_residence",
+        "date_of_birth",
+        "age"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name":                 {"type": ["string", "null"]},
-        "nationality":          {"type": ["string", "null"]},
-        "country_of_residence": {"type": ["string", "null"]},
-        "date_of_birth":        {"type": ["string", "null"], "description": "YYYY-MM-DD"},
-        "age":                  {"type": ["integer", "null"]}
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nationality": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "country_of_residence": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date_of_birth": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "YYYY-MM-DD"
+        },
+        "age": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
       }
     },
     "jobs": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["start_year", "end_year", "occupation", "seniority", "industry",
-                     "employer_name", "employer_size", "country", "source_file"],
+        "required": [
+          "start_year",
+          "end_year",
+          "occupation",
+          "seniority",
+          "industry",
+          "employer_name",
+          "employer_size",
+          "country",
+          "source_file"
+        ],
         "additionalProperties": false,
         "properties": {
-          "start_year":    {"type": ["integer", "null"]},
-          "end_year":      {"type": ["integer", "null"]},
-          "occupation":    {"type": ["string", "null"]},
-          "seniority":     {"type": ["string", "null"]},
-          "industry":      {"type": ["string", "null"]},
-          "employer_name": {"type": ["string", "null"]},
-          "employer_size": {"type": ["string", "null"]},
-          "country":       {"type": ["string", "null"]},
-          "source_file":   {"type": ["string", "null"]}
+          "start_year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end_year": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "occupation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seniority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "industry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "employer_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "employer_size": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
     "assets": {
       "type": "array",
+      "description": "The assets the client declares (KYC / declaration form). Undeclared assets go in notes.",
       "items": {
         "type": "object",
-        "required": ["asset_type", "country", "year_acquired", "price_paid_sgd",
-                     "current_declared_value_sgd", "payment_method", "income_produced_sgd", "source_file"],
+        "required": [
+          "asset_type",
+          "country",
+          "year_acquired",
+          "price_paid_sgd",
+          "current_declared_value_sgd",
+          "payment_method",
+          "income_produced_sgd",
+          "source_file"
+        ],
         "additionalProperties": false,
         "properties": {
-          "asset_type":                 {"type": ["string", "null"]},
-          "country":                    {"type": ["string", "null"]},
-          "year_acquired":              {"type": ["integer", "null"]},
-          "price_paid_sgd":             {"type": ["number", "null"]},
-          "current_declared_value_sgd": {"type": ["number", "null"]},
-          "payment_method":             {"type": ["string", "null"], "enum": ["cash", "loan", "asset_sale", null]},
-          "income_produced_sgd":        {"type": ["number", "null"]},
-          "source_file":                {"type": ["string", "null"]}
+          "asset_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year_acquired": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "price_paid_sgd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "current_declared_value_sgd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "cash",
+              "loan",
+              "asset_sale",
+              null
+            ]
+          },
+          "income_produced_sgd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "source_file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       }
     },
     "composition": {
       "type": "object",
       "description": "Percentages (0-100) of total wealth, only if the documents state them.",
-      "required": ["property", "listed_equities", "private_business", "cash"],
+      "required": [
+        "property",
+        "listed_equities",
+        "private_business",
+        "cash"
+      ],
       "additionalProperties": false,
       "properties": {
-        "property":         {"type": ["number", "null"]},
-        "listed_equities":  {"type": ["number", "null"]},
-        "private_business": {"type": ["number", "null"]},
-        "cash":             {"type": ["number", "null"]}
+        "property": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "listed_equities": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "private_business": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cash": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       }
     },
     "claims": {
       "type": "object",
-      "required": ["declared_net_worth_sgd", "expected_aum_sgd", "pep_status", "wealth_countries",
-                   "biggest_wealth_jump_sgd", "wealth_jump_years", "declared_counterparties"],
+      "required": [
+        "declared_net_worth_sgd",
+        "expected_aum_sgd",
+        "pep_status",
+        "wealth_countries",
+        "biggest_wealth_jump_sgd",
+        "wealth_jump_years",
+        "declared_counterparties"
+      ],
       "additionalProperties": false,
       "properties": {
-        "declared_net_worth_sgd":  {"type": ["number", "null"]},
-        "expected_aum_sgd":        {"type": ["number", "null"]},
-        "pep_status":              {"type": ["string", "null"],
-                                    "enum": ["None", "Domestic PEP", "Foreign PEP",
-                                             "International organisation PEP",
-                                             "Family member / close associate", null]},
-        "wealth_countries":        {"type": "array", "items": {"type": "string"}},
-        "biggest_wealth_jump_sgd": {"type": ["number", "null"]},
-        "wealth_jump_years":       {"type": ["number", "null"]},
-        "declared_counterparties": {"type": "array", "items": {"type": "string"}}
+        "declared_net_worth_sgd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "expected_aum_sgd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pep_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "None",
+            "Domestic PEP",
+            "Foreign PEP",
+            "International organisation PEP",
+            "Family member / close associate",
+            null
+          ]
+        },
+        "wealth_countries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "biggest_wealth_jump_sgd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "wealth_jump_years": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "declared_counterparties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "sow_declaration": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "The client's own source of wealth explanation, if a document contains one."
     },
     "notes": {
       "type": "array",
-      "description": "Short notes for the officer: amounts left out because they were not in SGD, conflicts between documents, anything uncertain.",
-      "items": {"type": "string"}
+      "description": "Up to 12 one-sentence notes for the officer, each starting 'Not declared:', 'Conflict:' or 'Check:' and naming the file(s).",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "description": "What the documents themselves show (not what the client declared), each fact with the file it came from. The screening system compares it with the declaration.",
+      "required": [
+        "documented_pay",
+        "findings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "documented_pay": {
+          "type": "array",
+          "description": "Employment income for a full calendar year, as a tax notice or employment letter states it.",
+          "items": {
+            "type": "object",
+            "required": [
+              "year",
+              "employment_income_sgd",
+              "source_file"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "year": {
+                "type": "integer"
+              },
+              "employment_income_sgd": {
+                "type": "number"
+              },
+              "source_file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "description": "Facts in the documents that the declaration leaves out or contradicts, or that a screening officer must see.",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "summary",
+              "amount_sgd",
+              "per",
+              "counterparty",
+              "country",
+              "source_files"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "undeclared_company",
+                  "undeclared_income",
+                  "undeclared_account",
+                  "funding_conflict",
+                  "income_conflict",
+                  "cash_structuring",
+                  "offshore_payment",
+                  "related_party_payment",
+                  "large_spending",
+                  "other"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "amount_sgd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "per": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "once",
+                  "month",
+                  "quarter",
+                  "year",
+                  null
+                ]
+              },
+              "counterparty": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "country": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source_files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

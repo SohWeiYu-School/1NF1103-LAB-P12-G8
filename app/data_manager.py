@@ -36,6 +36,8 @@ from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
 import shutil
+import tempfile
+import hashlib
 
 from app import utilities
 
@@ -158,20 +160,51 @@ def get_assessment_collection():
 # ==============================================================================
 
 def save_case_record(record: dict) -> bool:
-    # Save or update a client record strictly in local sow_cases.json
-    return save_to_json(record, LOCAL_CASES_JSON)
+    # Save or update a client record strictly in local sow_cases.json, always in the current layout
+    return save_to_json(standardise_record(record), LOCAL_CASES_JSON)
+
+
+# Older command-line records used other names for these asset values. The web app, the documents
+# auto-fill and the forecasting all use the names on the left.
+OLD_ASSET_KEYS = {"current_declared_value": "current_value", "income_produced": "yearly_income"}
+
+
+def standardise_record(record: dict) -> dict:
+    """Bring a client record saved in an older layout up to the one layout every screen uses:
+    asset values as current_declared_value / income_produced, and the asset's description
+    folded into asset_type ("Property - Condo"). Records already in that layout are unchanged."""
+    if not isinstance(record, dict):
+        return record
+    for asset in record.get("investments") or []:
+        if not isinstance(asset, dict):
+            continue
+        for new, old in OLD_ASSET_KEYS.items():
+            if asset.get(new) is None and old in asset:
+                asset[new] = asset[old]
+            asset.pop(old, None)
+        description = str(asset.pop("asset_description", None) or asset.pop("description", None) or "").strip()
+        kind = str(asset.get("asset_type") or "").strip()
+        if description and description.lower() not in kind.lower():
+            asset["asset_type"] = f"{kind} - {description}" if kind else description
+    return record
+
+
+def load_local_records() -> list:
+    # Local sow_cases.json only (this is what Manual Sync uploads), in the current layout
+    return [standardise_record(record) for record in load_from_json(LOCAL_CASES_JSON)]
 
 
 def load_all_records() -> list:
-    # Get all client records strictly from local sow_cases.json
-    return load_from_json(LOCAL_CASES_JSON)
+    # Every client, from the local sow_cases.json only. MongoDB is a backup that Manual Sync
+    # writes to; the app never reads clients back from it.
+    return load_local_records()
 
 
 def find_client_record(client_ref: str) -> dict | None:
-    # Search local sow_cases.json for a single client matching client_ref
-    records = load_all_records()
-    for record in records:
-        if record.get("client_ref") == client_ref:
+    # One client from the local sow_cases.json (case-insensitive), or None
+    wanted = client_ref.strip().upper()
+    for record in load_local_records():
+        if str(record.get("client_ref", "")).upper() == wanted:
             return record
     return None
 
@@ -204,19 +237,23 @@ def save_assessment(record: dict) -> bool:
     return append_to_json(record, LOCAL_ASSESSMENTS_JSON)
 
 
-def load_all_assessments() -> list:
-    # Get all AI assessment records strictly from local ai_assessments.json
+def load_local_assessments() -> list:
     return load_from_json(LOCAL_ASSESSMENTS_JSON)
+
+
+def load_all_assessments() -> list:
+    # Every saved assessment, from the local ai_assessments.json only (never from MongoDB)
+    return load_local_assessments()
 
 
 def query_assessments(assessments: list, outcome: str = None) -> list:
     # Filter a list of assessments by an outcome status string
     if not outcome:
         return assessments
-    return [
-        a for a in assessments
-        if a.get("outcome") == outcome or a.get("assessment", {}).get("outcome") == outcome
-    ]
+    # A combined assessment's outcome is its one verdict; older records only have the forecast's
+    def outcome_of(a: dict):
+        return a.get("outcome") or (a.get("assessment") or {}).get("outcome")
+    return [a for a in assessments if outcome_of(a) == outcome]
 
 def mongo_is_online() -> bool:
     try:
@@ -246,55 +283,82 @@ def _upload_local_documents(record: dict, db) -> int:
 # ==============================================================================
 # SYNC FUNCTIONALITY (JSON -> MongoDB Backup)
 # ==============================================================================
+SYNC_STATE_JSON = os.path.join(LOCAL_DB_DIR, "sync_state.json")
 
+
+def _load_sync_state() -> dict:
+    state = load_json(SYNC_STATE_JSON, default={})
+    return state if isinstance(state, dict) else {}
+
+
+def _save_sync_state(state: dict) -> None:
+    _ensure_data_dir()
+    try:
+        with open(SYNC_STATE_JSON, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=4)
+    except IOError:
+        pass
+
+
+def _fingerprint(record: dict) -> str:
+    # Same content gives the same fingerprint, so an unchanged record can be skipped
+    return hashlib.sha256(json.dumps(record, sort_keys=True, default=str).encode()).hexdigest()
 def sync_json_to_mongodb() -> dict:
-    # Reads local JSON files and batch upserts all data into MongoDB Atlas
-    stats = {"cases_synced": 0, "assessments_synced": 0, "errors": []}
+    # Sends only what is new or changed since the last sync
+    stats = {"cases_synced": 0, "assessments_synced": 0, "skipped": 0, "errors": []}
 
-    # Stop early if offline instead of waiting 2s per record
     if not mongo_is_online():
         stats["errors"].append("Cannot reach MongoDB. Your data is still safe in the local JSON files.")
         return stats
 
-    # Step 1: Push all client cases (and their documents) to MongoDB
-    cases = load_all_records()
+    state = _load_sync_state()
+    cases_state = state.setdefault("cases", {})
+    assess_state = state.setdefault("assessments", {})
+
+    # Step 1: client cases (and their documents)
     cases_coll = get_collection()
-    if cases_coll is not None and cases:
-        for record in cases:
+    if cases_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+    else:
+        for record in load_local_records():
+            ref = record.get("client_ref")
             try:
+                # Upload local-only documents first (this adds file_id to the record)
                 if _upload_local_documents(record, cases_coll.database):
-                    save_to_json(record, LOCAL_CASES_JSON)   # keep the new file_id locally too
-                cases_coll.update_one(
-                    {"client_ref": record["client_ref"]},
-                    {"$set": record},
-                    upsert=True
-                )
+                    save_to_json(record, LOCAL_CASES_JSON)
+                fingerprint = _fingerprint(record)
+                if cases_state.get(ref) == fingerprint:
+                    stats["skipped"] += 1
+                    continue
+                cases_coll.update_one({"client_ref": ref}, {"$set": record}, upsert=True)
+                cases_state[ref] = fingerprint
                 stats["cases_synced"] += 1
             except (PyMongoError, OSError) as e:
-                stats["errors"].append(f"Case {record.get('client_ref')}: {e}")
-    elif cases_coll is None:
-        stats["errors"].append("Could not connect to MongoDB for client_cases backup.")
+                stats["errors"].append(f"Case {ref}: {e}")
 
-    # Step 2: Push all AI assessments to MongoDB
-    assessments = load_all_assessments()
+    # Step 2: assessments (never edited after saving, so the id alone is enough)
     assess_coll = get_assessment_collection()
-    if assess_coll is not None and assessments:
-        for record in assessments:
+    if assess_coll is None:
+        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
+    else:
+        for record in load_local_assessments():
+            key = record.get("assessment_id") or _fingerprint(record)
+            if key in assess_state:
+                stats["skipped"] += 1
+                continue
             try:
-                # One MongoDB document per assessment (not per client), so history is kept
                 if record.get("assessment_id"):
-                    key = {"assessment_id": record["assessment_id"]}
+                    match = {"assessment_id": record["assessment_id"]}
                 else:
-                    key = {"client_ref": record["client_ref"], "assessed_at": record.get("assessed_at")}
-                assess_coll.update_one(key, {"$set": record}, upsert=True)
+                    match = {"client_ref": record.get("client_ref"), "assessed_at": record.get("assessed_at")}
+                assess_coll.update_one(match, {"$set": record}, upsert=True)
+                assess_state[key] = True
                 stats["assessments_synced"] += 1
             except PyMongoError as e:
                 stats["errors"].append(f"Assessment {record.get('client_ref')}: {e}")
-    elif assess_coll is None:
-        stats["errors"].append("Could not connect to MongoDB for ai_assessments backup.")
 
+    _save_sync_state(state)
     return stats
-
 
 # ==============================================================================
 # READING UPLOADED DOCUMENTS (for auto-filling the client form)
@@ -423,29 +487,39 @@ def upload_supporting_document(file_path: str):
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
-    """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
+    """Copy a supporting document from its local copy in data/documents/ (never from MongoDB).
+    file_id is the local path saved with the client."""
     if not file_id:
         return False
     local = os.path.join(utilities.ROOT_DIR, file_id)
-    if os.path.exists(local):
-        try:
-            shutil.copy2(local, output_path)
-            return True
-        except OSError:
-            return False
-    if not ObjectId.is_valid(file_id):
+    if not os.path.isfile(local):
         return False
     try:
-        coll = get_collection()
-        if coll is None:
-            return False
-        gridfs_file = GridFS(coll.database).get(ObjectId(file_id))
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        with open(output_path, "wb") as file:
-            file.write(gridfs_file.read())
+        shutil.copy2(local, output_path)
         return True
-    except Exception:
+    except OSError:
         return False
+
+
+def read_supporting_documents(entries: list[dict] | None) -> list[dict]:
+    """Read every supporting document saved with a client, the same way the auto-fill reads
+    uploads (read_document_for_extraction), under the file name the officer uploaded it as.
+    Reads the local copies only."""
+    read = []
+    for entry in entries or []:
+        file_id = entry.get("file_path") or entry.get("file_id")     # the local copy first
+        name = os.path.basename(str(entry.get("file_name") or file_id or "document"))
+        folder = tempfile.mkdtemp()
+        try:
+            path = os.path.join(folder, name)
+            if download_supporting_document(str(file_id or ""), path):
+                read.append(read_document_for_extraction(path, name))
+            else:
+                read.append({"file_name": name, "kind": "error", "error": f"{name}: the saved copy couldn't be found."})
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+    return read
 
 
 # Compatibility stub functions required by main.py

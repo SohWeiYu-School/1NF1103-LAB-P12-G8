@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -39,8 +40,7 @@ def _ai_search_pipeline(
     schema: dict,
     domains: list | None = None,
 ) -> tuple[str | None, object | None]:
-    research_model = os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4.1-mini")
-    text, response = _openai_search_response(prompt, research_model, schema, domains)
+    text, response = _openai_search_response(prompt, model(), schema, domains)
     if text is not None:
         logger.info("_ai_search_pipeline: OpenAI search succeeded")
         return text, response
@@ -63,6 +63,19 @@ def _ai_chat_completion_pipeline(prompt: str, schema: dict | None = None) -> str
 # 1. Shared helpers - used by every section below
 # ============================================================================
 
+def _create_at_temperature_zero(create, **request):
+    """Call an OpenAI create function at temperature 0 (same question, same answer). Some
+    models only accept their default temperature; for those the request is sent again without it."""
+    try:
+        return create(temperature=0, **request)
+    except Exception as exc:
+        if "temperature" not in str(exc).lower():
+            raise
+        logger.info("%s does not accept temperature 0; asking again with its default",
+                    request.get("model"))
+        return create(**request)
+
+
 def _openai_completion_response(prompt: str, model: str, schema: dict | None = None) -> str | None:
     """Plain chat call. Returns the reply text, or None if the call fails.
 
@@ -80,9 +93,9 @@ def _openai_completion_response(prompt: str, model: str, schema: dict | None = N
             }
         else:
             response_format = {"type": "json_object"}
-        response = client().chat.completions.create(
+        response = _create_at_temperature_zero(
+            client().chat.completions.create,
             model=model,
-            temperature=0,
             response_format=response_format,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -167,9 +180,9 @@ def _openai_search_response(
         tools = [{"type": "web_search"}]
         if domains:
             tools = [{"type": "web_search", "filters": {"allowed_domains": domains}}]
-        response = client().responses.create(
+        response = _create_at_temperature_zero(
+            client().responses.create,
             model=model,
-            temperature=0,
             input=prompt,
             tools=tools,
             tool_choice="required",
@@ -243,23 +256,28 @@ def validate_ai_response(data: dict, schema: dict) -> tuple[bool, str | None]:
 # 2. Benchmark - expected wealth figures for a client profile
 # ============================================================================
 
-def get_ai_benchmark(client_data: dict) -> dict | None:
+def get_ai_benchmark(client_data: dict, economy: dict | None = None) -> dict | None:
     """Entry point. Returns the benchmark dict, or None if the call fails.
 
-    main.py passes this to logic_manager as a callback.
+    economy: the markets the forecast's Call 1 found for this client (logic_manager.economy_brief):
+    yearly % changes and country listings only - no figures about the client. Without it the
+    AI assumes typical conditions.
     """
-    mdl = "gpt-4.1-nano"
+    mdl = model()
 
-    # Step 1: Build payload (allowlist only - no declared figures reach the AI)
+    # Step 1: Build payload (allowlist only - no declared figures reach the AI) + the economy
     payload = build_benchmark_payload(client_data)
+    economy_text = json.dumps(economy, indent=1, ensure_ascii=False) if economy else "not available"
 
-    # Step 2: Load prompt + schema
+    # Step 2: Load prompt + schema (lines starting with # are notes, not sent)
     template = load_prompt("benchmark.txt")
-    prompt = template.replace("{client_data}", str(payload))
+    text_template = "\n".join(line for line in template.splitlines() if not line.startswith("#")).strip()
+    prompt = text_template.replace("{client_data}", str(payload)).replace("{economy}", economy_text)
     schema = load_schema("benchmark.schema.json")
 
-    # Step 3: Reuse a saved answer if there is one
-    key, cached = cache_check("benchmark", payload, extract_prompt_version(template), mdl)
+    # Step 3: Reuse a saved answer if there is one (same career AND same economy)
+    key, cached = cache_check("benchmark", {**payload, "economy": economy},
+                              extract_prompt_version(template), mdl)
     if cached is not None:
         return cached
 
@@ -327,7 +345,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
     )
     schema = load_schema("research_response.schema.json")
 
-    mdl = os.getenv("OPENAI_RESEARCH_MODEL", "gpt-4.1-mini")
+    mdl = model()
 
     # Step 3: Reuse a saved answer if there is one
     key, cached = cache_check("research", payload, extract_prompt_version(prompt), mdl)
@@ -540,12 +558,19 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
 
     # Step 2: Load prompt + schema
     template = load_prompt("typology.txt")
+    categories = typology_crime_categories()
+    category_lines = "\n".join(f"        {code}: {text}" for code, text in categories.items())
     prompt = (
         template
         .replace("{payload_json}", json.dumps(profile_payload, indent=2))
         .replace("{reports_json}", json.dumps(reports, indent=2))
+        .replace("{crime_categories_json}", category_lines)
     )
     schema = load_schema("typology_response.schema.json")
+    # crime_category must be one of the forecast's crime categories, so person types can be built from it
+    typology_item = schema["properties"]["sector_typologies"]["items"]
+    typology_item["properties"]["crime_category"] = {**typology_item["properties"]["crime_category"],
+                                                     "enum": list(categories)}
 
     mdl = model()
 
@@ -593,7 +618,14 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
         return data, warnings
 
     logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, []
+    return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
+
+def typology_crime_categories() -> dict:
+    """{code: description} of the crime categories a typology may belong to (every one but HONEST)."""
+    honest = forecast_settings()["honest_category"]
+    return {code: text for code, text in utilities.vocabulary().get("crime_categories", {}).items()
+            if code != honest}
+
 
 # Trim AI response to policy max typologies. Called by get_typologies before schema validation.
 
@@ -620,73 +652,10 @@ def build_typology_reports(research: dict, report_fields: list) -> list[dict]:
 
 
 # ============================================================================
-# 5. Declaration - free-text declaration -> structured sources (crime scan)
+# 5. Declaration - read ONCE, by the forecast's Step 0 (read_declaration below).
+#    logic_manager.crime_declaration turns that reading into the crime scan's
+#    warning-sign rows, so the declaration is no longer read a second time here.
 # ============================================================================
-
-def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
-    """Entry point. Returns (declaration dict or None, warnings)."""
-    warnings: list[str] = []
-
-    # Step 1: Build payload (declaration text + a one-line career profile)
-    declaration_text = case_input.get("declaration_text", "")
-    career = case_input.get("career", {})
-    occupation  = career.get("occupation", case_input.get("occupation", "Unknown"))
-    industry    = career.get("industry",   case_input.get("industry",   "Unknown"))
-    career_profile = f"Occupation: {occupation}. Industry: {industry}."
-    payload = {"declaration_text": declaration_text, "career_profile": career_profile}
-
-    # Step 2: Load prompt + schema
-    template = load_prompt("crime_scan_declaration.txt")
-    prompt = (
-        template
-        .replace("{declaration_text}", declaration_text)
-        .replace("{career_profile}", career_profile)
-    )
-    schema = load_schema("crime_scan_declaration.schema.json")
-
-    mdl = model()
-
-    # Step 3: Reuse a saved answer if there is one
-    key, cached = cache_check("declaration", payload, extract_prompt_version(prompt), mdl)
-    if cached is not None:
-        logger.info("get_declaration: returning cached result")
-        return cached, warnings
-
-    # Step 4: Call the AI, parse, validate, save (2 attempts)
-    last_error = ""
-    error_type = "api"
-
-    for attempt in range(2):
-        text = _ai_chat_completion_pipeline(prompt, schema)
-        if text is None:
-            error_type = "api"
-            last_error = "API call failed"
-            logger.warning("get_declaration attempt %d: API call failed", attempt + 1)
-            continue
-
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as exc:
-            error_type = "json"
-            last_error = repr(exc)
-            logger.warning("get_declaration attempt %d JSON parse error: %s", attempt + 1, last_error)
-            continue
-
-        valid, err = validate_ai_response(data, schema)
-        if not valid:
-            error_type = "schema"
-            last_error = err
-            logger.warning("get_declaration attempt %d schema validation failed: %s", attempt + 1, last_error)
-            continue
-
-        data["model"] = mdl
-        cache_write(key, data, "declaration")
-        data["_cache_path"] = os.path.join(cache_dir("declaration"), f"{key}.json")
-        return data, warnings
-
-    logger.error("get_declaration exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, []
-
 
 # ============================================================================
 # 5b. Document auto-fill - reads uploaded client documents into form details
@@ -717,12 +686,21 @@ def build_document_parts(documents: list[dict]) -> list[dict]:
     return parts
 
 
+def document_fingerprints(documents: list[dict]) -> list[list[str]]:
+    """[file name, SHA-256 of its content] for each document read, in order."""
+    prints = []
+    for document in documents[:MAX_EXTRACT_DOCUMENTS]:
+        content = document.get("text") or document.get("data_b64") or ""
+        prints.append([document.get("file_name", ""), hashlib.sha256(content.encode("utf-8")).hexdigest()])
+    return prints
+
+
 def _openai_document_response(prompt: str, parts: list[dict], mdl: str, schema: dict) -> str | None:
     """Chat call with documents attached (text, images, scanned PDFs). Returns the reply text or None."""
     try:
-        response = client().chat.completions.create(
+        response = _create_at_temperature_zero(
+            client().chat.completions.create,
             model=mdl,
-            temperature=0,
             response_format={"type": "json_schema",
                              "json_schema": {"name": "document_extract", "schema": schema, "strict": False}},
             messages=[{"role": "system", "content": prompt},
@@ -754,7 +732,15 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
     prompt = load_prompt("document_extract.txt")
     schema = load_schema("document_extract.schema.json")
     parts = build_document_parts(readable)
-    mdl = model()
+    mdl = utilities.extract_model()
+
+    # The same documents always give the same reading: the form auto-fill and the assessment
+    # (which reads every submitted document again) share one saved reply.
+    key, cached = cache_check("document_extract", {"documents": document_fingerprints(readable)},
+                              extract_prompt_version(prompt), mdl or "")
+    if cached is not None:
+        cached.pop("_cache_path", None)
+        return cached, warnings
 
     last_error = ""
     for attempt in range(2):
@@ -773,6 +759,7 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
             last_error = err or "schema"
             logger.warning("extract_client_details attempt %d schema error: %s", attempt + 1, last_error)
             continue
+        cache_write(key, data, "document_extract")
         return data, warnings
 
     logger.error("extract_client_details failed: %s", last_error)
@@ -1032,6 +1019,79 @@ def check_asset_model(data: dict, index: int, years: list[int], market_ids: set)
     errors += _years_errors(f"asset {index} income_yield_by_year",
                             [row["year"] for row in data["income_yield_by_year"]], years)
     return errors
+
+
+def repair_asset_model(data: dict, market_ids: set) -> dict:
+    """Fix an asset's reply where the code can, before it is checked: drop markets that aren't in
+    the list, keep only the strongest links (by typical sensitivity) up to the limit, and bring
+    sensitivities and own growth inside the sense limits. Missing years are NOT invented, so those
+    still go back to the AI. Same reply in, same repair out."""
+    if not isinstance(data, dict):
+        return data
+    settings = forecast_settings()
+    low, high = settings["sensitivity_range"]
+    exposures = [e for e in data.get("exposures") or []
+                 if isinstance(e, dict) and e.get("market_id") in market_ids and isinstance(e.get("sensitivity"), dict)]
+    exposures.sort(key=lambda e: -abs(float(e["sensitivity"].get("typical") or 0)))
+    for exposure in exposures:
+        exposure["sensitivity"] = {k: min(max(float(v), low), high) if isinstance(v, (int, float)) else v
+                                   for k, v in exposure["sensitivity"].items()}
+    if exposures:
+        data["exposures"] = exposures[:settings["max_asset_exposures"]]
+    growth_low, growth_high = settings["own_growth_range"]
+    if isinstance(data.get("own_growth_pct"), dict):
+        data["own_growth_pct"] = {k: min(max(float(v), growth_low), growth_high) if isinstance(v, (int, float)) else v
+                                  for k, v in data["own_growth_pct"].items()}
+    return data
+
+
+def fallback_asset_model(index: int, bought: int, end: int) -> dict:
+    """Used only when the AI can't describe an asset even after repairs: the asset is valued at
+    its purchase price with no income, so it can't make his wealth look better explained than it
+    is. The report says the asset couldn't be modelled."""
+    flat = {"low": 0.0, "typical": 0.0, "high": 0.0}
+    return {"asset_index": index, "exposures": [], "own_growth_pct": dict(flat),
+            "income_yield_by_year": [{"year": y, "yield_pct": dict(flat)} for y in range(bought, end + 1)],
+            "future_income_yield_pct": {s: dict(flat) for s in utilities.SCENARIOS},
+            "valuation_basis": "Not modelled: the AI's answers failed the sense checks, so it is held at its purchase price.",
+            "fallback": True}
+
+
+def link_typologies(data: dict, researched: list[dict]) -> dict:
+    """Tie each crime type to the researched typology it was built from, before the reply is checked.
+
+    A typology_id that isn't one of the researched typologies is cleared. A type with no
+    typology_id whose category matches a researched typology's crime_category is linked to it
+    (older saved replies have no typology_id at all). A linked type takes its typology's
+    category, unless another type already uses that category. Same reply in, same result out.
+    """
+    by_id = {t["typology_id"]: t for t in researched}
+    types = data.get("person_types") if isinstance(data, dict) else None
+    if not isinstance(types, list):
+        return data
+    used_categories = {t.get("category") for t in types if isinstance(t, dict)}
+    linked = set()
+    for person_type in types:
+        if not isinstance(person_type, dict):
+            continue
+        if person_type.get("type_id") == utilities.BASELINE_TYPE:
+            person_type["typology_id"] = None
+            continue
+        typology_id = person_type.get("typology_id")
+        if typology_id not in by_id or typology_id in linked:
+            typology_id = next((t["typology_id"] for t in researched
+                                if t.get("crime_category") == person_type.get("category")
+                                and t["typology_id"] not in linked), None)
+        person_type["typology_id"] = typology_id
+        if typology_id is None:
+            continue
+        linked.add(typology_id)
+        category = by_id[typology_id].get("crime_category")
+        if category and category != person_type.get("category") and category not in used_categories:
+            used_categories.discard(person_type.get("category"))
+            person_type["category"] = category
+            used_categories.add(category)
+    return data
 
 
 def repair_person_types(data: dict, record: dict, source_records: list[dict]) -> dict:
@@ -1513,22 +1573,39 @@ def forecast_earnings(record: dict, markets: dict,
                                  "markets": _markets_brief(markets),
                                  "market_changes": _market_changes(markets, bought, end)},
                                 "asset_model",
-                                lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(data, i, y, market_ids),
+                                lambda data, i=index, y=list(range(bought, end + 1)): check_asset_model(
+                                    repair_asset_model(data, market_ids), i, y, market_ids),
                                 cache.get(name))
         results[name] = piece
         if not piece["ok"]:
-            return None
+            # one asset the AI can't describe doesn't stop the whole forecast
+            logger.warning("%s: left out of the market model (%s)", name, piece["error"])
+            earnings.setdefault("fallback_assets", []).append({"asset_index": index, "error": piece["error"]})
+            earnings["assets"].append(fallback_asset_model(index, bought, end))
+            continue
         earnings["assets"].append(piece["data"])
     return earnings
 
 
+def typologies_brief(typologies: list[dict] | None) -> list[dict]:
+    """The crime scan's verified typologies, as the person-types request sees them (no quotes or URLs)."""
+    return [{"typology_id": t.get("typology_id"), "name": t.get("name"),
+             "crime_category": t.get("crime_category"), "description": t.get("description", "")}
+            for t in typologies or [] if t.get("typology_id")]
+
+
 def forecast_types(record: dict, declaration: dict, markets: dict,
-                   earnings: dict, cache: dict, results: dict) -> dict | None:
+                   earnings: dict, cache: dict, results: dict,
+                   typologies: list[dict] | None = None) -> dict | None:
     """Call 3: the person types, then one behaviour forecast per type.
 
-    The types are T1 (honest) plus the standard crime categories his jobs, assets and
-    declared sources make possible, each tied to what enables it.
+    The types are T1 (honest) plus crime types. The crime types are built first from the crime
+    scan's researched typologies (typologies: verified sector_typologies, each with a
+    crime_category), then from any other standard crime category his jobs, assets and declared
+    sources make possible. Each is tied to what enables it.
     """
+    researched = typologies_brief(typologies)
+    researched_by_id = {t["typology_id"]: t for t in researched}
     start, end = utilities.career_years(record)
     years = utilities.future_years(record)
     values = {"start_year": start, "end_year": end, "forecast_years": _years_text(years),
@@ -1544,10 +1621,12 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
                                "claimed_sources": declaration["claimed_sources"],
                                "markets": _markets_brief(markets),
                                "career_outlook": earnings["future_pay"]["career_outlook"],
+                               "researched_typologies": researched,
                                "crime_categories": _crime_categories()},
                               "person_types",
-                              lambda data: check_person_types(repair_person_types(data, record, claimed_sources),
-                                                              record, claimed_sources),
+                              lambda data: check_person_types(
+                                  repair_person_types(link_typologies(data, researched), record, claimed_sources),
+                                  record, claimed_sources),
                               cache.get(name))
     results[name] = listing
     if not listing["ok"]:
@@ -1565,12 +1644,15 @@ def forecast_types(record: dict, declaration: dict, markets: dict,
                              "source named in enabled_by, at the size that channel could realistically carry.")
         open_years = (person_type["open_from"], person_type["open_to"])
         name = f"call3_types.behaviour.{type_id}"
+        behaviour_data = {"this_type": person_type, "all_types": _types_brief(types),
+                          "claimed_sources": declaration["claimed_sources"],
+                          "markets": _markets_brief(markets), "client": client_facts(record)}
+        if person_type.get("typology_id") in researched_by_id:
+            behaviour_data["researched_pattern"] = researched_by_id[person_type["typology_id"]]
         piece = run_forecasting(name, "type_behaviour",
                                 {**values, "type_id": type_id, "type_name": person_type["name"],
                                  "baseline_note": baseline_note},
-                                {"this_type": person_type, "all_types": _types_brief(types),
-                                 "claimed_sources": declaration["claimed_sources"],
-                                 "markets": _markets_brief(markets), "client": client_facts(record)},
+                                behaviour_data,
                                 "type_behaviour",
                                 lambda data, t=type_id, o=open_years: check_type_behaviour(
                                     repair_type_behaviour(data, t, end, years, o, set(markets["series"])),
@@ -1625,37 +1707,67 @@ def forecast_events(record: dict, markets: dict, types: dict,
 
 # ---- The pipeline: entry points called by main.py ----
 
-def run_onboarding_forecast(record: dict, cache: dict | None = None) -> dict:
+def _stopped(run: dict, stage: str) -> dict:
+    """Mark the run as stopped at a stage, naming the piece that failed and why."""
+    failed = next((r for name, r in reversed(list(run["results"].items())) if not r["ok"]), None)
+    run["failed_step"] = stage
+    run["failed_piece"] = failed["call"] if failed else stage
+    run["failed_error"] = (failed or {}).get("error") or "unknown error"
+    return run
+
+
+# The stages of the forecast, in order (on_step is told each one as it starts)
+FORECAST_STAGES = ("step0_declaration", "call1_markets", "call2_earnings", "call3_types", "call4_events")
+
+
+def run_onboarding_forecast(record: dict, cache: dict | None = None,
+                            typologies: list[dict] | None = None,
+                            on_step: Callable[[str], None] | None = None) -> dict:
     """Entry point. Run Step 0 and Calls 1-4 in order, stopping at the first failure.
 
-    cache: {piece_name: raw_text} of saved replies (from data_manager).
-    Returns {"ok", "failed_step", "results": {piece: result}, "forecast": {...}}.
-    Finished pieces are in "results" even after a failure, so a rerun resumes there.
+    cache:      {piece_name: raw_text} of saved replies (from data_manager).
+    typologies: the crime scan's verified sector typologies; Call 3 builds its crime types from them.
+    on_step:    called with each stage name in FORECAST_STAGES as it starts (progress display).
+    Returns {"ok", "failed_step", "results": {piece: result}, "forecast": {...}, "partial": {...}}.
+    Finished pieces are in "results" even after a failure, so a rerun resumes there; "partial"
+    holds the parts that finished (declaration, markets, ...) so the crime scan and the
+    benchmark can still use them.
     """
     cache = cache or {}
     results: dict = {}
-    run = {"ok": False, "failed_step": None, "results": results, "forecast": {}}
+    partial: dict = {}
+    run = {"ok": False, "failed_step": None, "failed_piece": None, "failed_error": None,
+           "results": results, "forecast": {}, "partial": partial}
 
+    def start(stage: str) -> None:
+        if on_step is not None:
+            on_step(stage)
+
+    start("step0_declaration")
     declaration = read_declaration(record, cache, results)
     if declaration is None:
-        run["failed_step"] = "step0_declaration"
-        return run
+        return _stopped(run, "step0_declaration")
+    partial["declaration"] = declaration
+    start("call1_markets")
     markets = forecast_markets(record, declaration, cache, results)
     if markets is None:
-        run["failed_step"] = "call1_markets"
-        return run
+        return _stopped(run, "call1_markets")
+    partial["markets"] = markets
+    start("call2_earnings")
     earnings = forecast_earnings(record, markets, cache, results)
     if earnings is None:
-        run["failed_step"] = "call2_earnings"
-        return run
-    types = forecast_types(record, declaration, markets, earnings, cache, results)
+        return _stopped(run, "call2_earnings")
+    partial["earnings"] = earnings
+    start("call3_types")
+    types = forecast_types(record, declaration, markets, earnings, cache, results, typologies)
     if types is None:
-        run["failed_step"] = "call3_types"
-        return run
+        return _stopped(run, "call3_types")
+    partial["types"] = types
+    start("call4_events")
     events = forecast_events(record, markets, types, cache, results)
     if events is None:
-        run["failed_step"] = "call4_events"
-        return run
+        return _stopped(run, "call4_events")
+    partial["events"] = events
 
     run["forecast"] = {
         "declaration": declaration,

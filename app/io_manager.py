@@ -3,10 +3,11 @@ io_manager.py - the input/output layer: every boundary between the system and th
 
     * Client input and editing (New Client form, Find / Edit Existing Client,
       supporting documents) - saved locally as JSON through data_manager (synced to MongoDB on request)
-    * Crime scan and research output
+    * The combined assessment: progress steps and the one-verdict report (the web app
+      shows the same report, built by logic_manager.verdict_report)
     * Forecasting: turns a saved client record into a forecasting case (asking the
       officer only for what's missing), collects periodic reviews, and prints the
-      onboarding and review reports
+      review reports
     * ALL print() calls in the system live in this file
 
 The forecasting ask_* functions take an `ask` function (normally read_answer, i.e.
@@ -40,10 +41,10 @@ def show_app_menu() -> str:
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
-    print("1. New Client (type in, then crime scan, benchmark and forecasting)")
+    print("1. New Client (type in, then the combined assessment)")
     print("2. New Client from Documents (auto-fill from a folder of documents)")
     print("3. Find / Edit Existing Client")
-    print("4. Assess an Existing Client (crime scan, benchmark and forecasting)")
+    print("4. Assess an Existing Client (crime scan + forecast + benchmark -> one verdict)")
     print("5. Run a Periodic Review")
     print("6. List Saved Assessments")
     print("7. View All Clients")
@@ -230,60 +231,60 @@ def show_benchmark_result(result: dict) -> None:
     print("\n  " + "─" * (W - 2))
     print(f"  Total: {total}  |  Failed: {failed}  |  Passed: {passed}")
     print("═" * W + "\n")
+def show_step(number: int, total: int, label: str) -> None:
+    """One progress line of the combined assessment (the web app shows the same steps)."""
+    print(f"  [{number:>2}/{total}] {label}...")
 
 
-def show_ai_output(
-    case_input: dict,
-    typology_response: dict,
-    declaration: dict,
-    research: dict | None = None,
-) -> None:
-    """Print a short summary of AI results for the officer."""
-    client_ref = case_input.get("client_ref", "—")
-    print(f"\n--- Sector Crime Scan ---")
-    print(f"Client: {client_ref} | Fields sent to AI: 5 (safe fields only)")
+REPORT_WIDTH = 96
 
-    # Build lookup: report_id → "Organisation Year" for display
-    report_lookup: dict[str, str] = {}
-    if research:
-        for r in research.get("reports", []):
-            rid = r.get("report_id", "")
-            org = r.get("organisation", "")
-            year = r.get("year", "")
-            if rid:
-                report_lookup[rid] = f"{org} {year}".strip()
 
-    typologies = typology_response.get("sector_typologies", []) if typology_response else []
-    print(f"\nSector Crime Scan: {len(typologies)} pattern(s)")
-    for i, t in enumerate(typologies, 1):
-        source_ids = t.get("source_ids", [])
-        outdated_ids = set(t.get("outdated_source_ids", []))
-        resolved = []
-        for rid in source_ids:
-            label = report_lookup.get(rid)
-            base = f"{rid} ({label})" if label else f"{rid} (unknown source)"
-            if rid in outdated_ids:
-                base += ", may be outdated"
-            resolved.append(base)
-        suffix = f" — sources: {', '.join(resolved)}" if resolved else ""
-        print(f"  {i}. {t.get('name', '—')}{suffix}")
+def format_verdict_report(report: dict) -> str:
+    """The combined assessment as text: the same header, sections and evidence the web app shows."""
+    head = report["header"]
+    symbols = {entry["mark"]: entry["symbol"] for entry in report["legend"]}
+    rule = "\u2550" * REPORT_WIDTH
+    lines = [rule, f"  COMBINED ASSESSMENT  {head['client_ref']}  {head['name']}  ({head['assessed_on']})", rule,
+             f"  VERDICT:      {head['verdict_label']}",
+             f"  Next step:    {head['next_step']}",
+             f"  Next review:  {head['next_review_date']}",
+             f"  Policy:       {head['policy_version']}", ""]
+    lines += textwrap.wrap(head["summary"], REPORT_WIDTH - 2, initial_indent="  ", subsequent_indent="  ")
+    lines += ["", "  " + "   ".join(f"{e['symbol']} {e['meaning']}" for e in report["legend"])]
 
-        corroborated = t.get("corroborated")
-        if corroborated is True:
-            print(f"       Corroborated: 2+ independent organisations")
-        elif corroborated is False:
-            print(f"       Single source organisation")
+    def section(title: str, items: list[dict]) -> None:
+        lines.extend(["", f"  {title.upper()}", "  " + "\u2500" * (REPORT_WIDTH - 2)])
+        for item in items:
+            lines.extend(textwrap.wrap(item["text"], REPORT_WIDTH - 2,
+                                       initial_indent=f"  {symbols[item['mark']]} ", subsequent_indent="    "))
+            for sub in item["sub"]:
+                lines.extend(textwrap.wrap(sub, REPORT_WIDTH - 2, initial_indent="      ",
+                                           subsequent_indent="      "))
 
-        for sq in t.get("source_quotes", []):
-            print(f"       [{sq.get('report_id','')}] \"{sq.get('quote','')}\"")
+    for part in report["sections"]:
+        section(part["title"], part["items"])
+    lines.extend(["", "  FULL EVIDENCE: " + " \u00b7 ".join(report.get("evidence_titles", [])), rule])
+    return "\n".join(lines)
 
-    sources = declaration.get("sources", [])
-    print(f"\nDeclaration: {len(sources)} source(s) found")
 
-    cache_path = typology_response.get("_cache_path", "") if typology_response else ""
-    if cache_path:
-        print(f"Cache: {cache_path}")
-    print()
+def format_evidence(report: dict) -> str:
+    """The full evidence behind the verdict (the web app shows the same sections, collapsed)."""
+    rule = "\u2550" * REPORT_WIDTH
+    lines = [rule, f"  FULL EVIDENCE  {report['header']['client_ref']}", rule]
+    for part in report["evidence"]:
+        lines.extend(["", f"  {part['title']}"])
+        for line in part["lines"]:
+            lines.extend(textwrap.wrap(line, REPORT_WIDTH - 2, initial_indent="    ", subsequent_indent="      "))
+    lines.append(rule)
+    return "\n".join(lines)
+
+
+def show_verdict_report(report: dict, ask_for_evidence: bool = True) -> None:
+    """The short report, then (if the officer wants it) the full evidence."""
+    print("\n" + format_verdict_report(report) + "\n")
+    if ask_for_evidence and ask_yes_no("Show the full evidence?"):
+        print("\n" + format_evidence(report) + "\n")
+
 
 def generate_client_id() -> str:
     """Generate a unique client reference ID."""
@@ -301,7 +302,7 @@ def get_client_profile() -> dict:
     seniority     = ask_words("Seniority (e.g. Senior Manager, C-suite)", LABEL)
     industry      = ask_words("Industry", LABEL)
     employer_name = ask_words("Employer name", LABEL)
-    employer_size = ask_text("Employer size (e.g. 1,000-5,000 employees)")
+    employer_size = ask_count("Employer size (number of employees, e.g. 2500)")
     residence     = ask_words("Country of residence")
     age           = ask_int("Age", minimum=18, maximum=100)
     while True:
@@ -324,7 +325,7 @@ def _ask_job() -> dict:
         "seniority":     ask_words("Seniority", LABEL),
         "industry":      ask_words("Industry", LABEL),
         "employer_name": ask_words("Employer name", LABEL),
-        "employer_size": ask_text("Employer size"),
+        "employer_size": ask_count("Employer size (number of employees)"),
         "country":       ask_words("Country"),
     }
 
@@ -351,13 +352,16 @@ def _ask_asset() -> dict:
     if ask_yes_no("Has this asset been sold?"):
         year_sold  = ask_year("Year sold", minimum=year_acquired)
         sale_price = ask_money("Sale price")
+    # Same layout as the web form and the documents auto-fill: "Property - Condo", current_declared_value,
+    # income_produced. year_sold, sale_price and currency are extra details only this screen asks for.
     return {
-        "asset_type": asset_type, "asset_description": description, "country": country,
+        "asset_type": f"{asset_type} - {description}" if description.lower() not in asset_type.lower() else asset_type,
+        "country": country,
         "year_acquired": year_acquired, "price_paid": price_paid,
         "payment_method": payment_method, "year_sold": year_sold, "sale_price": sale_price,
-        "current_value": ask_money("Current value (0 if sold)"),
-        "yearly_income": ask_money("Yearly income from this asset (0 if none)"),
-        "currency":      ask_currency(),
+        "current_declared_value": ask_money("Current value (0 if sold)"),
+        "income_produced":        ask_money("Yearly income from this asset (0 if none)"),
+        "currency":               ask_currency(),
     }
 
 
@@ -413,10 +417,13 @@ def get_supporting_documents(upload_fn=None) -> list:
     Ask whether the client has supporting documents.
 
     If yes, open a Tkinter file picker and upload
-    the selected documents to MongoDB GridFS.
+    the selected documents.
     """
 
     print("\n=== Supporting Documents ===")
+
+    if not ask_yes_no("Does the client have any supporting documents?"):
+        return []
 
     if tk is None:
         print("The file picker isn't available on this computer (tkinter is not installed).")
@@ -493,7 +500,8 @@ def show_client_list(records: list) -> None:
     print("─" * W + "\n")
 
 
-FIELD_NAMES = {"expected_aum": "Expected AUM", "pep_status": "PEP Status"}
+FIELD_NAMES = {"expected_aum": "Expected AUM", "pep_status": "PEP Status",
+               "current_declared_value": "Current Value (SGD)", "income_produced": "Yearly Income (SGD)"}
 
 
 def _field_name(key: str) -> str:
@@ -654,7 +662,7 @@ def create_new_client(save_fn=None, upload_fn=None):
 
             next_step = ask_choice(
                 "\nWhat would you like to do next?",
-                ["Run the assessment now (crime scan, benchmark and forecasting)",
+                ["Run the combined assessment now (crime scan, forecast and benchmark -> one verdict)",
                  "Return to the main menu"],
             )
             if next_step == 1:
@@ -720,6 +728,8 @@ def ask_missing_field(field: dict):
         return ask_words(label)
     if kind == "label":
         return ask_words(label, LABEL)
+    if kind == "count":
+        return ask_count(label)
     if kind == "text":
         return ask_text(label)
     if kind == "age":
@@ -814,7 +824,7 @@ def ask_after_save(record: dict) -> bool:
     """After a client is saved: view the saved details, run the assessment, or go back.
     Returns True if the assessment should run now."""
     options = ["View the saved client details",
-               "Run the assessment now (crime scan, benchmark and forecasting)",
+               "Run the combined assessment now (documents, crime scan, forecast and benchmark -> one verdict)",
                "Return to the main menu (you can assess later with option 4)"]
     while True:
         choice = ask_choice("\nWhat would you like to do next?", options)
@@ -837,8 +847,11 @@ def edit_client_profile(record):
     for key, label in [("occupation", "Current job title"), ("seniority", "Seniority"),
                        ("industry", "Industry"), ("employer_name", "Employer name")]:
         career[key] = keep_words(label, career.get(key, ""), LABEL)
-    career["employer_size"]        = keep_text("Employer size", career.get("employer_size", ""))
+    career["employer_size"]        = keep_count("Employer size (number of employees)", career.get("employer_size", ""))
     career["country_of_residence"] = keep_words("Country of residence", career.get("country_of_residence", ""))
+    career["age"] = keep_int("Age", career.get("age", ""), 18, 100)
+    career["career_start_year"] = keep_int("Year first career started",
+                                           career.get("career_start_year", ""), 1940, this_year)
 
     print("\nClient profile updated.")
 
@@ -883,7 +896,7 @@ def edit_career_record(record):
     for key, label in [("occupation", "Job title"), ("seniority", "Seniority"),
                        ("industry", "Industry"), ("employer_name", "Employer name")]:
         career[key] = keep_words(label, career.get(key, ""), LABEL)
-    career["employer_size"] = keep_text("Employer size", career.get("employer_size", ""))
+    career["employer_size"] = keep_count("Employer size (number of employees)", career.get("employer_size", ""))
     career["country"]       = keep_words("Country", career.get("country", ""))
     print("\nCareer record updated.")
 
@@ -903,7 +916,7 @@ def edit_asset_record(record):
         return
     print("\n=== Investments ===")
     for i, a in enumerate(assets, start=1):
-        print(f"{i}. {a.get('asset_type','?')} - {a.get('asset_description','?')}")
+        print(f"{i}. {a.get('asset_type') or '?'}")
     choice = input("\nSelect asset to edit: ").strip()
     if not choice.isdigit() or not (1 <= int(choice) <= len(assets)):
         print("Invalid selection.")
@@ -911,8 +924,7 @@ def edit_asset_record(record):
     asset = assets[int(choice) - 1]
     print("\nPress Enter to keep the existing value.")
     this_year = datetime.date.today().year
-    asset["asset_type"]        = keep_words("Asset type", asset.get("asset_type", ""), LABEL)
-    asset["asset_description"] = keep_words("Description", asset.get("asset_description", ""), LABEL)
+    asset["asset_type"]        = keep_words("Asset (e.g. Property - Condo)", asset.get("asset_type", ""), LABEL)
     asset["country"]           = keep_words("Country", asset.get("country", ""))
     asset["year_acquired"] = keep_int("Year acquired", asset.get("year_acquired", ""), 1940, this_year)
     asset["price_paid"]    = keep_money("Price paid", asset.get("price_paid", ""))
@@ -938,8 +950,8 @@ def edit_asset_record(record):
             asset["sale_price"] = keep_money("Sale price", asset.get("sale_price") or 0)
             break
         show_error(f"Enter a year between {bought} and {this_year}, 'none', or press Enter to keep.")
-    asset["current_value"] = keep_money("Current value", asset.get("current_value", ""))
-    asset["yearly_income"] = keep_money("Yearly income", asset.get("yearly_income", ""))
+    asset["current_declared_value"] = keep_money("Current value", asset.get("current_declared_value", ""))
+    asset["income_produced"]        = keep_money("Yearly income", asset.get("income_produced", ""))
     while True:
         v = input(f"Currency [{asset.get('currency', '')}]: ").strip().upper()
         if not v:
@@ -1255,9 +1267,10 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
                     "Unknown file"
                 )
 
-                file_id = selected_document.get("file_path") or selected_document.get("file_id")
+                file_ref = selected_document.get("file_path")
+                file_id = selected_document.get("file_id")
 
-                if not file_id:
+                if not file_ref and not file_id:
                     print(
                         "\nThis document does not have "
                         "a file reference."
@@ -1291,7 +1304,11 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
                     print("Download cancelled.")
                     continue
 
-                success = download_fn(file_id, output_path) if download_fn else False
+                success = False
+                if download_fn:
+                    # Local copy first, then the MongoDB archive
+                    success = bool(file_ref and download_fn(file_ref, output_path)) \
+                        or bool(file_id and download_fn(file_id, output_path))
 
                 if success:
                     print(
@@ -1413,12 +1430,15 @@ def ask_date(question: str, ask: Ask = read_answer) -> str:
             show_error("Please enter a real date like 2026-09-24.")
 
 
-def ask_choice(question: str, options: list[str], ask: Ask = read_answer) -> int:
-    """Show a numbered list and return the index picked."""
+def ask_choice(question: str, options: list[str], ask: Ask = read_answer, allow_back: bool = False) -> int | None:
+    """Show a numbered list and return the index picked. With allow_back, 0 returns None."""
     show(question)
     for number, option in enumerate(options, start=1):
         show(f"  {number}. {option}")
-    return ask_int("Choose a number", ask, 1, len(options)) - 1
+    if allow_back:
+        show("  0. Back to the main menu")
+    number = ask_int("Choose a number", ask, 0 if allow_back else 1, len(options))
+    return None if number == 0 else number - 1
 
 
 def ask_yes_no(question: str, ask: Ask = read_answer) -> bool:
@@ -1514,7 +1534,7 @@ def keep_money(label: str, current):
         show_error("Amounts can't be negative.")
 
 LETTERS = " '.-"                    # allowed besides letters: names, nationality, countries
-LABEL   = " '.-&/,()0123456789"     # job titles, industries, employers, asset descriptions
+LABEL   = " '.-&/,()%#0123456789"     # job titles, industries, employers, asset descriptions
 
 
 def _only(text: str, allowed: str) -> bool:
@@ -1552,6 +1572,36 @@ def ask_countries(question: str) -> list:
         if items and all(_only(c, LETTERS) for c in items):
             return items
         show_error("Enter country names separated by commas, letters only (no numbers).")
+
+MAX_EMPLOYEES = 10_000_000
+
+
+def _parse_count(text: str) -> int | None:
+    """'2,500' -> 2500. Returns None for ranges, text, zero or absurdly large numbers."""
+    cleaned = text.strip().replace(",", "")
+    if cleaned.isdigit() and 1 <= int(cleaned) <= MAX_EMPLOYEES:
+        return int(cleaned)
+    return None
+
+
+def ask_count(question: str, ask: Ask = read_answer) -> int:
+    while True:
+        number = _parse_count(ask(f"{question}: "))
+        if number is not None:
+            return number
+        show_error("Please enter the number of employees as a single whole number, e.g. 2500 "
+                   "(no ranges or text).")
+
+
+def keep_count(label: str, current):
+    while True:
+        v = input(f"{label} [{current}]: ").strip()
+        if not v:
+            return current
+        number = _parse_count(v)
+        if number is not None:
+            return number
+        show_error("Please enter a single whole number, e.g. 2500, or press Enter to keep.")
 
 
 def validate_case(case: object) -> list[str]:
@@ -1715,12 +1765,19 @@ def _jobs_from_record(record: dict, this_year: int, ask: Ask) -> list[dict]:
     return jobs
 
 
+def _first_filled(*values: object) -> object:
+    """The first value that isn't None or blank text, else None."""
+    for value in values:
+        if value is not None and str(value).strip():
+            return value
+    return None
+
+
 def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask) -> list[dict]:
     """Investments still held, amounts in SGD. Sold assets are excluded."""
     investments = []
     for number, entry in enumerate(record.get("investments", []), start=1):
-        name = " - ".join(p for p in (str(entry.get("asset_type") or "").strip(),
-                                      str(entry.get("asset_description") or "").strip()) if p) or f"Asset {number}"
+        name = str(entry.get("asset_type") or "").strip() or f"Asset {number}"
         if str(entry.get("year_sold") or "").strip():
             show(f"  {name}: sold in {entry['year_sold']}, so it's left out of the forecast.")
             continue
@@ -1728,6 +1785,10 @@ def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask)
         in_sgd = currency in ("", "SGD", "S$")
         if not in_sgd:
             show(f"\n{name} is in {currency}. Please give its amounts in SGD.")
+        # current_declared_value / income_produced, as the web form saves them; older command-line
+        # records called them current_value / yearly_income (data_manager upgrades those on load).
+        current_value = _first_filled(entry.get("current_declared_value"), entry.get("current_value"))
+        yearly_income = _first_filled(entry.get("income_produced"), entry.get("yearly_income"))
         method = _payment_method(entry.get("payment_method"))
         if method is None:
             method = PAYMENT_METHODS[ask_choice(f"{name}: how was it paid for?", PAYMENT_METHODS, ask)]
@@ -1737,10 +1798,10 @@ def _assets_from_record(record: dict, first_year: int, this_year: int, ask: Ask)
             "year_acquired":          _year_or_ask(entry.get("year_acquired"), f"{name}: year bought", ask, first_year, this_year),
             "price_paid":             _number_or_ask(entry.get("price_paid") if in_sgd else None,
                                                      f"{name}: price paid (SGD)", ask, allow_zero=False),
-            "current_declared_value": _number_or_ask(entry.get("current_value") if in_sgd else None,
+            "current_declared_value": _number_or_ask(current_value if in_sgd else None,
                                                      f"{name}: current value (SGD)", ask),
             "payment_method":         method,
-            "income_produced":        _number_or_ask((entry.get("yearly_income") or "0") if in_sgd else None,
+            "income_produced":        _number_or_ask((yearly_income or "0") if in_sgd else None,
                                                      f"{name}: yearly income (SGD, 0 if none)", ask),
         })
     return investments
@@ -1783,13 +1844,9 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
     show(f"Preparing {record.get('client_ref')} for the forecasting assessment")
     show(LINE)
 
-    today = datetime.date.today().isoformat()
-    answer = ask(f"Assessment date (YYYY-MM-DD, blank for today {today}): ").strip()
-    current_date = answer if answer else today
-    try:
-        datetime.date.fromisoformat(current_date)
-    except ValueError:
-        current_date = ask_date("Assessment date", ask)
+    # The assessment is always dated today - the web app does the same (web_app.assess_client).
+    current_date = datetime.date.today().isoformat()
+    show(f"Assessment date: {current_date} (today)")
     this_year = int(current_date[:4])
 
     age  = int(_number_or_ask(career.get("age"), "Age", ask, allow_zero=False))
@@ -1825,6 +1882,10 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
                                       "Countries his wealth came from (comma separated)", ask
                                   ).split(",") if c.strip()],
             "pep_status":         _text_or_ask(claims.get("pep_status"), "PEP status (e.g. None)", ask),
+            # not needed by the forecast, but the benchmark uses them (logic_manager.forecasting_case keeps them too)
+            "biggest_wealth_jump":     _number(claims.get("biggest_wealth_jump")),
+            "wealth_jump_years":       _number(claims.get("wealth_jump_years")),
+            "declared_counterparties": list(claims.get("declared_counterparties") or []),
         },
         "sow_declaration": _text_or_ask(record.get("sow_declaration"), "Source of wealth declaration", ask),
         "reviews": [],
@@ -1929,17 +1990,23 @@ def format_assessment_list(records: list[dict]) -> str:
         return "No saved assessments match."
     lines = [f"{'Client':<16} {'Kind':<20} {'Date':<12} Outcome"]
     for record in records:
-        assessment = record["assessment"]
-        date = assessment.get("assessed_on") or assessment.get("review_date", "")
+        verdict = record.get("verdict")
+        assessment = record.get("assessment") or {}
+        if verdict:                                   # the combined assessment: its one verdict
+            date, outcome = verdict.get("assessed_on", ""), verdict.get("verdict")
+        else:
+            date = assessment.get("assessed_on") or assessment.get("review_date", "")
+            outcome = assessment.get("outcome")
         lines.append(f"{record['client_ref']:<16} {record['kind']:<20} {date:<12} "
-                     f"{OUTCOME_LABELS.get(assessment.get('outcome'), '?')}")
+                     f"{OUTCOME_LABELS.get(outcome, '?')}")
     return "\n".join(lines)
 
 
 def show_onboarding(assessment: dict) -> None:
+    """A forecast-only report (assessments saved before the combined verdict)."""
     W = 68
     print("\n" + "═" * W)
-    print("  FORECASTING — ONBOARDING ASSESSMENT")
+    print("  FORECASTING — ONBOARDING ASSESSMENT (saved before the combined verdict)")
     print("═" * W)
     show(format_onboarding(assessment))
     print("═" * W + "\n")

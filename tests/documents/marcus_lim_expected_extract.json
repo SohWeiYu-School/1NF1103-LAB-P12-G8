@@ -1,0 +1,224 @@
+{
+  "client": {
+    "name": "Marcus Lim Wei Jie",
+    "nationality": "Singaporean",
+    "country_of_residence": "Singapore",
+    "date_of_birth": "1979-04-22",
+    "age": null
+  },
+  "jobs": [
+    {
+      "start_year": 2001,
+      "end_year": 2003,
+      "occupation": "Sales Executive",
+      "seniority": "Executive",
+      "industry": "Industrial supplies distribution",
+      "employer_name": "Orient Industrial Supplies Pte Ltd",
+      "employer_size": "120",
+      "country": "Singapore",
+      "source_file": "02_CV_Marcus_Lim.pdf"
+    },
+    {
+      "start_year": 2003,
+      "end_year": 2011,
+      "occupation": "Sales Manager",
+      "seniority": "Manager",
+      "industry": "Industrial supplies distribution",
+      "employer_name": "Orient Industrial Supplies Pte Ltd",
+      "employer_size": "120",
+      "country": "Singapore",
+      "source_file": "02_CV_Marcus_Lim.pdf"
+    },
+    {
+      "start_year": 2011,
+      "end_year": null,
+      "occupation": "Managing Director",
+      "seniority": "Owner",
+      "industry": "Industrial parts distribution",
+      "employer_name": "Lim Precision Trading Pte Ltd",
+      "employer_size": "18",
+      "country": "Singapore",
+      "source_file": "02_CV_Marcus_Lim.pdf"
+    }
+  ],
+  "assets": [
+    {
+      "asset_type": "Property - Condo, Bishan (rented out)",
+      "country": "Singapore",
+      "year_acquired": 2010,
+      "price_paid_sgd": 1150000,
+      "current_declared_value_sgd": 1900000,
+      "payment_method": "loan",
+      "income_produced_sgd": 54000,
+      "source_file": "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+    },
+    {
+      "asset_type": "Property - Condo, The Coralis, Sentosa Cove (own residence)",
+      "country": "Singapore",
+      "year_acquired": 2023,
+      "price_paid_sgd": 4200000,
+      "current_declared_value_sgd": 4600000,
+      "payment_method": "loan",
+      "income_produced_sgd": 0,
+      "source_file": "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+    },
+    {
+      "asset_type": "Private business - 100% of Lim Precision Trading Pte Ltd",
+      "country": "Singapore",
+      "year_acquired": 2011,
+      "price_paid_sgd": 100000,
+      "current_declared_value_sgd": 4350000,
+      "payment_method": "cash",
+      "income_produced_sgd": null,
+      "source_file": "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+    }
+  ],
+  "composition": {
+    "property": 45,
+    "listed_equities": 15,
+    "private_business": 30,
+    "cash": 10
+  },
+  "claims": {
+    "declared_net_worth_sgd": 14500000,
+    "expected_aum_sgd": 6000000,
+    "pep_status": "None",
+    "wealth_countries": [
+      "Singapore"
+    ],
+    "biggest_wealth_jump_sgd": null,
+    "wealth_jump_years": null,
+    "declared_counterparties": [
+      "Meridian Harbour Bank",
+      "Tan & Rao LLP"
+    ]
+  },
+  "sow_declaration": "My wealth comes from my salary and dividends as the founder and Managing Director of Lim Precision Trading Pte Ltd, which I started in 2011 with SGD 100,000 of my own savings from my years as a sales manager. The company distributes industrial machine parts to manufacturers in Singapore. I also own two residential properties in Singapore which have increased in value and one of which earns rental income. I have no other business interests and all my income is declared in Singapore.",
+  "notes": [
+    "Not declared: the client is the 100% ultimate beneficial owner of Arcadia Holdings Ltd (British Virgin Islands) through Seaview Ventures Ltd (Seychelles), but the KYC form says he has no other shareholdings or directorships (08_Certificate_of_Incumbency_Arcadia_Holdings.pdf, 01_KYC_Onboarding_Form_Marcus_Lim.pdf).",
+    "Not declared: Arcadia Holdings Ltd pays the client SGD 85,000 a month as consultancy fees (06_Bank_Statement_Jul-Sep_2026.pdf), while the tax notices show no consultancy or foreign income and the KYC form gives annual income of about SGD 190,000 (05_Tax_Notice_of_Assessment_YA2025-2026.pdf).",
+    "Conflict: SGD 2,500,000 of the Coralis purchase came from Seaview Ventures Ltd in Seychelles as an undocumented 'shareholder loan' (07_Property_Completion_Statement_Coralis_2023.pdf), but the KYC form says it was paid with a bank loan and own funds.",
+    "Check: Arcadia Holdings Ltd invoiced the client's own company, Lim Precision Trading, SGD 360,000 for Q2 2026 advisory services, payable to a Seychelles bank account (09_Arcadia_Invoice_to_Lim_Precision_Q2_2026.pdf).",
+    "Not declared: the KYC form says there are no accounts outside Singapore, but Arcadia and Seaview bank with Island Trust Bank, Seychelles (08_Certificate_of_Incumbency_Arcadia_Holdings.pdf).",
+    "Check: six cash deposits of SGD 18,900-19,800, each just under SGD 20,000, in three months (06_Bank_Statement_Jul-Sep_2026.pdf).",
+    "Check: large outgoing payments - SGD 150,000 'loan repayment' to Seaview Ventures Ltd and a SGD 120,000 yacht deposit in Malaysia (06_Bank_Statement_Jul-Sep_2026.pdf).",
+    "Check: the declared split puts 15% (SGD 2,175,000) in listed equities, but no listed equities are listed among the assets (01_KYC_Onboarding_Form_Marcus_Lim.pdf).",
+    "Check: Lim Precision Trading's yearly income is declared only as 'Dividends (varies)', so it was left blank (01_KYC_Onboarding_Form_Marcus_Lim.pdf).",
+    "Check: the Bishan rent is declared as SGD 54,000 a year (gross); the tax notices show SGD 20,400-21,600 net rental income after expenses (05_Tax_Notice_of_Assessment_YA2025-2026.pdf)."
+  ],
+  "evidence": {
+    "documented_pay": [
+      {
+        "year": 2024,
+        "employment_income_sgd": 172000,
+        "source_file": "05_Tax_Notice_of_Assessment_YA2025-2026.pdf"
+      },
+      {
+        "year": 2025,
+        "employment_income_sgd": 186000,
+        "source_file": "05_Tax_Notice_of_Assessment_YA2025-2026.pdf"
+      },
+      {
+        "year": 2026,
+        "employment_income_sgd": 186000,
+        "source_file": "03_Employment_Confirmation_Letter.pdf"
+      }
+    ],
+    "findings": [
+      {
+        "kind": "undeclared_company",
+        "summary": "He is the 100% ultimate beneficial owner of Arcadia Holdings Ltd (British Virgin Islands) through Seaview Ventures Ltd (Seychelles); his KYC form says he has no other shareholdings.",
+        "amount_sgd": null,
+        "per": null,
+        "counterparty": "Arcadia Holdings Ltd",
+        "country": "British Virgin Islands",
+        "source_files": [
+          "08_Certificate_of_Incumbency_Arcadia_Holdings.pdf",
+          "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+        ]
+      },
+      {
+        "kind": "undeclared_income",
+        "summary": "Arcadia Holdings Ltd pays him SGD 85,000 a month as consultancy fees, which his tax notices (no consultancy or foreign income) and his declared income of about SGD 190,000 don't show.",
+        "amount_sgd": 85000,
+        "per": "month",
+        "counterparty": "Arcadia Holdings Ltd",
+        "country": "British Virgin Islands",
+        "source_files": [
+          "06_Bank_Statement_Jul-Sep_2026.pdf",
+          "05_Tax_Notice_of_Assessment_YA2025-2026.pdf",
+          "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+        ]
+      },
+      {
+        "kind": "funding_conflict",
+        "summary": "SGD 2,500,000 of the Coralis purchase came from Seaview Ventures Ltd (Seychelles) as an undocumented shareholder loan; he declared a bank loan and own funds.",
+        "amount_sgd": 2500000,
+        "per": "once",
+        "counterparty": "Seaview Ventures Ltd",
+        "country": "Seychelles",
+        "source_files": [
+          "07_Property_Completion_Statement_Coralis_2023.pdf",
+          "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+        ]
+      },
+      {
+        "kind": "undeclared_account",
+        "summary": "Arcadia and Seaview bank with Island Trust Bank in Seychelles; his KYC form says he holds no accounts outside Singapore.",
+        "amount_sgd": null,
+        "per": null,
+        "counterparty": "Island Trust Bank",
+        "country": "Seychelles",
+        "source_files": [
+          "08_Certificate_of_Incumbency_Arcadia_Holdings.pdf",
+          "09_Arcadia_Invoice_to_Lim_Precision_Q2_2026.pdf",
+          "01_KYC_Onboarding_Form_Marcus_Lim.pdf"
+        ]
+      },
+      {
+        "kind": "cash_structuring",
+        "summary": "Six cash deposits of SGD 18,900-19,800, each just under SGD 20,000, in three months.",
+        "amount_sgd": 117400,
+        "per": "quarter",
+        "counterparty": null,
+        "country": "Singapore",
+        "source_files": [
+          "06_Bank_Statement_Jul-Sep_2026.pdf"
+        ]
+      },
+      {
+        "kind": "related_party_payment",
+        "summary": "Arcadia Holdings Ltd, which he owns, invoiced his own company Lim Precision Trading SGD 360,000 for Q2 2026 advisory services, payable to Seychelles.",
+        "amount_sgd": 360000,
+        "per": "quarter",
+        "counterparty": "Arcadia Holdings Ltd",
+        "country": "British Virgin Islands",
+        "source_files": [
+          "09_Arcadia_Invoice_to_Lim_Precision_Q2_2026.pdf"
+        ]
+      },
+      {
+        "kind": "offshore_payment",
+        "summary": "He paid SGD 150,000 to Seaview Ventures Ltd (Seychelles) as a 'loan repayment'.",
+        "amount_sgd": 150000,
+        "per": "once",
+        "counterparty": "Seaview Ventures Ltd",
+        "country": "Seychelles",
+        "source_files": [
+          "06_Bank_Statement_Jul-Sep_2026.pdf"
+        ]
+      },
+      {
+        "kind": "large_spending",
+        "summary": "SGD 120,000 deposit to a yacht broker in Malaysia.",
+        "amount_sgd": 120000,
+        "per": "once",
+        "counterparty": "Royal Marina Yacht Brokers Ltd",
+        "country": "Malaysia",
+        "source_files": [
+          "06_Bank_Statement_Jul-Sep_2026.pdf"
+        ]
+      }
+    ]
+  }
+}

@@ -234,8 +234,8 @@ def test_record_from_documents_uses_the_new_client_form_layout():
 
     assert record["career"]["age"] == 46                                  # from the date of birth
     assert record["claims"]["asset_composition"]["property"] == 0.5       # stored as fractions
-    assert record["investments"][0]["current_value"] == 2400000
-    assert record["investments"][0]["currency"] == "SGD"
+    assert record["investments"][0]["current_declared_value"] == 2400000    # same name as the web form
+    assert record["investments"][0]["income_produced"] == 60000
     assert "name" in found and "claims.declared_net_worth" in found
 
 

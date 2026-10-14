@@ -43,6 +43,25 @@
     "summary",
     "excerpts"
   ],
+  "benchmark_allowed_fields": [
+    "occupation",
+    "industry",
+    "age",
+    "career_start_year",
+    "country"
+  ],
+  "research_allowed_fields": [
+    "industry",
+    "country"
+  ],
+  "typology_report_fields": [
+    "report_id",
+    "organisation",
+    "title",
+    "year",
+    "summary",
+    "excerpts"
+  ],
   "trusted_sources": [
     "fatf-gafi.org",
     "mas.gov.sg",
@@ -80,6 +99,215 @@
     "MANUAL_REVIEW": "Queued for the KYC officer.",
     "RISKY": "Additional documents requested from the client.",
     "SERIOUS_RISK": "Escalated to the Compliance Officer with a full case file."
+  },
+  "verdict": {
+    "$comment": "The combined verdict (logic_manager.combined_verdict): one outcome from the crime scan, the benchmark and the forecast.",
+    "unexplained_benchmark_for_risky": 3,
+    "pattern_alone": {
+      "critical": "RISKY",
+      "high": "MANUAL_REVIEW",
+      "medium": "MANUAL_REVIEW",
+      "partial": "MANUAL_REVIEW",
+      "weak_signal": "PASSED",
+      "no_match": "PASSED"
+    },
+    "pep_crime_categories": [
+      "BRIBERY_CORRUPTION",
+      "PROCEEDS_OF_PEP"
+    ],
+    "no_pep_values": [
+      "",
+      "none",
+      "no",
+      "not a pep",
+      "n/a",
+      "na"
+    ],
+    "aum_tolerance": 0.1,
+    "composition_tolerance": 0.15,
+    "booming_market_pct": 5.0,
+    "max_documents": 8,
+    "benchmark_documents": {
+      "TOTAL_WEALTH": [
+        "DOC_TAX_RETURNS",
+        "DOC_BANK_STATEMENTS"
+      ],
+      "UNEXPLAINED_GAP": [
+        "DOC_TAX_RETURNS",
+        "DOC_BANK_STATEMENTS"
+      ],
+      "VELOCITY": [
+        "DOC_BANK_STATEMENTS"
+      ],
+      "JUMP_VS_ECONOMY": [
+        "DOC_BANK_STATEMENTS"
+      ],
+      "LIQUIDITY": [
+        "DOC_INVESTMENT_STATEMENTS",
+        "DOC_BANK_STATEMENTS"
+      ],
+      "AUM_FUNDING": [
+        "DOC_BANK_STATEMENTS",
+        "DOC_INVESTMENT_STATEMENTS"
+      ],
+      "COMPOSITION": [
+        "DOC_INVESTMENT_STATEMENTS",
+        "DOC_PROPERTY_TITLE"
+      ],
+      "COUNTERPARTIES": [
+        "DOC_BANK_STATEMENTS"
+      ],
+      "JURISDICTION": [
+        "DOC_BENEFICIAL_OWNERSHIP"
+      ],
+      "PEP_STATUS": [
+        "DOC_PEP_DECLARATION"
+      ]
+    },
+    "service_provider_words": [
+      "bank",
+      "banking",
+      "securities",
+      "broker",
+      "brokers",
+      "brokerage",
+      "llp",
+      "law",
+      "legal",
+      "solicitor",
+      "solicitors",
+      "advocates",
+      "attorneys",
+      "insurance",
+      "asset management",
+      "wealth management",
+      "trust company",
+      "auditors"
+    ],
+    "min_serious_document_findings": 2,
+    "pay_calibration": {
+      "min_change": 0.1,
+      "max_ratio": 3.0
+    },
+    "document_evidence": {
+      "undeclared_company": {
+        "label": "Company he owns but didn't declare",
+        "theme": "pattern",
+        "serious": true,
+        "supports": [
+          "TAX_EVASION",
+          "THIRD_PARTY_ML",
+          "TRADE_BASED_ML"
+        ],
+        "documents": [
+          "DOC_BENEFICIAL_OWNERSHIP",
+          "DOC_COMPANY_ACCOUNTS"
+        ]
+      },
+      "undeclared_income": {
+        "label": "Income he didn't declare",
+        "theme": "sources",
+        "serious": true,
+        "supports": [
+          "TAX_EVASION",
+          "THIRD_PARTY_ML",
+          "BRIBERY_CORRUPTION"
+        ],
+        "documents": [
+          "DOC_TAX_RETURNS",
+          "DOC_CONSULTING_AGREEMENT"
+        ]
+      },
+      "undeclared_account": {
+        "label": "Account outside the countries he declared",
+        "theme": "countries",
+        "serious": true,
+        "supports": [
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_BANK_STATEMENTS"
+        ]
+      },
+      "funding_conflict": {
+        "label": "Purchase paid for differently from his declaration",
+        "theme": "purchases",
+        "serious": true,
+        "supports": [
+          "THIRD_PARTY_ML",
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_LOAN_AGREEMENT",
+          "DOC_BANK_STATEMENTS"
+        ]
+      },
+      "income_conflict": {
+        "label": "Documents disagree about his income",
+        "theme": "sources",
+        "serious": false,
+        "supports": [
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_TAX_RETURNS",
+          "DOC_PAYSLIPS"
+        ]
+      },
+      "cash_structuring": {
+        "label": "Cash deposits kept under a reporting limit",
+        "theme": "people",
+        "serious": true,
+        "supports": [
+          "THIRD_PARTY_ML",
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_BANK_STATEMENTS"
+        ]
+      },
+      "offshore_payment": {
+        "label": "Payments with offshore companies or banks",
+        "theme": "countries",
+        "serious": false,
+        "supports": [
+          "TRADE_BASED_ML",
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_BANK_STATEMENTS"
+        ]
+      },
+      "related_party_payment": {
+        "label": "Money moving between him and his own companies",
+        "theme": "people",
+        "serious": false,
+        "supports": [
+          "TRADE_BASED_ML",
+          "TAX_EVASION"
+        ],
+        "documents": [
+          "DOC_TRADE_INVOICES",
+          "DOC_COMPANY_ACCOUNTS"
+        ]
+      },
+      "large_spending": {
+        "label": "Large spending",
+        "theme": "wealth",
+        "serious": false,
+        "supports": [],
+        "documents": [
+          "DOC_BANK_STATEMENTS"
+        ]
+      },
+      "other": {
+        "label": "Other",
+        "theme": "pattern",
+        "serious": false,
+        "supports": [],
+        "documents": []
+      }
+    }
   },
   "asset_categories": {
     "property": [
@@ -221,7 +449,47 @@
       95,
       105
     ],
+    "sensitivity_range": [
+      -1.0,
+      3.0
+    ],
+    "own_growth_range": [
+      -10.0,
+      10.0
+    ],
+    "market_change_range": [
+      -99.9,
+      500.0
+    ],
+    "scenario_chance_total_range": [
+      95,
+      105
+    ],
     "all_zero_history_min_years": 5,
+    "declaration_markers": [
+      "<<<BEGIN_DECLARATION>>>",
+      "<<<END_DECLARATION>>>"
+    ],
+    "notes_markers": [
+      "<<<BEGIN_OFFICER_NOTES>>>",
+      "<<<END_OFFICER_NOTES>>>"
+    ],
+    "honorifics": [
+      "Mr",
+      "Mrs",
+      "Ms",
+      "Miss",
+      "Mdm",
+      "Madam",
+      "Dr",
+      "Sir"
+    ],
+    "personal_keys": [
+      "name",
+      "full_name",
+      "client_name",
+      "nationality"
+    ],
     "declaration_markers": [
       "<<<BEGIN_DECLARATION>>>",
       "<<<END_DECLARATION>>>"
