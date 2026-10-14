@@ -13,7 +13,6 @@
                         - crime_scan, benchmark          (crime scan and benchmark results)
                         - forecast                       (the combined AI forecast, Calls 1-4)
                         - forecast_decisions.onboarding  (the onboarding decision)
-                        - forecast_decisions.review_<date> (each review decision)
     ai_raw_replies    one document per AI request (client_ref + call): the AI's exact reply,
                       reused on reruns so they are free and give identical answers
     GridFS            uploaded supporting documents
@@ -34,7 +33,6 @@ from bson import ObjectId
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 from gridfs import GridFS
-from datetime import datetime, timezone
 import shutil
 import tempfile
 import hashlib
@@ -556,16 +554,6 @@ def save_raw_replies(ref: str, replies: dict) -> int:
 def save_forecast(ref: str, forecast: dict) -> bool: 
     return True
 
-def save_forecast_assessment(ref: str, kind: str, assessment: dict) -> bool:
-    # Wrap assessment payload with reference ID and timestamp, then save directly to ai_assessments.json
-    record = {
-        "client_ref": ref,
-        "kind": kind,
-        "assessed_at": datetime.now(timezone.utc).isoformat(),
-        "assessment": assessment
-    }
-    return save_assessment(record)
-
 def save_case(case: dict) -> bool: 
     return save_case_record(case)
 
@@ -595,13 +583,6 @@ def list_sample_cases() -> list:
     if not os.path.exists(sdir):
         return []
     return [os.path.join(sdir, f) for f in os.listdir(sdir) if f.endswith(".json")]
-
-def load_forecasting_case(ref: str) -> dict | None:
-    record = find_client_record(ref)
-    return record.get("forecasting_case") if record else None
-
-def load_forecast(ref: str) -> dict | None: 
-    return None
 
 def load_assessment(ref: str, kind: str = "onboarding") -> dict | None:
     # Return the most recent assessment for a client reference

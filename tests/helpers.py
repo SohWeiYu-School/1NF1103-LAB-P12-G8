@@ -38,14 +38,6 @@ def load_case(case_id: str) -> dict:
     return case
 
 
-def first_review(case: dict) -> dict | None:
-    """The case's review input, whether it's stored as 'review' or as a list under 'reviews'."""
-    if isinstance(case.get("review"), dict):
-        return case["review"]
-    reviews = case.get("reviews") or []
-    return reviews[0] if reviews else None
-
-
 def saved_replies(case_id: str) -> dict:
     """The real AI replies saved in the database for this case, or skip the test if there are none."""
     client_ref = load_case(case_id)["client_ref"]
@@ -57,35 +49,20 @@ def saved_replies(case_id: str) -> dict:
 
 
 def run_from_saved(case_id: str) -> dict:
-    """Rebuild the forecast (and the review reading) from the saved replies. No API calls.
-
-    Returns {"case", "forecast", "review", "review_data"}; review/review_data are None if
-    the case has no review or the review hasn't been run yet.
-    """
+    """Rebuild the forecast from the saved replies. No API calls. Returns {"case", "forecast"}."""
     case = load_case(case_id)
     replies = saved_replies(case_id)
     with patch("app.ai_manager.has_api_key", return_value=False):   # saved replies only, never the API
         run = ai_manager.run_onboarding_forecast(case, replies)
     assert run["ok"], (f"the saved replies for {case_id} are incomplete (stopped at {run['failed_step']}) - "
                        f"run the system on {case_id} again so it finishes")
-    review = first_review(case)
-    review_data = None
-    if review is not None:
-        with patch("app.ai_manager.has_api_key", return_value=False):
-            result = ai_manager.read_review_notes(review, run["forecast"], replies)
-        review_data = result["data"] if result["ok"] else None
-    return {"case": case, "forecast": run["forecast"], "review": review, "review_data": review_data}
+    return {"case": case, "forecast": run["forecast"]}
 
 
-def decisions(case_id: str) -> tuple[dict, dict | None]:
-    """(onboarding decision, review decision or None) from the saved replies, as they'd look saved to JSON."""
+def decision(case_id: str) -> dict:
+    """The onboarding decision from the saved replies, as it would look saved to JSON."""
     run = run_from_saved(case_id)
-    onboarding = as_saved(logic_manager.assess_onboarding(run["case"], run["forecast"]))
-    review = None
-    if run["review"] is not None and run["review_data"] is not None:
-        review = as_saved(logic_manager.assess_review(run["case"], run["review"], run["review_data"],
-                                                      run["forecast"], onboarding))
-    return onboarding, review
+    return as_saved(logic_manager.assess_onboarding(run["case"], run["forecast"]))
 
 
 def golden_path(case_id: str, name: str) -> str:

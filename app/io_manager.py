@@ -6,8 +6,7 @@ io_manager.py - the input/output layer: every boundary between the system and th
     * The combined assessment: progress steps and the one-verdict report (the web app
       shows the same report, built by logic_manager.verdict_report)
     * Forecasting: turns a saved client record into a forecasting case (asking the
-      officer only for what's missing), collects periodic reviews, and prints the
-      review reports
+      officer only for what's missing)
     * ALL print() calls in the system live in this file
 
 The forecasting ask_* functions take an `ask` function (normally read_answer, i.e.
@@ -37,7 +36,7 @@ LINE = "-" * 72
 PAYMENT_METHODS = ["cash", "loan", "asset_sale"]
 
 def show_app_menu() -> str:
-    """Display the unified main menu and return the user's choice (1-9)."""
+    """Display the unified main menu and return the user's choice (1-8)."""
     print("\n========================================")
     print("     SOURCE OF WEALTH SCREENING SYSTEM")
     print("========================================")
@@ -45,16 +44,15 @@ def show_app_menu() -> str:
     print("2. New Client from Documents (auto-fill from a folder of documents)")
     print("3. Find / Edit Existing Client")
     print("4. Assess an Existing Client (crime scan + forecast + benchmark -> one verdict)")
-    print("5. Run a Periodic Review")
-    print("6. List Saved Assessments")
-    print("7. View All Clients")
-    print("8. Manual Sync to Cloud Database")
-    print("9. Quit")
+    print("5. List Saved Assessments")
+    print("6. View All Clients")
+    print("7. Manual Sync to Cloud Database")
+    print("8. Quit")
     while True:
-        choice = input("\nEnter your choice (1-9): ").strip()
-        if choice in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
+        choice = input("\nEnter your choice (1-8): ").strip()
+        if choice in ("1", "2", "3", "4", "5", "6", "7", "8"):
             return choice
-        print("Invalid choice. Please enter 1 to 9.")
+        print("Invalid choice. Please enter 1 to 8.")
 
 def show_message(text: str) -> None:
     #Print an informational message.
@@ -721,7 +719,6 @@ def create_new_client(save_fn=None, upload_fn=None):
         "investments":         investments,
         "claims":              claims,
         "sow_declaration":     sow_declaration,
-        "reviews":             [],
         "supporting_documents": supporting_documents,
     }
 
@@ -1499,16 +1496,6 @@ def ask_money(question: str, ask: Ask = read_answer, allow_zero: bool = True) ->
         return amount
 
 
-def ask_date(question: str, ask: Ask = read_answer) -> str:
-    while True:
-        answer = ask(f"{question} (YYYY-MM-DD): ").strip()
-        try:
-            datetime.date.fromisoformat(answer)
-            return answer
-        except ValueError:
-            show_error("Please enter a real date like 2026-09-24.")
-
-
 def ask_choice(question: str, options: list[str], ask: Ask = read_answer, allow_back: bool = False) -> int | None:
     """Show a numbered list and return the index picked. With allow_back, 0 returns None."""
     show(question)
@@ -1712,25 +1699,7 @@ def validate_case(case: object) -> list[str]:
     total = sum(case["claims"]["asset_composition"].values())
     if not 0.95 <= total <= 1.05:
         errors.append(f"asset composition adds up to {total:.0%}, it should be 100%")
-    for index, review in enumerate(case.get("reviews", [])):
-        if review["current_date"] <= case["current_date"]:
-            errors.append(f"review {index + 1}: must be after the onboarding date")
     return errors
-
-
-def collect_review(case: dict, ask: Ask = read_answer) -> dict:
-    """Ask for a periodic review: date, current wealth and the officer's notes."""
-    show(LINE)
-    show(f"Periodic review for {case['client_ref']}")
-    show(LINE)
-    while True:
-        review_date = ask_date("Review date", ask)
-        if review_date > case["current_date"]:
-            break
-        show_error(f"The review must be after the onboarding date {case['current_date']}.")
-    return {"client_ref": case["client_ref"], "current_date": review_date,
-            "current_wealth": ask_money("Client's wealth now (SGD)", ask, allow_zero=False),
-            "officer_notes": ask_text("What happened in his accounts since the last review", ask, min_length=20)}
 
 
 # ============================================================================
@@ -1967,7 +1936,6 @@ def case_from_client_record(record: dict, ask: Ask = read_answer) -> dict | None
             "declared_counterparties": list(claims.get("declared_counterparties") or []),
         },
         "sow_declaration": _text_or_ask(record.get("sow_declaration"), "Source of wealth declaration", ask),
-        "reviews": [],
     }
     if len(case["sow_declaration"]) < 50:
         show_error("The source of wealth declaration is too short (50 characters minimum).")
@@ -2046,24 +2014,6 @@ def format_onboarding(assessment: dict) -> str:
     return "\n".join(lines)
 
 
-def format_review(assessment: dict) -> str:
-    lines = [LINE, f"REVIEW  {assessment['case_ref']}  ({assessment['review_date']})", LINE,
-             f"Outcome:      {OUTCOME_LABELS[assessment['outcome']]}",
-             f"Action:       {assessment['routing']}",
-             f"Year type:    {assessment['scenario']}",
-             f"Next review:  {assessment['next_review_date']}", "", "Findings:"]
-    for finding in assessment["findings"]:
-        mark = "FAILED" if finding["failed"] else "ok"
-        lines.append(f"  [{mark:^6}] {finding['rule_id']}: {finding['detail']}")
-    lines += ["", "Running score per kind of person:"]
-    for row in assessment["type_scores"]:
-        lines.append(f"  {row['type_id']}  {row['previous']:.0%} -> {row['score']:.0%}  (review fit {row['review_fit']:.3f})")
-    if assessment["documents"]:
-        lines += ["", "Documents to request:"]
-        lines += [f"  {n}. {d['document']}  ({d['reason']})" for n, d in enumerate(assessment["documents"], 1)]
-    return "\n".join(lines)
-
-
 def format_assessment_list(records: list[dict]) -> str:
     if not records:
         return "No saved assessments match."
@@ -2074,7 +2024,7 @@ def format_assessment_list(records: list[dict]) -> str:
         if verdict:                                   # the combined assessment: its one verdict
             date, outcome = verdict.get("assessed_on", ""), verdict.get("verdict")
         else:
-            date = assessment.get("assessed_on") or assessment.get("review_date", "")
+            date = assessment.get("assessed_on", "")
             outcome = assessment.get("outcome")
         lines.append(f"{record['client_ref']:<16} {record['kind']:<20} {date:<12} "
                      f"{OUTCOME_LABELS.get(outcome, '?')}")
@@ -2089,10 +2039,6 @@ def show_onboarding(assessment: dict) -> None:
     print("═" * W)
     show(format_onboarding(assessment))
     print("═" * W + "\n")
-
-
-def show_review(assessment: dict) -> None:
-    show(format_review(assessment))
 
 
 def show_assessment_list(records: list[dict]) -> None:

@@ -1334,15 +1334,6 @@ def check_type_reactions(data: dict, type_id: str, event_ids: list[str]) -> list
     return errors
 
 
-def check_review(data: dict, market_ids: set, event_ids: set) -> list[str]:
-    """Review: only known markets and events, and every inflow was received at least once."""
-    errors = _unknown_ids("market_moves", [m["market_id"] for m in data["market_moves"]], market_ids)
-    errors += _unknown_ids("events_seen", data["events_seen"], event_ids)
-    errors += [f"inflow {i['signal_code']}: times_received must be at least 1"
-               for i in data["inflows"] if i["times_received"] < 1]
-    return errors
-
-
 # ---- Sending one request: retry, validate, log, never crash ----
 
 def _empty_result(call_name: str, prompt_version: str) -> dict:
@@ -1779,19 +1770,3 @@ def run_onboarding_forecast(record: dict, cache: dict | None = None,
     }
     run["ok"] = True
     return run
-
-
-def read_review_notes(review: dict, forecast: dict, cache: dict | None = None) -> dict:
-    """Entry point. Review: officer notes -> payments, what markets did, which events happened."""
-    name = f"review.{review.get('current_date', 'undated')}"
-    markets = forecast["markets"]
-    events = forecast["events"]["events"]
-    user_data = {
-        "officer_notes": wrap_free_text(review.get("officer_notes", ""), *forecast_settings()["notes_markers"]),
-        "markets": _markets_brief(markets),
-        "forecast_events": [{k: e[k] for k in ("event_id", "name", "year")} for e in events],
-    }
-    market_ids = set(markets["series"])
-    event_ids = {e["event_id"] for e in events}
-    return run_forecasting(name, "review", {"review_date": review.get("current_date")}, user_data, "review",
-                           lambda data: check_review(data, market_ids, event_ids), (cache or {}).get(name))

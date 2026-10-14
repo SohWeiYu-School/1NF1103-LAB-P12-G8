@@ -36,7 +36,6 @@ def storage(tmp_path, monkeypatch):
 
 def client_record(**claims) -> dict:
     record = json.load(open(SAMPLE))
-    record.pop("reviews", None)
     record["claims"].update({"biggest_wealth_jump": 3_000_000, "wealth_jump_years": 2,
                              "declared_counterparties": ["Straits Harbour Logistics Pte Ltd"], **claims})
     return record

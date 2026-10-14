@@ -6,7 +6,6 @@ collected in tests/crosscheck/<case_id>/:
     market_history.json   official statistics, each with a source link
     pay_ranges.json       published salary data, each with a source link
     declaration.json      sources listed by reading the client's declaration
-    review.json           payments listed by reading the officer notes
 
 Nothing is invented:
   - a figure without an http(s) source link fails the test;
@@ -23,7 +22,7 @@ import re
 import pytest
 
 from app import logic_manager
-from tests.helpers import CASE_IDS, CROSSCHECK_DIR, first_review, load_case, run_from_saved
+from tests.helpers import CASE_IDS, CROSSCHECK_DIR, load_case, run_from_saved
 
 
 def read_crosscheck(case_id: str, name: str) -> dict:
@@ -88,19 +87,6 @@ def compare_declaration(forecast: dict, items: list[dict]) -> list[tuple[bool, s
     return results
 
 
-def compare_review(review_data: dict, items: list[dict]) -> list[tuple[bool, str]]:
-    found = review_data["inflows"]
-    results = []
-    for item in items:
-        match = [i for i in found if i["signal_code"] == item["signal_code"]]
-        for key in ("amount", "times_received", "currency"):
-            if key in item:
-                match = [i for i in match if i[key] == item[key]]
-        results.append((bool(match), f"{item['signal_code']} {item.get('times_received', '')}x "
-                                     f"{item.get('amount')} {item.get('currency', '')}: '{item['from_text']}'"))
-    return results
-
-
 # ---------------------------------------------------------------------------
 # Checks on the cross-check files themselves (so they stay legitimate)
 # ---------------------------------------------------------------------------
@@ -124,8 +110,7 @@ def test_every_real_figure_has_a_source(case_id: str) -> None:
 @pytest.mark.parametrize("case_id", CASE_IDS)
 def test_every_quote_is_really_in_the_clients_text(case_id: str) -> None:
     case = load_case(case_id)
-    review = first_review(case) or {}
-    texts = {"declaration.json": case.get("sow_declaration", ""), "review.json": review.get("officer_notes", "")}
+    texts = {"declaration.json": case.get("sow_declaration", "")}
     problems = []
     for name, text in texts.items():
         path = os.path.join(CROSSCHECK_DIR, case_id, name)
@@ -176,16 +161,3 @@ def test_declaration_read_correctly(case_id: str) -> None:
     results = compare_declaration(run_from_saved(case_id)["forecast"], expected["must_find"])
     missed = [line for ok, line in results if not ok]
     assert missed == [], f"the AI missed these sources from the declaration: {missed}"
-
-
-@pytest.mark.parametrize("case_id", CASE_IDS)
-def test_review_notes_read_correctly(case_id: str) -> None:
-    expected = read_crosscheck(case_id, "review.json")
-    if not expected["must_find"]:
-        pytest.skip(f"tests/crosscheck/{case_id}/review.json is empty - list the payments from the officer notes")
-    run = run_from_saved(case_id)
-    if run["review_data"] is None:
-        pytest.skip(f"no saved AI reply for {case_id}'s review yet - run the review in the system first")
-    results = compare_review(run["review_data"], expected["must_find"])
-    missed = [line for ok, line in results if not ok]
-    assert missed == [], f"the AI misread these payments in the officer notes: {missed}"
