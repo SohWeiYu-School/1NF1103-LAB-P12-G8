@@ -135,7 +135,7 @@ def get_client_profile() -> dict:
     seniority     = ask_words("Seniority (e.g. Senior Manager, C-suite)", LABEL)
     industry      = ask_words("Industry", LABEL)
     employer_name = ask_words("Employer name", LABEL)
-    employer_size = ask_text("Employer size (e.g. 1,000-5,000 employees)")
+    employer_size = ask_count("Employer size (number of employees, e.g. 2500)")
     residence     = ask_words("Country of residence")
     age           = ask_int("Age", minimum=18, maximum=100)
     while True:
@@ -158,7 +158,7 @@ def _ask_job() -> dict:
         "seniority":     ask_words("Seniority", LABEL),
         "industry":      ask_words("Industry", LABEL),
         "employer_name": ask_words("Employer name", LABEL),
-        "employer_size": ask_text("Employer size"),
+        "employer_size": ask_count("Employer size (number of employees)"),
         "country":       ask_words("Country"),
     }
 
@@ -561,6 +561,8 @@ def ask_missing_field(field: dict):
         return ask_words(label)
     if kind == "label":
         return ask_words(label, LABEL)
+    if kind == "count":
+        return ask_count(label)
     if kind == "text":
         return ask_text(label)
     if kind == "age":
@@ -678,7 +680,7 @@ def edit_client_profile(record):
     for key, label in [("occupation", "Current job title"), ("seniority", "Seniority"),
                        ("industry", "Industry"), ("employer_name", "Employer name")]:
         career[key] = keep_words(label, career.get(key, ""), LABEL)
-    career["employer_size"]        = keep_text("Employer size", career.get("employer_size", ""))
+    career["employer_size"]        = keep_count("Employer size (number of employees)", career.get("employer_size", ""))
     career["country_of_residence"] = keep_words("Country of residence", career.get("country_of_residence", ""))
     career["age"] = keep_int("Age", career.get("age", ""), 18, 100)
     career["career_start_year"] = keep_int("Year first career started",
@@ -727,7 +729,7 @@ def edit_career_record(record):
     for key, label in [("occupation", "Job title"), ("seniority", "Seniority"),
                        ("industry", "Industry"), ("employer_name", "Employer name")]:
         career[key] = keep_words(label, career.get(key, ""), LABEL)
-    career["employer_size"] = keep_text("Employer size", career.get("employer_size", ""))
+    career["employer_size"] = keep_count("Employer size (number of employees)", career.get("employer_size", ""))
     career["country"]       = keep_words("Country", career.get("country", ""))
     print("\nCareer record updated.")
 
@@ -1261,12 +1263,15 @@ def ask_date(question: str, ask: Ask = read_answer) -> str:
             show_error("Please enter a real date like 2026-09-24.")
 
 
-def ask_choice(question: str, options: list[str], ask: Ask = read_answer) -> int:
-    """Show a numbered list and return the index picked."""
+def ask_choice(question: str, options: list[str], ask: Ask = read_answer, allow_back: bool = False) -> int | None:
+    """Show a numbered list and return the index picked. With allow_back, 0 returns None."""
     show(question)
     for number, option in enumerate(options, start=1):
         show(f"  {number}. {option}")
-    return ask_int("Choose a number", ask, 1, len(options)) - 1
+    if allow_back:
+        show("  0. Back to the main menu")
+    number = ask_int("Choose a number", ask, 0 if allow_back else 1, len(options))
+    return None if number == 0 else number - 1
 
 
 def ask_yes_no(question: str, ask: Ask = read_answer) -> bool:
@@ -1400,6 +1405,36 @@ def ask_countries(question: str) -> list:
         if items and all(_only(c, LETTERS) for c in items):
             return items
         show_error("Enter country names separated by commas, letters only (no numbers).")
+
+MAX_EMPLOYEES = 10_000_000
+
+
+def _parse_count(text: str) -> int | None:
+    """'2,500' -> 2500. Returns None for ranges, text, zero or absurdly large numbers."""
+    cleaned = text.strip().replace(",", "")
+    if cleaned.isdigit() and 1 <= int(cleaned) <= MAX_EMPLOYEES:
+        return int(cleaned)
+    return None
+
+
+def ask_count(question: str, ask: Ask = read_answer) -> int:
+    while True:
+        number = _parse_count(ask(f"{question}: "))
+        if number is not None:
+            return number
+        show_error("Please enter the number of employees as a single whole number, e.g. 2500 "
+                   "(no ranges or text).")
+
+
+def keep_count(label: str, current):
+    while True:
+        v = input(f"{label} [{current}]: ").strip()
+        if not v:
+            return current
+        number = _parse_count(v)
+        if number is not None:
+            return number
+        show_error("Please enter a single whole number, e.g. 2500, or press Enter to keep.")
 
 
 def validate_case(case: object) -> list[str]:
