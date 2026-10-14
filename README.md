@@ -90,23 +90,22 @@ The `.env` file will be handed to you privately. Place it in the root of the pro
 
 ### 4. Build and run with Docker
 
-Build the image once:
+Build the image:
 ```bash
-make build
+docker build -t sow-screening .
 ```
 
 Run the app:
 ```bash
-make run
+docker run -it --env-file .env -v "$(pwd)/data:/app/data" sow-screening
 ```
 
-> You only need to rebuild if `requirements.txt` or `Dockerfile` changes. Otherwise just `make run` every time.
+The `-v` flag mounts your local `data/` folder into the container so saved records and the AI reply cache persist between runs. You only need to rebuild if `requirements.txt` or `Dockerfile` changes.
 
 If you're actively coding and don't want to rebuild Docker every time you change a file, you can run locally instead:
 ```bash
-make dev
+python main.py
 ```
-Use `make run` (Docker) to do a final check before pushing your code.
 
 ---
 
