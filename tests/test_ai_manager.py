@@ -372,7 +372,7 @@ def test_retry_succeeds_after_one_bad_response(tmp_path, monkeypatch):
 # 7. Both retries fail → (None, one warning), no exception
 # ===========================================================================
 
-def test_two_failures_return_none_with_one_warning(tmp_path, monkeypatch):
+def test_two_failures_return_none_with_empty_warnings(tmp_path, monkeypatch):
     monkeypatch.setenv("CACHE_DIR", str(tmp_path))
 
     bad = json.dumps({"wrong": "field"})
@@ -382,11 +382,11 @@ def test_two_failures_return_none_with_one_warning(tmp_path, monkeypatch):
         result, warnings = get_typologies(_SAMPLE_PAYLOAD, _SAMPLE_RESEARCH)
 
     assert result is None
-    assert len(warnings) == 1
+    assert warnings == []
 
 
 # ===========================================================================
-# 8. Both providers unavailable → (None, warning), no exception raised
+# 8. Both providers unavailable → (None, []), no exception raised
 # ===========================================================================
 
 def test_both_providers_unavailable_returns_none(tmp_path, monkeypatch):
@@ -399,7 +399,7 @@ def test_both_providers_unavailable_returns_none(tmp_path, monkeypatch):
         result, warnings = get_typologies(_SAMPLE_PAYLOAD)
 
     assert result is None
-    assert len(warnings) == 1
+    assert warnings == []
 
 
 # ===========================================================================
@@ -660,14 +660,14 @@ def test_get_ai_research_sends_only_industry_and_country(tmp_path, monkeypatch):
     assert "Maritime shipping" in prompt_sent
 
 
-def test_get_ai_research_api_failure_returns_none_with_warning(tmp_path, monkeypatch):
+def test_get_ai_research_api_failure_returns_none(tmp_path, monkeypatch):
     monkeypatch.setenv("CACHE_DIR", str(tmp_path))
 
     with patch("app.ai_manager._ai_search_pipeline", return_value=(None, None)):
         result, warnings = get_ai_research(_SAMPLE_CASE_INPUT)
 
     assert result is None
-    assert len(warnings) == 1
+    assert warnings == []
 
 
 def test_get_ai_research_empty_sources_gives_warning(tmp_path, monkeypatch):
@@ -744,3 +744,5 @@ def test_research_cache_key_ignores_non_research_fields():
     k1 = _cache_key("research", payload_a, "research-v1", "gpt-4o")
     k2 = _cache_key("research", payload_b, "research-v1", "gpt-4o")
     assert k1 == k2
+
+

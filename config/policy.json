@@ -43,6 +43,25 @@
     "summary",
     "excerpts"
   ],
+  "benchmark_allowed_fields": [
+    "occupation",
+    "industry",
+    "age",
+    "career_start_year",
+    "country"
+  ],
+  "research_allowed_fields": [
+    "industry",
+    "country"
+  ],
+  "typology_report_fields": [
+    "report_id",
+    "organisation",
+    "title",
+    "year",
+    "summary",
+    "excerpts"
+  ],
   "trusted_sources": [
     "fatf-gafi.org",
     "mas.gov.sg",
@@ -400,7 +419,14 @@
     "$id",
     "title",
     "additionalProperties",
-    "required"
+    "required",
+    "contains",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "minimum",
+    "maximum",
+    "const"
   ],
   "forecasting": {
     "web_search": false,
@@ -413,6 +439,22 @@
     "honest_category": "HONEST",
     "honest_required_signal": "SIG_SALARY_REGULAR",
     "max_asset_exposures": 4,
+    "sensitivity_range": [
+      -1.0,
+      3.0
+    ],
+    "own_growth_range": [
+      -10.0,
+      10.0
+    ],
+    "market_change_range": [
+      -99.9,
+      500.0
+    ],
+    "scenario_chance_total_range": [
+      95,
+      105
+    ],
     "sensitivity_range": [
       -1.0,
       3.0
@@ -454,6 +496,30 @@
       "client_name",
       "nationality"
     ],
+    "declaration_markers": [
+      "<<<BEGIN_DECLARATION>>>",
+      "<<<END_DECLARATION>>>"
+    ],
+    "notes_markers": [
+      "<<<BEGIN_OFFICER_NOTES>>>",
+      "<<<END_OFFICER_NOTES>>>"
+    ],
+    "honorifics": [
+      "Mr",
+      "Mrs",
+      "Ms",
+      "Miss",
+      "Mdm",
+      "Madam",
+      "Dr",
+      "Sir"
+    ],
+    "personal_keys": [
+      "name",
+      "full_name",
+      "client_name",
+      "nationality"
+    ],
     "claimed_figure_keys": [
       "current_declared_value",
       "income_produced",
@@ -463,5 +529,9 @@
       "current_wealth",
       "reviews"
     ]
+  },
+  "assessment_rate_limit": {
+    "enabled": true,
+    "cooldown_seconds": 60
   }
 }

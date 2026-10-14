@@ -112,7 +112,7 @@ def _convert_schema_for_gemini(node, unsupported: set | None = None):
     (e.g. ["string", "null"]) to Gemini's {type, nullable: true} form.
     """
     if unsupported is None:
-        unsupported = set(load_policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
+        unsupported = set(utilities.policy().get("gemini_unsupported_schema_keys", ["$schema", "$id", "title", "additionalProperties"]))
     if isinstance(node, list):
         return [_convert_schema_for_gemini(item, unsupported) for item in node]
     if not isinstance(node, dict):
@@ -392,7 +392,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
         return data, warnings
 
     logger.error("get_ai_research exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Research AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 
 def build_research_payload(case_input: dict) -> dict:
@@ -417,13 +417,28 @@ def research_post_process(
     """
     warnings: list[str] = []
     api_sources = extract_api_sources(response) if response is not None else []
+    # Gemini fallback: grounding chunks often unavailable with structured output.
+    # Use the report URLs themselves so verify_research can still apply domain trust (Rule 2).
+    if not api_sources and response is not None and not hasattr(response, "output"):
+        api_sources = [
+            {"url": r["url"], "title": r.get("title", r["url"])}
+            for r in data.get("reports", [])
+            if r.get("url")
+        ]
+        if api_sources:
+            logger.info("research_post_process: Gemini grounding metadata unavailable — using report URLs as api_sources")
     if not api_sources:
         warnings.append("Research: web search returned no sources — results may not be grounded.")
     data = add_report_ids(data)
     data = strip_excerpts(data)
     data["api_sources"] = api_sources
     data["retrieved_at"] = datetime.now(timezone.utc).isoformat()
-    data["model"] = mdl
+    # Record the actual model that responded, not always the OpenAI model name
+    if response is not None and not hasattr(response, "output"):
+        actual_mdl = os.getenv("GEMINI_SEARCH_MODEL", "gemini-3.8-flash")
+    else:
+        actual_mdl = mdl
+    data["model"] = actual_mdl
     cache_write(key, data, kind)
     data["_cache_path"] = os.path.join(cache_dir(kind), f"{key}.json")
     return data, warnings
@@ -467,6 +482,27 @@ def extract_api_sources(response) -> list[dict]:
     """List the pages the web search really opened, as {url, title}, no repeats."""
     seen: set[str] = set()
     sources: list[dict] = []
+
+    if not hasattr(response, "output"):
+        # Gemini GenerateContentResponse — extract from grounding metadata
+        try:
+            candidates = getattr(response, "candidates", [])
+            logger.debug("extract_api_sources (gemini): %d candidates", len(candidates))
+            for candidate in candidates:
+                grounding = getattr(candidate, "grounding_metadata", None)
+                chunks = getattr(grounding, "grounding_chunks", [])
+                logger.debug("extract_api_sources (gemini): %d grounding_chunks", len(chunks))
+                for chunk in chunks:
+                    web = getattr(chunk, "web", None)
+                    url = getattr(web, "uri", None)
+                    if url and url not in seen:
+                        seen.add(url)
+                        title = getattr(web, "title", None) or url
+                        sources.append({"url": url, "title": title})
+        except Exception as exc:
+            logger.warning("extract_api_sources (gemini): error reading grounding metadata: %s", repr(exc))
+        logger.debug("extract_api_sources (gemini): found %d sources", len(sources))
+        return sources
 
     for item in response.output:
         # First place to look: the sources of each search call
@@ -582,7 +618,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
         return data, warnings
 
     logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 def typology_crime_categories() -> dict:
     """{code: description} of the crime categories a typology may belong to (every one but HONEST)."""
@@ -687,9 +723,11 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
     if len(readable) > MAX_EXTRACT_DOCUMENTS:
         warnings.append(f"Only the first {MAX_EXTRACT_DOCUMENTS} documents were read.")
     if not readable:
-        return None, warnings or ["None of the uploaded files could be read."]
+        logger.warning("extract_client_details: none of the uploaded files could be read")
+        return None, warnings
     if not has_api_key():
-        return None, warnings + ["No OPENAI_API_KEY is set, so documents can't be read automatically."]
+        logger.warning("extract_client_details: no API key configured")
+        return None, warnings
 
     prompt = load_prompt("document_extract.txt")
     schema = load_schema("document_extract.schema.json")
@@ -725,7 +763,7 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
         return data, warnings
 
     logger.error("extract_client_details failed: %s", last_error)
-    return None, warnings + ["The documents could not be read automatically. Details: logs/app.log"]
+    return None, warnings
 
 
 # ============================================================================

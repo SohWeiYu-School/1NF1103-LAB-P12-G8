@@ -64,6 +64,180 @@ def show_error(text: str) -> None:
     #Print an error message.
     print(f"[ERROR] {text}")
 
+def show_ai_unavailable(feature: str = "Assessment") -> None:
+    print(f"{feature} is not available right now — please try again later.")
+
+def show_unexpected_error() -> None:
+    print("An unexpected error occurred — please try again or contact support.")
+
+def show_rate_limit_error(seconds_left: int) -> None:
+    print(f"[RATE LIMIT] Assessment already running or recently completed.")
+    print(f"             Please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before starting another assessment.")
+
+def show_research_output(research_response: dict) -> None:
+    """Print a short summary of the research results."""
+    reports = research_response.get("reports", [])
+    print(f"\nResearch: {len(reports)} report(s) found")
+    for r in reports:
+        rid = r.get("report_id", "?")
+        org = r.get("organisation", "")
+        title = r.get("title", "")
+        year = r.get("year", "")
+        print(f"  {rid}  {org} — {title} ({year})")
+    print()
+
+def show_crime_scan_result(result: dict, typology_response: dict | None = None, research: dict | None = None) -> None:
+    """Print a structured typology matching summary for the crime scan."""
+    match_results = result.get("match_results", [])
+    match_count   = result.get("match_count", 0)
+    total         = len(match_results)
+    not_matched   = total - match_count
+
+    _CATEGORY_LABEL = {
+        "critical":    "CRITICAL MATCH",
+        "high":        "HIGH MATCH",
+        "medium":      "MEDIUM MATCH",
+        "partial":     "PARTIAL MATCH",
+        "weak_signal": "WEAK SIGNAL",
+        "no_match":    "NO MATCH",
+    }
+    _INDICATOR_LABEL = {
+        "counterparty_unnamed":          "Money from unnamed counterparty",
+        "gift_or_inheritance_unnamed":   "Gift or inheritance from unnamed person",
+        "source_contradicts_occupation": "Source of wealth contradicts occupation",
+        "unvalued_source_present":       "Source with no declared amount",
+        "related_party_transaction":     "Related party transaction",
+    }
+
+    W = 90
+    div = "  " + "─" * (W - 2)
+
+    # Build lookup: typology_id → typology dict
+    typ_lookup: dict = {}
+    if typology_response:
+        for t in typology_response.get("sector_typologies", []):
+            typ_lookup[t.get("typology_id", "")] = t
+
+    print("\n" + "═" * W)
+    print("  CRIME — KNOWN PATTERNS FOR HIS INDUSTRY")
+    print("═" * W)
+
+    # --- Research sources ---
+    reports = (research or {}).get("reports", [])
+    if reports:
+        print(f"\n  RESEARCH  ({len(reports)} reports)")
+        print(div)
+        for r in reports:
+            rid      = r.get("report_id", "?")
+            org      = r.get("organisation", "Unknown")
+            year     = r.get("year", "")
+            title    = r.get("title", "")
+            year_str = f" ({year})" if year else ""
+            print(f"  [{rid}]  {org}{year_str} — {title}")
+
+    # --- Typology cards ---
+    print(f"\n  TYPOLOGIES  {total} checked  |  {match_count} matched  |  {not_matched} no match")
+    print(div)
+
+    if not match_results:
+        print("  No typologies returned by AI.")
+    else:
+        for mr in match_results:
+            typ_id     = mr.get("typology_id", "")
+            name       = mr.get("name", typ_id or "?")
+            category   = mr.get("category", "no_match")
+            label      = _CATEGORY_LABEL.get(category, category.upper())
+            core_inds  = mr.get("core_indicators", [])
+            core_fired = set(mr.get("core_fired", []))
+            sup_inds   = mr.get("supporting_indicators", [])
+            sup_fired  = set(mr.get("supporting_fired", []))
+            src_ids    = mr.get("source_ids", [])
+            typ_data   = typ_lookup.get(typ_id, {})
+
+            print(f"\n  [{label}]  {name}")
+            if typ_data.get("crime_category"):
+                print(f"  Category: {typ_data['crime_category'].replace('_', ' ')}")
+            if src_ids:
+                print(f"  Sources:  [{', '.join(src_ids)}]")
+
+            # Description
+            desc = typ_data.get("description", "").strip()
+            if desc:
+                for line in textwrap.wrap(desc, width=W - 4, initial_indent="  ", subsequent_indent="  "):
+                    print(line)
+
+            # Core indicators
+            if core_inds:
+                print(f"\n  {'Core indicators'}")
+                for ind in core_inds:
+                    human = _INDICATOR_LABEL.get(ind, ind.replace("_", " "))
+                    fired = ind in core_fired
+                    tick  = "✓" if fired else "—"
+                    note  = "  fired" if fired else "  not fired"
+                    print(f"    {tick}  {human:<50}{note}")
+
+            # Supporting indicators
+            if sup_inds:
+                print(f"\n  {'Supporting indicators'}")
+                for ind in sup_inds:
+                    human = _INDICATOR_LABEL.get(ind, ind.replace("_", " "))
+                    fired = ind in sup_fired
+                    tick  = "✓" if fired else "—"
+                    note  = "  fired" if fired else "  not fired"
+                    print(f"    {tick}  {human:<50}{note}")
+
+            # Source quote (first one)
+            quotes = typ_data.get("source_quotes", [])
+            if quotes and quotes[0].get("quote"):
+                q   = quotes[0]
+                rid = q.get("report_id", "")
+                for line in textwrap.wrap(f'"{q["quote"]}"', width=W - 6,
+                                          initial_indent="  ", subsequent_indent="  "):
+                    print(line)
+                if rid:
+                    print(f"  [{rid}]")
+
+            print(div)
+
+    print("═" * W + "\n")
+
+
+def show_benchmark_result(result: dict) -> None:
+    """Print detailed benchmark check output followed by a summary table."""
+    findings = result.get("findings", [])
+    total    = len(findings)
+    failed   = sum(1 for f in findings if f.get("failed"))
+    passed   = total - failed
+
+    W = 68
+    print("\n" + "═" * W)
+    print("  WEALTH BENCHMARK — CHECK RESULTS")
+    print("═" * W)
+
+    # Detailed per-check output
+    for f in findings:
+        rule   = f.get("rule_id", "").replace("_", " ")
+        status = "FAIL" if f.get("failed") else "PASS"
+        detail = f.get("detail", "")
+        print(f"\n  --- {rule} ---")
+        print(f"  {detail}")
+        print(f"  Result: {status}")
+
+    # Summary table
+    print("\n" + "  " + "─" * (W - 2))
+    col_check  = 26
+    col_result = 10
+    print(f"  {'Check':<{col_check}}{'Result':<{col_result}}Detail")
+    print("  " + "─" * (W - 2))
+    for f in findings:
+        rule   = f.get("rule_id", "").replace("_", " ")
+        status = "FAIL" if f.get("failed") else "PASS"
+        detail = f.get("detail", "")
+        print(f"  {rule:<{col_check}}{status:<{col_result}}{detail}")
+
+    print("\n  " + "─" * (W - 2))
+    print(f"  Total: {total}  |  Failed: {failed}  |  Passed: {passed}")
+    print("═" * W + "\n")
 def show_step(number: int, total: int, label: str) -> None:
     """One progress line of the combined assessment (the web app shows the same steps)."""
     print(f"  [{number:>2}/{total}] {label}...")
@@ -72,7 +246,75 @@ def show_step(number: int, total: int, label: str) -> None:
 REPORT_WIDTH = 96
 
 
-def format_verdict_report(report: dict) -> str:
+_CRIME_SECTION_TITLE = "Crime - known patterns for his industry"
+_CRIME_INDICATOR_LABEL = {
+    "counterparty_unnamed":          "Money from unnamed counterparty",
+    "gift_or_inheritance_unnamed":   "Gift or inheritance from unnamed person",
+    "source_contradicts_occupation": "Source of wealth contradicts occupation",
+    "unvalued_source_present":       "Source with no declared amount",
+    "related_party_transaction":     "Related party transaction",
+}
+_CRIME_CATEGORY_LABEL = {
+    "critical":    "CRITICAL MATCH",
+    "high":        "HIGH MATCH",
+    "medium":      "MEDIUM MATCH",
+    "partial":     "PARTIAL MATCH",
+    "weak_signal": "WEAK SIGNAL",
+    "no_match":    "NO MATCH",
+}
+
+
+def _format_crime_section(crime_result: dict, typologies: list, width: int) -> list[str]:
+    """Build lines for the structured crime section inside the verdict report."""
+    typ_lookup    = {t.get("typology_id", ""): t for t in typologies}
+    match_results = crime_result.get("match_results", [])
+    match_count   = crime_result.get("match_count", 0)
+    total         = len(match_results)
+    div           = "  " + "\u2500" * (width - 2)
+
+    lines = ["", f"  {_CRIME_SECTION_TITLE.upper()}", div,
+             f"  {total} typologies  \u00b7  {match_count} matched  \u00b7  {total - match_count} no match"]
+
+    for mr in match_results:
+        typ_id    = mr.get("typology_id", "")
+        name      = mr.get("name", typ_id or "?")
+        category  = mr.get("category", "no_match")
+        label     = _CRIME_CATEGORY_LABEL.get(category, category.upper())
+        typ_data  = typ_lookup.get(typ_id, {})
+        core_inds  = mr.get("core_indicators", [])
+        core_fired = set(mr.get("core_fired", []))
+        sup_inds   = mr.get("supporting_indicators", [])
+        sup_fired  = set(mr.get("supporting_fired", []))
+
+        lines += ["", f"  [{label}]  {name}"]
+
+        desc = (typ_data.get("description") or "").strip()
+        if desc:
+            lines += textwrap.wrap(desc, width - 4, initial_indent="    ", subsequent_indent="    ")
+
+        if core_inds:
+            lines.append("    Core:        " + "  ·  ".join(
+                f"{'✓' if i in core_fired else '—'} {_CRIME_INDICATOR_LABEL.get(i, i.replace('_', ' '))}"
+                for i in core_inds))
+        if sup_inds:
+            lines.append("    Supporting:  " + "  ·  ".join(
+                f"{'✓' if i in sup_fired else '—'} {_CRIME_INDICATOR_LABEL.get(i, i.replace('_', ' '))}"
+                for i in sup_inds))
+
+        quotes = typ_data.get("source_quotes") or []
+        if quotes and quotes[0].get("quote"):
+            q   = quotes[0]
+            rid = q.get("report_id", "")
+            suffix = f"  [{rid}]" if rid else ""
+            lines += textwrap.wrap(f'"{q["quote"]}"{suffix}', width - 6,
+                                   initial_indent="    ", subsequent_indent="    ")
+
+    lines.append(div)
+    return lines
+
+
+def format_verdict_report(report: dict, crime_result: dict | None = None,
+                          typologies: list | None = None) -> str:
     """The combined assessment as text: the same header, sections and evidence the web app shows."""
     head = report["header"]
     symbols = {entry["mark"]: entry["symbol"] for entry in report["legend"]}
@@ -95,7 +337,10 @@ def format_verdict_report(report: dict) -> str:
                                            subsequent_indent="      "))
 
     for part in report["sections"]:
-        section(part["title"], part["items"])
+        if crime_result is not None and part["title"] == _CRIME_SECTION_TITLE:
+            lines += _format_crime_section(crime_result, typologies or [], REPORT_WIDTH)
+        else:
+            section(part["title"], part["items"])
     lines.extend(["", "  FULL EVIDENCE: " + " \u00b7 ".join(report.get("evidence_titles", [])), rule])
     return "\n".join(lines)
 
@@ -112,9 +357,10 @@ def format_evidence(report: dict) -> str:
     return "\n".join(lines)
 
 
-def show_verdict_report(report: dict, ask_for_evidence: bool = True) -> None:
+def show_verdict_report(report: dict, ask_for_evidence: bool = True,
+                        crime_result: dict | None = None, typologies: list | None = None) -> None:
     """The short report, then (if the officer wants it) the full evidence."""
-    print("\n" + format_verdict_report(report) + "\n")
+    print("\n" + format_verdict_report(report, crime_result=crime_result, typologies=typologies) + "\n")
     if ask_for_evidence and ask_yes_no("Show the full evidence?"):
         print("\n" + format_evidence(report) + "\n")
 
@@ -993,7 +1239,7 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
     try:
         display_client_record(client_record)
     except Exception as e:
-        print(f"\n[ERROR] Could not display client record: {e}")
+        print("\n[ERROR] Could not display client record. Please check the data and try again.")
         input("\nPress Enter to return to the main menu...")
         return
 
@@ -1754,7 +2000,7 @@ def show_ai_progress(results: dict) -> None:
     """One line per AI request: where the reply came from and whether it passed the checks."""
     for name, result in results.items():
         source = "saved reply" if result["from_cache"] else f"API, {result['attempts']} attempt(s)"
-        status = "ok" if result["ok"] else f"FAILED - {result['error']}"
+        status = "ok" if result["ok"] else "FAILED"
         show(f"  {name:<40} {source:<20} {status}")
 
 

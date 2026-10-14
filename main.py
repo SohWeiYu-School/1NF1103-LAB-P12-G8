@@ -277,7 +277,9 @@ def assess_client_record(client_record: dict) -> dict | None:
     io_manager.show_message(f"\nAssessing {case['client_ref']}: documents, crime scan, forecast and benchmark together.")
     result = run_combined_assessment(case, client_record.get("supporting_documents"), on_step=_show_step)
     saved = save_combined_assessment(result, client_record, on_step=_show_step)
-    io_manager.show_verdict_report(result["report"])
+    io_manager.show_verdict_report(result["report"],
+                                   crime_result=result.get("crime_result"),
+                                   typologies=result.get("typologies"))
     if saved:
         io_manager.show_message("Assessment saved.")
     else:
@@ -294,7 +296,7 @@ def review_case(case: dict, review: dict,
     data_manager.save_raw_replies(ref, {result["call"]: result})
     io_manager.show_ai_progress({result["call"]: result})
     if not result["ok"]:
-        io_manager.show_error("The review notes could not be read; nothing was decided.")
+        io_manager.show_ai_unavailable("Review notes")
         return None
     assessment = logic_manager.assess_review(case, review, result["data"], forecast, onboarding)
     if not data_manager.save_forecast_assessment(ref, f"review_{review['current_date']}", assessment):
@@ -329,9 +331,10 @@ def new_client_from_documents() -> dict | None:
     documents = [data_manager.read_document_for_extraction(path) for path in paths]
     extracted, warnings = ai_manager.extract_client_details(documents)
     for warning in warnings:
-        io_manager.show_error(warning)
+        logging.getLogger(__name__).info(warning)
     if extracted is None:
-        if not io_manager.ask_yes_no("The documents couldn't be read automatically. Type the details in yourself?"):
+        io_manager.show_ai_unavailable("Document reading")
+        if not io_manager.ask_yes_no("Type the details in yourself?"):
             return None
         extracted = {}
 
@@ -406,7 +409,9 @@ def run_case_file(path: str) -> bool:
     result = run_combined_assessment(case, on_step=_show_step)
     if not save_combined_assessment(result, on_step=_show_step):
         io_manager.show_error("Could not save the assessment.")
-    io_manager.show_verdict_report(result["report"], ask_for_evidence=False)
+    io_manager.show_verdict_report(result["report"], ask_for_evidence=False,
+                                   crime_result=result.get("crime_result"),
+                                   typologies=result.get("typologies"))
     forecast, onboarding = result["forecast"], result["forecast_assessment"]
     if forecast is None:
         return False
@@ -481,12 +486,22 @@ def run_menu() -> None:
                 upload_fn=data_manager.upload_supporting_document,
             )
             if client_record is not None:
-                assess_client_record(client_record)
+                allowed, wait = utilities.check_rate_limit("cli")
+                if not allowed:
+                    io_manager.show_rate_limit_error(wait)
+                else:
+                    utilities.record_assessment("cli")
+                    assess_client_record(client_record)
 
         elif choice == "2":
             client_record = new_client_from_documents()
             if client_record is not None:
-                assess_client_record(client_record)
+                allowed, wait = utilities.check_rate_limit("cli")
+                if not allowed:
+                    io_manager.show_rate_limit_error(wait)
+                else:
+                    utilities.record_assessment("cli")
+                    assess_client_record(client_record)
 
         elif choice == "3":
             io_manager.find_existing_client(
@@ -504,7 +519,12 @@ def run_menu() -> None:
             if client_record is None:
                 io_manager.show_error(f"No client found with reference {ref} (or the database can't be reached).")
                 continue
-            assess_client_record(client_record)
+            allowed, wait = utilities.check_rate_limit("cli")
+            if not allowed:
+                io_manager.show_rate_limit_error(wait)
+            else:
+                utilities.record_assessment("cli")
+                assess_client_record(client_record)
 
         elif choice == "5":
             ref = io_manager.ask_client_ref()
@@ -552,18 +572,27 @@ def main(arguments: list[str]) -> int:
 
     if "--demo" in arguments:
         io_manager.show(f"Demo mode: {use_recorded_replies()} recorded AI replies loaded from tests/golden.")
-    if "--all-samples" in arguments:
-        paths = data_manager.list_sample_cases()
-        results = [run_case_file(path) for path in paths]
-        return 0 if paths and all(results) else 1
-    if "--case" in arguments:
-        position = arguments.index("--case")
-        if position + 1 >= len(arguments):
-            io_manager.show_error("--case needs a file path")
-            return 1
-        return 0 if run_case_file(arguments[position + 1]) else 1
+    try:
+        if "--all-samples" in arguments:
+            paths = data_manager.list_sample_cases()
+            results = [run_case_file(path) for path in paths]
+            return 0 if paths and all(results) else 1
+        if "--case" in arguments:
+            position = arguments.index("--case")
+            if position + 1 >= len(arguments):
+                io_manager.show_error("--case needs a file path")
+                return 1
+            return 0 if run_case_file(arguments[position + 1]) else 1
+    except Exception:
+        logging.getLogger(__name__).exception("Unexpected error in CLI")
+        io_manager.show_unexpected_error()
+        return 1
 
-    run_menu()
+    try:
+        run_menu()
+    except Exception:
+        logging.getLogger(__name__).exception("Unexpected error in CLI")
+        io_manager.show_unexpected_error()
     return 0
 
 

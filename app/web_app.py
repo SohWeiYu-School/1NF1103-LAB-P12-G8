@@ -73,12 +73,15 @@ _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 os.makedirs(_log_dir, exist_ok=True)
 _log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"), encoding="utf-8")
 _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+_log_handler.setLevel(logging.INFO)
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(_log_handler)
+logging.getLogger("werkzeug").setLevel(logging.WARNING)  # suppress per-request access logs, keep startup URL
 utilities.quiet_library_logs()      # same as the command line: no network-library noise in the log
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
+
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024   # uploads for auto-fill: 40 MB per request
 
 ASSESS_STEPS = assessment_flow.ASSESSMENT_STEPS    # the same steps the command line prints
@@ -555,6 +558,8 @@ def autofill_form(heading: str, form, files):
         return show_form(heading, values, ["Choose at least one document to read."], documents=documents)
 
     extracted, warnings = ai_manager.extract_client_details(read)
+    if extracted is None:
+        flash("Document reading is not available right now — please try again later.")
     filled, notes = [], list(warnings)
     if extracted is not None:
         found = extracted_to_values(extracted, today())
@@ -582,6 +587,20 @@ def get_record(client_ref: str):
         if record.get("client_ref") == client_ref:
             return record
     return None
+
+
+# ---------------------------------------------------------------------------
+# Flash helpers — mirrors io_manager display functions for the web layer
+# ---------------------------------------------------------------------------
+
+def flash_ai_unavailable(feature: str = "Assessment") -> None:
+    flash(f"{feature} is not available right now — please try again later.")
+
+def flash_rate_limit_error(seconds_left: int) -> None:
+    flash(f"Rate limit: please wait {seconds_left} second{'s' if seconds_left != 1 else ''} before running another assessment.")
+
+def flash_unexpected_error() -> None:
+    flash("An unexpected error occurred — please try again or contact support.")
  
  
 def show_form(heading: str, values: dict, problems: list, field_errors: dict = None,
@@ -609,24 +628,42 @@ def _run_assessment_job(job_id, record, case):
     try:
         result = assessment_flow.run_combined_assessment(case, record.get("supporting_documents"), on_step=step)
         assessment_id = assessment_flow.save_combined_assessment(result, record, on_step=step)
+
+        # Per-feature failure flags — feature names passed to flash_ai_unavailable in assess_result
+        ai_warnings = []
+        if result.get("typologies") is None:
+            ai_warnings.append("Crime scan")
+        if result["benchmark"]["findings"] is None:
+            ai_warnings.append("Benchmark")
+        if result.get("forecast") is None:
+            ai_warnings.append("Forecasting")
+
         job["result"] = {
             "record":        record,
             "report":        result["report"],
             "assessment_id": assessment_id,
             "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "ai_warnings":   ai_warnings,
+            "crime_result":  result.get("crime_result"),
+            "typologies":    result.get("typologies"),
+            "benchmark":     result.get("benchmark"),
         }
         job["status"] = "done"
     except Exception as exc:
+        logging.getLogger(__name__).error("_run_assessment_job %s failed: %s", job_id, repr(exc))
         logging.exception("Assessment of %s failed", record.get("client_ref"))
         job["status"] = "error"
         job["error"] = str(exc)
 
 
-def show_report(record: dict, report: dict | None, assessed_at: str = "", assessment_id: str | None = None):
+def show_report(record: dict, report: dict | None, assessed_at: str = "", assessment_id: str | None = None,
+                crime_result=None, typologies=None, benchmark=None):
     """The assessment page: the same report the command line prints (logic_manager.verdict_report)."""
     symbols = {entry["mark"]: entry["symbol"] for entry in (report or {}).get("legend", [])}
+    typologies_by_id = {t.get("typology_id"): t for t in (typologies or [])}
     return render_template("assess_result.html", record=record, report=report, symbols=symbols,
-                           assessed_at=assessed_at, assessment_id=assessment_id)
+                           assessed_at=assessed_at, assessment_id=assessment_id,
+                           crime_result=crime_result, typologies_by_id=typologies_by_id, benchmark=benchmark)
 
 
 # ============================================================================
@@ -696,7 +733,11 @@ def view_assessment(assessment_id):
     if saved is None:
         abort(404)
     record = get_record(saved["client_ref"]) or {"client_ref": saved["client_ref"], "name": saved["client_ref"]}
-    return show_report(record, saved.get("report"), saved.get("assessed_at", ""), assessment_id)
+    typologies = (saved.get("crime_scan") or {}).get("typologies", {})
+    typology_list = typologies.get("sector_typologies") if isinstance(typologies, dict) else None
+    return show_report(record, saved.get("report"), saved.get("assessed_at", ""), assessment_id,
+                       crime_result=saved.get("crime_result"), typologies=typology_list,
+                       benchmark=saved.get("benchmark"))
  
  
 @app.route("/client/<client_ref>/edit", methods=["GET", "POST"])
@@ -805,9 +846,17 @@ def assess_client(client_ref):
     if record is None:
         abort(404)
     if not ai_manager.has_api_key():
-        flash("No API key configured — assessment cannot run.")
+        logging.getLogger(__name__).warning("assess_client: no API key configured (client_ref=%s)", client_ref)
+        flash_ai_unavailable("Assessment")
         return redirect(url_for("view_client", client_ref=client_ref))
 
+    user_key = request.remote_addr or "unknown"
+    allowed, seconds_left = utilities.check_rate_limit(user_key)
+    if not allowed:
+        flash_rate_limit_error(seconds_left)
+        return redirect(url_for("view_client", client_ref=client_ref))
+
+    utilities.record_assessment(user_key)
     # The same case the command line assesses, dated today (logic_manager.forecasting_case).
     # The command line asks for anything missing; here the officer completes the record first.
     case, missing = logic_manager.forecasting_case(record, today())
@@ -861,10 +910,14 @@ def assess_result(job_id):
     if job["status"] == "running":
         return redirect(url_for("assess_loading", job_id=job_id))
     if job["status"] == "error":
-        flash(f"Assessment failed: {job.get('error', 'Unknown error')}")
+        flash_unexpected_error()
         return redirect(url_for("view_client", client_ref=job["client_ref"]))
-    result = job["result"]
-    return show_report(result["record"], result["report"], result["assessed_at"], result["assessment_id"])
+    for feature in job["result"].get("ai_warnings", []):
+        flash_ai_unavailable(feature)
+    r = job["result"]
+    return show_report(r["record"], r["report"], r.get("assessed_at", ""), r.get("assessment_id"),
+                       crime_result=r.get("crime_result"), typologies=r.get("typologies"),
+                       benchmark=r.get("benchmark"))
 
 
 @app.route("/client/<client_ref>/review", methods=["GET", "POST"])
@@ -873,7 +926,8 @@ def review_client(client_ref):
     if record is None:
         abort(404)
     if not ai_manager.has_api_key():
-        flash("No API key configured — review cannot run.")
+        logging.getLogger(__name__).warning("review_client: no API key configured (client_ref=%s)", client_ref)
+        flash_ai_unavailable("Review")
         return redirect(url_for("view_client", client_ref=client_ref))
 
     saved = _load_assessment(client_ref)
@@ -1359,7 +1413,77 @@ ASSESS_RESULT = """{% extends "base.html" %}
   </div>
 </div>
 
+{% set INDICATOR_LABELS = {
+  "counterparty_unnamed": "Money from unnamed counterparty",
+  "gift_or_inheritance_unnamed": "Gift or inheritance from unnamed person",
+  "source_contradicts_occupation": "Source of wealth contradicts occupation",
+  "unvalued_source_present": "Source with no declared amount",
+  "related_party_transaction": "Related party transaction"
+} %}
+{% set CAT_BG    = {"critical":"#fef2f2","high":"#fff7ed","medium":"#fffbeb","partial":"#eff6ff","weak_signal":"#f9fafb","no_match":"#f9fafb"} %}
+{% set CAT_BORDER= {"critical":"#b91c1c","high":"#c2410c","medium":"#b45309","partial":"#1d4f7a","weak_signal":"#9ca3af","no_match":"#d1d5db"} %}
+{% set CAT_LABEL = {"critical":"CRITICAL MATCH","high":"HIGH MATCH","medium":"MEDIUM MATCH","partial":"PARTIAL MATCH","weak_signal":"WEAK SIGNAL","no_match":"NO MATCH"} %}
+
 {% for section in report['sections'] %}
+{% if section['title'] == "Crime - known patterns for his industry" and crime_result %}
+<div class="panel">
+  <h2>{{ section['title'] }}</h2>
+  <div style="display:flex; gap:16px; margin-bottom:18px; font-size:.85rem; border-bottom:1px solid var(--line); padding-bottom:12px">
+    <span style="color:var(--muted)">{{ crime_result.get('match_results', []) | length }} typologies checked</span>
+    <span style="color:#b91c1c; font-weight:600">{{ crime_result.get('match_count', 0) }} matched</span>
+    <span style="color:var(--muted)">{{ (crime_result.get('match_results', []) | length) - crime_result.get('match_count', 0) }} no match</span>
+  </div>
+  {% for m in crime_result.get('match_results', []) %}
+  {% set cat = m.get('category', 'no_match') %}
+  {% set typo = typologies_by_id.get(m.get('typology_id'), {}) %}
+  <div style="padding:14px 16px; border-radius:6px; margin-bottom:10px;
+              background:{{ CAT_BG.get(cat,'#f9fafb') }};
+              border-left:4px solid {{ CAT_BORDER.get(cat,'#d1d5db') }}">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px">
+      <span style="font-size:.7rem; font-weight:700; letter-spacing:.06em; padding:2px 8px; border-radius:3px;
+                   background:{{ CAT_BORDER.get(cat,'#9ca3af') }}; color:#fff">{{ CAT_LABEL.get(cat, cat.upper()) }}</span>
+      <strong style="font-size:.97rem; color:#111">{{ m.get('name', m.get('typology_id')) }}</strong>
+      {% if typo.get('crime_category') %}
+      <span style="font-size:.76rem; color:#6b7280; background:#f3f4f6; padding:1px 7px; border-radius:3px; border:1px solid #e5e7eb">{{ typo['crime_category'].replace('_', ' ') }}</span>
+      {% endif %}
+    </div>
+    {% if typo.get('description') %}
+    <p style="margin:0 0 10px; font-size:.83rem; color:#4a5568; line-height:1.5">{{ typo['description'] }}</p>
+    {% endif %}
+    <div style="display:flex; gap:28px; flex-wrap:wrap">
+      {% if m.get('core_indicators') %}
+      <div>
+        <div style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; margin-bottom:5px">Core</div>
+        {% for ind in m['core_indicators'] %}
+        {% if ind in m.get('core_fired', []) %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#111"><span style="color:#b91c1c; font-weight:700; flex-shrink:0">✓</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% else %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#9ca3af"><span style="flex-shrink:0">—</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if m.get('supporting_indicators') %}
+      <div>
+        <div style="font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; margin-bottom:5px">Supporting</div>
+        {% for ind in m['supporting_indicators'] %}
+        {% if ind in m.get('supporting_fired', []) %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#111"><span style="color:#b45309; font-weight:700; flex-shrink:0">✓</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% else %}
+        <div style="font-size:.83rem; display:flex; gap:7px; align-items:baseline; padding:2px 0; color:#9ca3af"><span style="flex-shrink:0">—</span> {{ INDICATOR_LABELS.get(ind, ind.replace('_',' ')) }}</div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% if typo.get('source_quotes') %}{% set q = typo['source_quotes'][0] %}{% if q.get('quote') %}
+    <blockquote style="margin:10px 0 0; padding:8px 12px; border-left:3px solid {{ CAT_BORDER.get(cat,'#d1d5db') }}; background:rgba(255,255,255,.55); font-size:.8rem; color:#4a5568; font-style:italic; line-height:1.5">"{{ q['quote'] }}"{% if q.get('report_id') %}<footer style="margin-top:3px; font-style:normal; font-size:.74rem; color:#9ca3af">[{{ q['report_id'] }}]</footer>{% endif %}</blockquote>
+    {% endif %}{% endif %}
+  </div>
+  {% endfor %}
+  {% if not crime_result.get('match_results') %}<p class="muted">No typologies were checked.</p>{% endif %}
+</div>
+{% else %}
 <div class="panel">
   <h2>{{ section['title'] }}</h2>
   <ul class="report-items">
@@ -1373,8 +1497,11 @@ ASSESS_RESULT = """{% extends "base.html" %}
     {% endfor %}
   </ul>
 </div>
+{% endif %}
 {% endfor %}
+{% endif %}
 
+{% if benchmark %}
 <div class="panel">
   <h2>Full evidence</h2>
   {% for part in report['evidence'] %}
