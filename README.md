@@ -149,8 +149,10 @@ answer, that asset is held at its purchase price and the report says so; the res
 ## Running Tests
 
 ```bash
-make test
+python -m pytest tests/
 ```
+
+Add `-v` for verbose output (shows each test name) or `-q` for a one-line summary.
 
 ---
 
