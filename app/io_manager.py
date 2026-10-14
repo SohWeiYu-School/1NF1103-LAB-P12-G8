@@ -91,170 +91,6 @@ def show_sync_result(stats: dict) -> None:
     else:
         print("\nSync unsuccessful — please try again later or contact your administrator.")
 
-def show_research_output(research_response: dict) -> None:
-    """Print a short summary of the research results."""
-    reports = research_response.get("reports", [])
-    print(f"\nResearch: {len(reports)} report(s) found")
-    for r in reports:
-        rid = r.get("report_id", "?")
-        org = r.get("organisation", "")
-        title = r.get("title", "")
-        year = r.get("year", "")
-        print(f"  {rid}  {org} — {title} ({year})")
-    print()
-
-def show_crime_scan_result(result: dict, typology_response: dict | None = None, research: dict | None = None) -> None:
-    """Print a structured typology matching summary for the crime scan."""
-    match_results = result.get("match_results", [])
-    match_count   = result.get("match_count", 0)
-    total         = len(match_results)
-    not_matched   = total - match_count
-
-    _CATEGORY_LABEL = {
-        "critical":    "CRITICAL MATCH",
-        "high":        "HIGH MATCH",
-        "medium":      "MEDIUM MATCH",
-        "partial":     "PARTIAL MATCH",
-        "weak_signal": "WEAK SIGNAL",
-        "no_match":    "NO MATCH",
-    }
-    _INDICATOR_LABEL = {
-        "counterparty_unnamed":          "Money from unnamed counterparty",
-        "gift_or_inheritance_unnamed":   "Gift or inheritance from unnamed person",
-        "source_contradicts_occupation": "Source of wealth contradicts occupation",
-        "unvalued_source_present":       "Source with no declared amount",
-        "related_party_transaction":     "Related party transaction",
-    }
-
-    W = 90
-    div = "  " + "─" * (W - 2)
-
-    # Build lookup: typology_id → typology dict
-    typ_lookup: dict = {}
-    if typology_response:
-        for t in typology_response.get("sector_typologies", []):
-            typ_lookup[t.get("typology_id", "")] = t
-
-    print("\n" + "═" * W)
-    print("  CRIME — KNOWN PATTERNS FOR HIS INDUSTRY")
-    print("═" * W)
-
-    # --- Research sources ---
-    reports = (research or {}).get("reports", [])
-    if reports:
-        print(f"\n  RESEARCH  ({len(reports)} reports)")
-        print(div)
-        for r in reports:
-            rid      = r.get("report_id", "?")
-            org      = r.get("organisation", "Unknown")
-            year     = r.get("year", "")
-            title    = r.get("title", "")
-            year_str = f" ({year})" if year else ""
-            print(f"  [{rid}]  {org}{year_str} — {title}")
-
-    # --- Typology cards ---
-    print(f"\n  TYPOLOGIES  {total} checked  |  {match_count} matched  |  {not_matched} no match")
-    print(div)
-
-    if not match_results:
-        print("  No typologies returned by AI.")
-    else:
-        for mr in match_results:
-            typ_id     = mr.get("typology_id", "")
-            name       = mr.get("name", typ_id or "?")
-            category   = mr.get("category", "no_match")
-            label      = _CATEGORY_LABEL.get(category, category.upper())
-            core_inds  = mr.get("core_indicators", [])
-            core_fired = set(mr.get("core_fired", []))
-            sup_inds   = mr.get("supporting_indicators", [])
-            sup_fired  = set(mr.get("supporting_fired", []))
-            src_ids    = mr.get("source_ids", [])
-            typ_data   = typ_lookup.get(typ_id, {})
-
-            print(f"\n  [{label}]  {name}")
-            if typ_data.get("crime_category"):
-                print(f"  Category: {typ_data['crime_category'].replace('_', ' ')}")
-            if src_ids:
-                print(f"  Sources:  [{', '.join(src_ids)}]")
-
-            # Description
-            desc = typ_data.get("description", "").strip()
-            if desc:
-                for line in textwrap.wrap(desc, width=W - 4, initial_indent="  ", subsequent_indent="  "):
-                    print(line)
-
-            # Core indicators
-            if core_inds:
-                print(f"\n  {'Core indicators'}")
-                for ind in core_inds:
-                    human = _INDICATOR_LABEL.get(ind, ind.replace("_", " "))
-                    fired = ind in core_fired
-                    tick  = "✓" if fired else "—"
-                    note  = "  fired" if fired else "  not fired"
-                    print(f"    {tick}  {human:<50}{note}")
-
-            # Supporting indicators
-            if sup_inds:
-                print(f"\n  {'Supporting indicators'}")
-                for ind in sup_inds:
-                    human = _INDICATOR_LABEL.get(ind, ind.replace("_", " "))
-                    fired = ind in sup_fired
-                    tick  = "✓" if fired else "—"
-                    note  = "  fired" if fired else "  not fired"
-                    print(f"    {tick}  {human:<50}{note}")
-
-            # Source quote (first one)
-            quotes = typ_data.get("source_quotes", [])
-            if quotes and quotes[0].get("quote"):
-                q   = quotes[0]
-                rid = q.get("report_id", "")
-                for line in textwrap.wrap(f'"{q["quote"]}"', width=W - 6,
-                                          initial_indent="  ", subsequent_indent="  "):
-                    print(line)
-                if rid:
-                    print(f"  [{rid}]")
-
-            print(div)
-
-    print("═" * W + "\n")
-
-
-def show_benchmark_result(result: dict) -> None:
-    """Print detailed benchmark check output followed by a summary table."""
-    findings = result.get("findings", [])
-    total    = len(findings)
-    failed   = sum(1 for f in findings if f.get("failed"))
-    passed   = total - failed
-
-    W = 68
-    print("\n" + "═" * W)
-    print("  WEALTH BENCHMARK — CHECK RESULTS")
-    print("═" * W)
-
-    # Detailed per-check output
-    for f in findings:
-        rule   = f.get("rule_id", "").replace("_", " ")
-        status = "FAIL" if f.get("failed") else "PASS"
-        detail = f.get("detail", "")
-        print(f"\n  --- {rule} ---")
-        print(f"  {detail}")
-        print(f"  Result: {status}")
-
-    # Summary table
-    print("\n" + "  " + "─" * (W - 2))
-    col_check  = 26
-    col_result = 10
-    print(f"  {'Check':<{col_check}}{'Result':<{col_result}}Detail")
-    print("  " + "─" * (W - 2))
-    for f in findings:
-        rule   = f.get("rule_id", "").replace("_", " ")
-        status = "FAIL" if f.get("failed") else "PASS"
-        detail = f.get("detail", "")
-        print(f"  {rule:<{col_check}}{status:<{col_result}}{detail}")
-
-    print("\n  " + "─" * (W - 2))
-    print(f"  Total: {total}  |  Failed: {failed}  |  Passed: {passed}")
-    print("═" * W + "\n")
 def show_step(number: int, total: int, label: str) -> None:
     """One progress line of the combined assessment (the web app shows the same steps)."""
     print(f"  [{number:>2}/{total}] {label}...")
@@ -476,9 +312,7 @@ def get_claims() -> dict:
     print("\n=== Financial Claims ===")
     declared_net_worth = ask_money("Declared net worth (SGD)", allow_zero=False)
     expected_aum       = ask_money("Expected assets to be managed by the bank (SGD)", allow_zero=False)
-    pep_options = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
-                   "Family member / close associate of a PEP"]
-    pep_status = pep_options[ask_choice("PEP status", pep_options)]
+    pep_status = utilities.PEP_OPTIONS[ask_choice("PEP status", utilities.PEP_OPTIONS)]
     wealth_countries = ask_countries("Countries where wealth was generated (comma-separated)")
 
     print("\n=== Asset Composition ===")
@@ -784,8 +618,7 @@ def create_new_client(save_fn=None, upload_fn=None):
 # call and the saving; these functions only ask and show.
 # ---------------------------------------------------------------------------
 
-PEP_OPTIONS = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
-               "Family member / close associate of a PEP"]
+PEP_OPTIONS = utilities.PEP_OPTIONS
 SOURCE_TAGS = {"documents": "[DOC]   ", "edited": "[EDITED]", "entered": "[YOU]   ", "blank": "[ -- ]  "}
 
 
@@ -1077,11 +910,9 @@ def edit_client_declarations(record):
     claims["declared_net_worth"] = keep_money("Declared net worth (SGD)", claims.get("declared_net_worth", ""))
     claims["expected_aum"]       = keep_money("Expected AUM (SGD)", claims.get("expected_aum", ""))
 
-    pep_options = ["None", "Domestic PEP", "Foreign PEP", "International organisation PEP",
-                   "Family member / close associate of a PEP"]
     print(f"PEP status [{claims.get('pep_status', '')}]")
     if ask_yes_no("Change PEP status?"):
-        claims["pep_status"] = pep_options[ask_choice("PEP status", pep_options)]
+        claims["pep_status"] = utilities.PEP_OPTIONS[ask_choice("PEP status", utilities.PEP_OPTIONS)]
 
     v = input(f"Wealth countries [{', '.join(claims.get('wealth_countries', []))}]: ").strip()
     if v:
@@ -1211,8 +1042,8 @@ def edit_existing_client(record, upload_fn=None):
         if not ask_yes_no("Make another change?"):
             break
 
-def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn=None):
-    """Find, display, edit and manage an existing client from MongoDB."""
+def find_existing_client(find_fn=None, load_fn=None, save_fn=None, download_fn=None, upload_fn=None):
+    """Find, display, edit and manage an existing client from local records."""
 
     print("\n=== Existing Client ===")
 
@@ -1225,24 +1056,10 @@ def find_existing_client(load_fn=None, save_fn=None, download_fn=None, upload_fn
 
     print("\nSearching saved clients...")
 
-    records = load_fn() if load_fn else []
-
-    if not records:
-        print("No client records found in the database.")
-        input("\nPress Enter to return to the main menu...")
-        return
-
-    client_record = None
-
-    for record in records:
-        if record.get("client_ref", "").upper() == client_ref.upper():
-            client_record = record
-            break
+    client_record = find_fn(client_ref) if find_fn else None
 
     if client_record is None:
-        print(
-            f"\nNo client found with reference: {client_ref}"
-        )
+        print(f"\nNo client found with reference: {client_ref}")
         input("\nPress Enter to return to the main menu...")
         return
 
