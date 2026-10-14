@@ -374,7 +374,7 @@ def get_ai_research(case_input: dict) -> tuple[dict | None, list[str]]:
         return data, warnings
 
     logger.error("get_ai_research exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Research AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 
 def build_research_payload(case_input: dict) -> dict:
@@ -557,7 +557,7 @@ def get_typologies(case_input: dict, research: dict | None = None) -> tuple[dict
         return data, warnings
 
     logger.error("get_typologies exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Sector Crime Scan AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 # Trim AI response to policy max typologies. Called by get_typologies before schema validation.
 
@@ -649,7 +649,7 @@ def get_declaration(case_input: dict) -> tuple[dict | None, list[str]]:
         return data, warnings
 
     logger.error("get_declaration exhausted all retries. error_type=%s last_error=%s", error_type, last_error)
-    return None, ["Declaration AI call failed. This case needs manual review. Details: logs/app.log"]
+    return None, []
 
 
 # ============================================================================
@@ -709,9 +709,11 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
     if len(readable) > MAX_EXTRACT_DOCUMENTS:
         warnings.append(f"Only the first {MAX_EXTRACT_DOCUMENTS} documents were read.")
     if not readable:
-        return None, warnings or ["None of the uploaded files could be read."]
+        logger.warning("extract_client_details: none of the uploaded files could be read")
+        return None, warnings
     if not has_api_key():
-        return None, warnings + ["No OPENAI_API_KEY is set, so documents can't be read automatically."]
+        logger.warning("extract_client_details: no API key configured")
+        return None, warnings
 
     prompt = load_prompt("document_extract.txt")
     schema = load_schema("document_extract.schema.json")
@@ -738,7 +740,7 @@ def extract_client_details(documents: list[dict]) -> tuple[dict | None, list[str
         return data, warnings
 
     logger.error("extract_client_details failed: %s", last_error)
-    return None, warnings + ["The documents could not be read automatically. Details: logs/app.log"]
+    return None, warnings
 
 
 # ============================================================================
