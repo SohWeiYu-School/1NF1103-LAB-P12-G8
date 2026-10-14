@@ -786,7 +786,7 @@ def download_document(client_ref, file_id):
     name = secure_filename(document.get("file_name", "")) or "document"
     folder = tempfile.mkdtemp()
     path = os.path.join(folder, name)
-    ok = download_supporting_document(file_id, path)
+    ok = download_supporting_document(document.get("file_path") or file_id, path)   # local copy
     data = b""
     if ok:
         with open(path, "rb") as handle:
