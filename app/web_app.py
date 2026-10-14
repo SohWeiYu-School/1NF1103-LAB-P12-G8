@@ -29,8 +29,8 @@ import io
 import logging
 import os
 import shutil
+import sys
 import tempfile
-import time
 import threading
 import uuid
 
@@ -60,31 +60,28 @@ from app.data_manager import (
     load_assessment_by_id,
     read_document_for_extraction,
 )
-from app.io_manager import generate_client_id, validate_case, _number, show_crime_scan_result, show_benchmark_result, show_onboarding
+from app.io_manager import generate_client_id, validate_case, _number
+
+# The assessment itself lives in main.py, so the web app runs EXACTLY the same flow as the
+# command line (same steps, same verdict, same report, same saved record).
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+import main as assessment_flow  # noqa: E402
 
 _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 os.makedirs(_log_dir, exist_ok=True)
-_log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"))
+_log_handler = logging.FileHandler(os.path.join(_log_dir, "app.log"), encoding="utf-8")
 _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(_log_handler)
+utilities.quiet_library_logs()      # same as the command line: no network-library noise in the log
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-only-change-me")
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024   # uploads for auto-fill: 40 MB per request
 
-ASSESS_STEPS = [
-    "Fetching sector research reports",
-    "Verifying research sources",
-    "Generating sector typologies",
-    "Verifying typology citations",
-    "Parsing source of wealth declaration",
-    "Normalising jurisdictions",
-    "Matching typology indicators",
-    "Running benchmark",
-    "Running onboarding forecast",
-    "Saving results",
-]
+ASSESS_STEPS = assessment_flow.ASSESSMENT_STEPS    # the same steps the command line prints
 
 _assessment_jobs = {}  # job_id -> {status, step_num, step, result, error, client_ref}
 
@@ -103,7 +100,6 @@ CLIENT_FIELDS = [
     ("nationality", "Nationality", "text"),
     ("country_of_residence", "Country of residence", "text"),
     ("age", "Age", "int"),
-    ("current_date", "Assessment date", "date"),
 ]
 JOB_FIELDS = [
     ("start_year", "Start year", "int"),
@@ -161,7 +157,7 @@ SECTIONS = [
 # ============================================================================
  
 def today() -> str:
-    return datetime.date.today().isoformat()
+    return assessment_flow.today()
  
  
 def trim(number) -> str:
@@ -182,9 +178,9 @@ def to_text(kind: str, value) -> str:
             return trim(float(value) * 100)       # 0.25 -> '25'
         except (TypeError, ValueError):
             return str(value)
-    if kind == "countries":
-        return ", ".join(value) if isinstance(value, list) else str(value)
-    if kind in ("int", "money"):
+    if isinstance(value, list):                    # countries, counterparties
+        return ", ".join(str(item) for item in value)
+    if kind in ("int", "money") or (isinstance(value, (int, float)) and not isinstance(value, bool)):
         return trim(value)
     return str(value)
  
@@ -284,11 +280,8 @@ def build_record(values: dict, client_ref: str, old: dict | None = None):
     record["name"] = client["name"]
     record["nationality"] = client["nationality"]
  
-    try:
-        datetime.date.fromisoformat(client["current_date"])
-    except ValueError:
-        _p("Assessment date must be a real date.", "client.current_date", "Must be a real date.")
-    record["current_date"] = client["current_date"]
+    # The assessment date is always today - not typed in (the command line does the same).
+    record["current_date"] = today()
  
     if client["age"].isdigit() and 18 <= int(client["age"]) <= 120:
         age = int(client["age"])
@@ -447,56 +440,19 @@ def check_record(record: dict) -> list:
 # Auto-fill from uploaded documents
 # ============================================================================
 
-# AI reply key -> form key, where they differ (the AI's money fields say they're in SGD)
-_AI_ASSET_KEYS = {"price_paid_sgd": "price_paid",
-                  "current_declared_value_sgd": "current_declared_value",
-                  "income_produced_sgd": "income_produced"}
-_AI_CLAIM_KEYS = {"declared_net_worth_sgd": "declared_net_worth",
-                  "expected_aum_sgd": "expected_aum",
-                  "biggest_wealth_jump_sgd": "biggest_wealth_jump"}
-
-
-def _age_on(date_of_birth, on_date: str):
-    """Age in whole years on on_date, or None if either date can't be read."""
-    try:
-        born = datetime.date.fromisoformat(str(date_of_birth))
-        day = datetime.date.fromisoformat(on_date) if on_date else datetime.date.today()
-    except ValueError:
-        return None
-    age = day.year - born.year - ((day.month, day.day) < (born.month, born.day))
-    return age if 0 < age < 130 else None
-
-
 def extracted_to_values(extracted: dict, current_date: str = "") -> dict:
-    """The AI's document details as form text, in the same shape values_from_form gives."""
-    client = dict(extracted.get("client") or {})
-    if not client.get("age") and client.get("date_of_birth"):
-        client["age"] = _age_on(client["date_of_birth"], current_date)
+    """The AI's document details as form text, in the same shape values_from_form gives.
 
-    claims = {_AI_CLAIM_KEYS.get(key, key): value
-              for key, value in (extracted.get("claims") or {}).items()}
-    if claims.get("declared_counterparties"):
-        claims["declared_counterparties"] = ", ".join(claims["declared_counterparties"])
-
-    composition = extracted.get("composition") or {}
-    raw = {
-        "client": client,
-        "jobs": extracted.get("jobs") or [],
-        "assets": [{_AI_ASSET_KEYS.get(key, key): value for key, value in asset.items()}
-                   for asset in extracted.get("assets") or []],
-        # the form stores fractions; the AI gives percentages
-        "composition": {key: (value / 100 if isinstance(value, (int, float)) else None)
-                        for key, value in composition.items()},
-        "claims": claims,
-        "sow": {"sow_declaration": extracted.get("sow_declaration")},
-    }
-    values = {}
+    The AI reply is turned into a client record by logic_manager.record_from_documents - the very
+    function the command line's "New Client from Documents" uses - so both give the same values
+    (field names, age from the date of birth, wealth split as fractions, oldest job first)."""
+    record, _ = logic_manager.record_from_documents(extracted, "", current_date or today())
+    if not extracted.get("jobs"):
+        record["career_history"] = []      # the command line's empty "current job" is only there to be asked for
+    values = values_from_record(record)
     for prefix, title, fields, kind in SECTIONS:
-        if kind == "dict":
-            values[prefix] = {key: to_text(k, raw[prefix].get(key)) for key, label, k in fields}
-        else:
-            rows = [{key: to_text(k, item.get(key)) for key, label, k in fields} for item in raw[prefix]]
-            values[prefix] = [row for row in rows if any(row.values())]
+        if kind == "list":
+            values[prefix] = [row for row in values[prefix] if any(row.values())]
     return values
 
 
@@ -601,9 +557,13 @@ def autofill_form(heading: str, form, files):
     extracted, warnings = ai_manager.extract_client_details(read)
     filled, notes = [], list(warnings)
     if extracted is not None:
-        found = extracted_to_values(extracted, values["client"].get("current_date", ""))
+        found = extracted_to_values(extracted, today())
         values, filled = fill_blanks(values, found)
         notes += extracted.get("notes") or []
+        # the same second-look checks the command line shows after reading documents
+        date = today()
+        record, _ = logic_manager.record_from_documents(extracted, "", date)
+        notes += logic_manager.check_document_record(logic_manager.finish_document_record(record), date)
     if extracted is not None and filled:
         flash(f"Read {len(read)} document(s) and filled {len(filled)} box(es), highlighted in yellow. "
               "Check every highlighted value before saving.")
@@ -637,159 +597,36 @@ def show_form(heading: str, values: dict, problems: list, field_errors: dict = N
 # Assessment helpers
 # ============================================================================
 
-def _crime_scan_input(record):
-    career = record.get("career") or {}
-    return {
-        "client_ref":           record["client_ref"],
-        "occupation":           career.get("occupation", ""),
-        "industry":             career.get("industry", ""),
-        "age":                  career.get("age"),
-        "career_start_year":    career.get("career_start_year"),
-        "country":              career.get("country_of_residence", ""),
-        "country_of_residence": career.get("country_of_residence", ""),
-        "declaration_text":     record.get("sow_declaration", ""),
-    }
-
-
-def _run_crime_scan(case_input):
-    policy = utilities.policy()
-    research, _ = ai_manager.get_ai_research(case_input)
-    clean_research = None
-    if research is not None:
-        clean_research, _ = logic_manager.verify_research(research, policy)
-    typology_response, _ = ai_manager.get_typologies(case_input, research)
-    if typology_response is not None and clean_research is not None:
-        verified_typs, _ = logic_manager.verify_typology_sources(
-            typology_response.get("sector_typologies", []), clean_research, policy,
-        )
-        typology_response = {**typology_response, "sector_typologies": verified_typs}
-    declaration, _ = ai_manager.get_declaration(case_input)
-    if declaration is not None:
-        declaration, _ = logic_manager.normalize_declaration_jurisdictions(declaration)
-    crime_result = None
-    if typology_response is not None and declaration is not None:
-        crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
-    return research, typology_response, declaration, crime_result
-
-
-def _run_benchmark(record, case_input):
-    claims = record.get("claims") or {}
-    comp   = claims.get("asset_composition") or {}
-    nw     = claims.get("declared_net_worth") or 0
-    benchmark_input = {
-        **case_input,
-        "declared_net_worth":      utilities.whole_number(nw),
-        "listed_equities":         utilities.whole_number((comp.get("listed_equities") or 0) * nw),
-        "cash":                    utilities.whole_number((comp.get("cash") or 0) * nw),
-        "property":                utilities.whole_number((comp.get("property") or 0) * nw),
-        "private_business":        utilities.whole_number((comp.get("private_business") or 0) * nw),
-        "biggest_wealth_jump":     claims.get("biggest_wealth_jump"),
-        "wealth_jump_years":       float(claims.get("wealth_jump_years") or 0.0),
-        "declared_counterparties": claims.get("declared_counterparties", []),
-        "declared_countries":      claims.get("wealth_countries", []),
-    }
-    if any(benchmark_input[k] is None for k in
-           ("declared_net_worth", "listed_equities", "cash", "property", "private_business")):
-        return None
-    ai_data = ai_manager.get_ai_benchmark(benchmark_input)
-    return logic_manager.run_benchmark(benchmark_input, ai_data)
-
-
-def _run_assessment_job(job_id, client_ref, record):
+def _run_assessment_job(job_id, record, case):
+    """The combined assessment, in the background: main.run_combined_assessment, the very
+    function the command line runs, then the same save."""
     job = _assessment_jobs[job_id]
 
-    def step(n):
-        job["step_num"] = n
-        job["step"] = ASSESS_STEPS[n - 1]
+    def step(number, label):
+        job["step_num"] = number
+        job["step"] = label
 
     try:
-        case_input = _crime_scan_input(record)
-        policy = utilities.policy()
-
-        step(1)
-        research, _ = ai_manager.get_ai_research(case_input)
-
-        step(2)
-        clean_research = None
-        if research is not None:
-            clean_research, _ = logic_manager.verify_research(research, policy)
-        time.sleep(4)
-
-        step(3)
-        typology_response, _ = ai_manager.get_typologies(case_input, research)
-
-        step(4)
-        if typology_response is not None and clean_research is not None:
-            verified_typs, _ = logic_manager.verify_typology_sources(
-                typology_response.get("sector_typologies", []), clean_research, policy,
-            )
-            typology_response = {**typology_response, "sector_typologies": verified_typs}
-        time.sleep(4)
-
-        step(5)
-        declaration, _ = ai_manager.get_declaration(case_input)
-
-        step(6)
-        if declaration is not None:
-            declaration, _ = logic_manager.normalize_declaration_jurisdictions(declaration)
-        time.sleep(4)
-
-        step(7)
-        crime_result = None
-        if typology_response is not None and declaration is not None:
-            crime_result = logic_manager.assess_typology_case(case_input, typology_response, declaration, policy)
-            show_crime_scan_result(crime_result, typology_response, research)
-        time.sleep(4)
-
-        step(8)
-        benchmark = _run_benchmark(record, case_input)
-        if benchmark is not None:
-            show_benchmark_result(benchmark)
-        time.sleep(4)
-
-        step(9)
-        forecast_assessment = None
-        cache = load_raw_replies(client_ref)
-        run = ai_manager.run_onboarding_forecast(record, cache)
-        save_raw_replies(client_ref, run["results"])
-        if run["ok"]:
-            save_forecast(client_ref, run["forecast"])
-            forecast_assessment = logic_manager.assess_onboarding(record, run["forecast"])
-            show_onboarding(forecast_assessment)
-
-        step(10)
-        time.sleep(4)
-        assessment_id = str(uuid.uuid4())
-        save_assessment({
-            "assessment_id": assessment_id,
-            "client_ref":    client_ref,
-            "kind":          "onboarding",
-            "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "crime_scan": {
-                "research":    research,
-                "typologies":  typology_response,
-                "declaration": declaration,
-            },
-            "crime_result": crime_result,
-            "benchmark":    benchmark,
-            "forecast":     forecast_assessment,
-            "assessment":   forecast_assessment,
-        })
-
+        result = assessment_flow.run_combined_assessment(case, record.get("supporting_documents"), on_step=step)
+        assessment_id = assessment_flow.save_combined_assessment(result, record, on_step=step)
         job["result"] = {
             "record":        record,
-            "crime_result":  crime_result,
-            "research":      research,
-            "benchmark":     benchmark,
-            "forecast":      forecast_assessment,
+            "report":        result["report"],
             "assessment_id": assessment_id,
             "assessed_at":   datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
         job["status"] = "done"
-
     except Exception as exc:
+        logging.exception("Assessment of %s failed", record.get("client_ref"))
         job["status"] = "error"
         job["error"] = str(exc)
+
+
+def show_report(record: dict, report: dict | None, assessed_at: str = "", assessment_id: str | None = None):
+    """The assessment page: the same report the command line prints (logic_manager.verdict_report)."""
+    symbols = {entry["mark"]: entry["symbol"] for entry in (report or {}).get("legend", [])}
+    return render_template("assess_result.html", record=record, report=report, symbols=symbols,
+                           assessed_at=assessed_at, assessment_id=assessment_id)
 
 
 # ============================================================================
@@ -858,18 +695,8 @@ def view_assessment(assessment_id):
     saved = load_assessment_by_id(assessment_id)
     if saved is None:
         abort(404)
-    record = get_record(saved["client_ref"])
-    if record is None:
-        abort(404)
-    return render_template("assess_result.html",
-        record=record,
-        crime_result=saved.get("crime_result"),
-        research=saved.get("crime_scan", {}).get("research"),
-        benchmark=saved.get("benchmark"),
-        forecast=saved.get("forecast"),
-        assessed_at=saved.get("assessed_at"),
-        assessment_id=assessment_id,
-    )
+    record = get_record(saved["client_ref"]) or {"client_ref": saved["client_ref"], "name": saved["client_ref"]}
+    return show_report(record, saved.get("report"), saved.get("assessed_at", ""), assessment_id)
  
  
 @app.route("/client/<client_ref>/edit", methods=["GET", "POST"])
@@ -959,7 +786,7 @@ def download_document(client_ref, file_id):
     name = secure_filename(document.get("file_name", "")) or "document"
     folder = tempfile.mkdtemp()
     path = os.path.join(folder, name)
-    ok = download_supporting_document(file_id, path)
+    ok = download_supporting_document(document.get("file_path") or file_id, path)   # local copy
     data = b""
     if ok:
         with open(path, "rb") as handle:
@@ -981,6 +808,13 @@ def assess_client(client_ref):
         flash("No API key configured — assessment cannot run.")
         return redirect(url_for("view_client", client_ref=client_ref))
 
+    # The same case the command line assesses, dated today (logic_manager.forecasting_case).
+    # The command line asks for anything missing; here the officer completes the record first.
+    case, missing = logic_manager.forecasting_case(record, today())
+    problems = validate_case(case) if case is not None else []
+    if case is None or problems:
+        flash("Complete the client record before assessing (Edit): " + "; ".join(missing or problems))
+        return redirect(url_for("view_client", client_ref=client_ref))
     job_id = uuid.uuid4().hex
     _assessment_jobs[job_id] = {
         "status":     "running",
@@ -991,7 +825,7 @@ def assess_client(client_ref):
         "client_ref": client_ref,
     }
     threading.Thread(
-        target=_run_assessment_job, args=(job_id, client_ref, record), daemon=True
+        target=_run_assessment_job, args=(job_id, record, case), daemon=True
     ).start()
     return redirect(url_for("assess_loading", job_id=job_id))
 
@@ -1029,7 +863,8 @@ def assess_result(job_id):
     if job["status"] == "error":
         flash(f"Assessment failed: {job.get('error', 'Unknown error')}")
         return redirect(url_for("view_client", client_ref=job["client_ref"]))
-    return render_template("assess_result.html", **job["result"])
+    result = job["result"]
+    return show_report(result["record"], result["report"], result["assessed_at"], result["assessment_id"])
 
 
 @app.route("/client/<client_ref>/review", methods=["GET", "POST"])
@@ -1418,6 +1253,7 @@ VIEW = """{% extends "base.html" %}
     <tr>
       <td>{{ a.get('assessed_at', '')[:10] }}</td>
       <td>{{ a.get('assessed_at', '')[11:16] }} UTC</td>
+      <td>{{ (a.get('outcome') or (a.get('assessment') or {}).get('outcome') or '—').replace('_', ' ') }}</td>
       <td>
         {% if a.get('assessment_id') %}
         <a href="{{ url_for('view_assessment', assessment_id=a.get('assessment_id')) }}">View</a>
@@ -1481,148 +1317,78 @@ VIEW = """{% extends "base.html" %}
  
 ASSESS_RESULT = """{% extends "base.html" %}
 {% set COLORS = {"PASSED": "#1a7a3f", "MANUAL_REVIEW": "#b45309", "RISKY": "#c2410c", "SERIOUS_RISK": "#b91c1c"} %}
+{% set MARK_COLORS = {"fail": "#b91c1c", "explained": "#1d4f7a", "weak": "#b45309", "pass": "#1a7a3f", "skip": "#616e7c", "info": "#616e7c"} %}
+{% block title %}Assessment — {{ record.get('name', '') }}{% endblock %}
 {% block content %}
+<style>
+  .report-items { list-style:none; margin:0; padding:0; }
+  .report-items li { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:.92rem; }
+  .report-items li:last-child { border-bottom:0; }
+  .mark { width:18px; flex-shrink:0; text-align:center; font-weight:700; }
+  .sub { color:var(--muted); font-size:.85rem; margin-top:3px; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.8rem; color:var(--muted); margin-top:12px; }
+  details { border-top:1px solid var(--line); padding:8px 0; }
+  details:first-of-type { border-top:0; }
+  summary { cursor:pointer; font-weight:600; font-size:.92rem; }
+  .evidence { margin:8px 0 0; padding-left:18px; font-size:.86rem; }
+  .evidence li { white-space:pre-wrap; padding:2px 0; }
+</style>
 <h1>Assessment — {{ record.get('name', '') }}
   <span class="muted" style="font-size:1rem">{{ record.get('client_ref', '') }}</span>
 </h1>
-{% if assessed_at %}
-<p class="muted" style="margin:0 0 12px 0">Assessed on {{ assessed_at[:10] }}</p>
-{% endif %}
-<div class="actions" style="margin-bottom:16px; display:flex; gap:8px; flex-wrap:wrap">
+<div class="actions" style="margin-bottom:16px">
   <a class="button secondary" href="{{ url_for('view_client', client_ref=record.get('client_ref', '')) }}">Back to client</a>
 </div>
 
-{% if crime_result %}
-{% set CAT_COLOR = {'critical': '#7f1d1d', 'high': '#b91c1c', 'medium': '#c2410c', 'partial': '#b45309', 'weak_signal': '#92400e', 'no_match': '#1a7a3f'} %}
-{% set CAT_LABEL = {'critical': 'CRITICAL', 'high': 'HIGH', 'medium': 'MEDIUM', 'partial': 'PARTIAL', 'weak_signal': 'WEAK', 'no_match': 'PASS'} %}
-
-{% if research %}
-<div class="panel">
-  <h2>Research Reports <span class="muted" style="font-size:.9rem; font-weight:400">({{ research.get('reports', []) | length }} retrieved)</span></h2>
-  {% for r in research.get('reports', []) %}
-  <div style="padding:6px 0; border-bottom:1px solid var(--line)">
-    <span style="font-family:monospace; font-weight:700">[{{ r.get('report_id', '?') }}]</span>
-    {{ r.get('organisation', '') }}{% if r.get('year') %} ({{ r.get('year') }}){% endif %}
-    &mdash; <em>{{ r.get('title', '') }}</em>
+{% if report %}
+{% set h = report['header'] %}
+{% set colour = COLORS.get(h['verdict'], '#333') %}
+<div class="panel" style="border-left:6px solid {{ colour }}">
+  <div class="muted" style="font-size:.78rem; text-transform:uppercase; letter-spacing:.06em">Verdict</div>
+  <div style="font-size:1.7rem; font-weight:700; color:{{ colour }}; margin:2px 0 10px">{{ h['verdict_label'] }}</div>
+  <table>
+    <tr><th>Next step</th><td>{{ h['next_step'] }}</td></tr>
+    <tr><th>Next review</th><td>{{ h['next_review_date'] }}</td></tr>
+    <tr><th>Assessed on</th><td>{{ h['assessed_on'] }} (policy {{ h['policy_version'] }})</td></tr>
+  </table>
+  <p style="margin:12px 0 0">{{ h['summary'] }}</p>
+  <div class="legend">
+    {% for entry in report['legend'] %}
+    <span><strong style="color:{{ MARK_COLORS[entry['mark']] }}">{{ entry['symbol'] }}</strong> {{ entry['meaning'] }}</span>
+    {% endfor %}
   </div>
+</div>
+
+{% for section in report['sections'] %}
+<div class="panel">
+  <h2>{{ section['title'] }}</h2>
+  <ul class="report-items">
+    {% for item in section['items'] %}
+    <li>
+      <span class="mark" style="color:{{ MARK_COLORS[item['mark']] }}">{{ symbols[item['mark']] }}</span>
+      <div>{{ item['text'] }}
+        {% for sub in item['sub'] %}<div class="sub">{{ sub }}</div>{% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endfor %}
+
+<div class="panel">
+  <h2>Full evidence</h2>
+  {% for part in report['evidence'] %}
+  <details>
+    <summary>{{ part['title'] }}</summary>
+    <ul class="evidence">{% for line in part['lines'] %}<li>{{ line }}</li>{% endfor %}</ul>
+  </details>
   {% endfor %}
 </div>
-{% endif %}
-
-<div class="panel">
-  <h2>Typology Results &nbsp;
-    <span style="font-size:1rem; font-weight:700; color:{{ '#b91c1c' if crime_result.get('match_count', 0) > 0 else '#1a7a3f' }}">
-      {{ crime_result.get('match_count', 0) }} of {{ crime_result.get('match_results', []) | length }} matched
-    </span>
-  </h2>
-
-  {% for mr in crime_result.get('match_results', []) %}
-  {% set cat = mr.get('category', 'no_match') %}
-  {% set cat_color = CAT_COLOR[cat] %}
-  {% set cat_label = CAT_LABEL[cat] %}
-  {% set src_ids = mr.get('source_ids', []) %}
-  {% set all_fired = mr.get('core_fired', []) + mr.get('supporting_fired', []) %}
-
-  <div style="margin-bottom:16px; padding:12px; background:var(--bg2); border-radius:4px; border-left:4px solid {{ cat_color }}">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px">
-      <strong style="font-size:1rem">{{ mr.get('name', mr.get('typology_id', '?')) }}</strong>
-      <span style="font-weight:700; color:{{ cat_color }}; white-space:nowrap; background:{{ cat_color }}22; padding:2px 10px; border-radius:3px; font-size:.9rem">{{ cat_label }}</span>
-    </div>
-    {% if src_ids %}
-    <div class="muted" style="font-size:.82rem; margin-top:4px">Sources: [{{ src_ids | join(', ') }}]</div>
-    {% endif %}
-
-    <table style="margin-top:10px; width:100%; border-collapse:collapse; font-size:.88rem">
-      <thead>
-        <tr style="border-bottom:1px solid var(--line)">
-          <th style="text-align:left; padding:3px 8px 3px 0">Indicator</th>
-          <th style="text-align:left; padding:3px 8px; color:var(--muted)">Weight</th>
-          <th style="text-align:left; padding:3px 0">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ind in mr.get('core_indicators', []) %}
-        {% set fired = ind in mr.get('core_fired', []) %}
-        <tr style="border-bottom:1px solid var(--line)">
-          <td style="padding:4px 8px 4px 0">{{ ind.replace('_', ' ') }}</td>
-          <td style="padding:4px 8px; color:var(--muted)">core</td>
-          <td style="padding:4px 0; font-weight:600; color:{{ '#b91c1c' if fired else 'var(--muted)' }}">{{ 'FIRED' if fired else '—' }}</td>
-        </tr>
-        {% endfor %}
-        {% for ind in mr.get('supporting_indicators', []) %}
-        {% set fired = ind in mr.get('supporting_fired', []) %}
-        <tr style="border-bottom:1px solid var(--line)">
-          <td style="padding:4px 8px 4px 0">{{ ind.replace('_', ' ') }}</td>
-          <td style="padding:4px 8px; color:var(--muted)">supporting</td>
-          <td style="padding:4px 0; font-weight:600; color:{{ '#b45309' if fired else 'var(--muted)' }}">{{ 'FIRED' if fired else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    {% if cat != 'no_match' %}
-    <div style="margin-top:8px; font-size:.85rem; color:{{ cat_color }}; font-weight:600">
-      → {{ cat_label }} match because:
-      {% for f in all_fired %}{{ f.replace('_', ' ') }}{% if not loop.last %}, {% endif %}{% endfor %}
-      fired
-    </div>
-    {% endif %}
-  </div>
-  {% else %}
-  <p class="muted">No typologies returned.</p>
-  {% endfor %}
-
-  <div class="muted" style="font-size:.85rem; margin-top:4px">
-    Total: {{ crime_result.get('match_results', []) | length }} &nbsp;|&nbsp;
-    Matched: {{ crime_result.get('match_count', 0) }} &nbsp;|&nbsp;
-    Not matched: {{ (crime_result.get('match_results', []) | length) - crime_result.get('match_count', 0) }}
-  </div>
-</div>
 {% else %}
-<div class="panel"><p class="muted">Crime scan could not be completed (check API key).</p></div>
-{% endif %}
-
-{% if benchmark %}
 <div class="panel">
-  <h2>Benchmark</h2>
-  <table>
-    {% for f in benchmark.get('findings', []) %}
-    <tr>
-      <th>{{ f.get('rule_id', '') }}</th>
-      <td style="color:{{ '#b91c1c' if f.get('failed') else '#1a7a3f' }}; font-weight:600">
-        {{ 'FAILED' if f.get('failed') else 'OK' }}
-      </td>
-      <td>{{ f.get('detail', '') }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  <p class="muted" style="margin:0">This assessment was saved before the combined verdict. Run the assessment
+  again to get one verdict with its reasons.</p>
 </div>
-{% else %}
-<div class="panel"><p class="muted">Benchmark could not be completed.</p></div>
-{% endif %}
-
-{% if forecast %}
-<div class="panel">
-  <h2>Forecasting Onboarding &nbsp;
-    <span style="font-size:1rem; font-weight:700; color:{{ COLORS.get(forecast.get('outcome',''), '#333') }}">
-      {{ (forecast.get('outcome') or '').replace('_', ' ') }}
-    </span>
-  </h2>
-  <p>{{ forecast.get('routing', '') }}</p>
-  <table>
-    {% for f in forecast.get('findings', []) %}
-    <tr>
-      <th>{{ f.get('rule_id', '') }}</th>
-      <td style="color:{{ '#b91c1c' if f.get('failed') else '#1a7a3f' }}; font-weight:600">
-        {{ 'FAILED' if f.get('failed') else 'OK' }}
-      </td>
-      <td>{{ f.get('detail', '') }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
-{% else %}
-<div class="panel"><p class="muted">Forecasting could not be completed.</p></div>
 {% endif %}
 {% endblock %}
 """
@@ -1670,11 +1436,11 @@ ASSESSMENTS = """{% extends "base.html" %}
       <th style="width:auto"></th>
     </tr>
     {% for a in assessments %}
-    {% set outcome = (a.get('assessment') or {}).get('outcome', '') %}
+    {% set outcome = a.get('outcome') or (a.get('assessment') or {}).get('outcome', '') %}
     <tr>
       <td>{{ a.get('client_ref', '') }}</td>
       <td>{{ (a.get('assessed_at') or a.get('assessment', {}).get('assessed_on', ''))[:10] }}</td>
-      <td>{{ a.get('kind', 'crime scan + benchmark') }}</td>
+      <td>{{ 'combined assessment' if a.get('verdict') else a.get('kind', 'crime scan + benchmark') }}</td>
       <td>{{ outcome.replace('_', ' ') if outcome else '—' }}</td>
       <td style="display:flex; gap:10px">
         <a href="{{ url_for('view_client', client_ref=a.get('client_ref', '')) }}">Open client</a>
@@ -1697,7 +1463,7 @@ ASSESS_LOADING = """{% extends "base.html" %}
   <span class="muted" style="font-size:1rem">{{ record.get('client_ref', '') }}</span>
 </h1>
 <div class="panel">
-  <p style="color:var(--muted); margin:0 0 18px">The assessment is running in the background. This usually takes 20–60 seconds.</p>
+  <p style="color:var(--muted); margin:0 0 18px">The crime scan, forecast and benchmark run together as one assessment in the background. A first run can take a few minutes; saved AI replies make reruns quick.</p>
   <ol id="step-list" style="list-style:none; padding:0; margin:0">
     {% for s in ASSESS_STEPS %}
     <li id="step-{{ loop.index }}" style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line)">

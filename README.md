@@ -12,20 +12,51 @@ After the Monetary Authority of Singapore fined nine banks a combined S$27.45 mi
 
 ## How It Works
 
+The crime scan, the forecast and the benchmark run as **one assessment** and give **one verdict**
+(`PASSED`, `MANUAL_REVIEW`, `RISKY` or `SERIOUS_RISK`) with the reasons behind it. The AI only
+gathers evidence; `logic_manager` makes every decision with fixed rules from `config/policy.json`.
+
+All three features test the same set of "possible stories" for the client, the forecast's
+**person types**: T1 is the honest story (his wealth came exactly as declared), T2+ are crime stories.
+
+| Feature | The question it answers about each story |
+|---|---|
+| Crime scan | Is this crime story a known pattern for his industry (FATF / MAS reports), and did its warning signs fire in his declaration? |
+| Forecast | Could the money add up under this story, given his pay, his assets and the economy? |
+| Benchmark | Is he unusual next to peers in the same economy, and does the honest story explain it? |
+| Documents | Do his own documents (bank statements, tax notices, company records, ...) agree with what he declared? |
+
 ```
-User → io_manager → ai_manager → logic_manager → data_manager
+ 1     Documents            every supporting document is read: what they SHOW, with the file each fact
+                            came from (the documents layer), kept apart from what he DECLARED
+ 2-5   Crime scan context   research reports -> verified -> sector typologies (each with a crime category)
+ 6-10  Forecast             declaration (read ONCE, shared with the crime scan) -> economy ->
+                            pay + assets -> person types BUILT FROM the typologies -> behaviour + events;
+                            pay is then set to what his tax notices / employment letter show
+ 11    Benchmark            peers in the same economy (the forecast's markets go to the benchmark AI)
+ 12    Test every story     warning signs per person type; each benchmark failure cross-checked
+                            against the forecast ("explained" failures don't count); forecast checks;
+                            documents vs declaration (undeclared companies, income, accounts, ...)
+ 13    ONE verdict          logic_manager.combined_verdict -> logic_manager.verdict_report
 ```
 
-The system makes **two AI calls per case**, then applies **rule-based scoring** — the AI never decides the outcome:
+**Serious Risk needs two features to agree:** either the honest story can't explain his wealth, a
+crime story can, AND that story's warning signs fired, his documents support it, or a benchmark
+failure the forecast can't explain points the same way; or his documents contradict his declaration
+in several ways AND another feature agrees. A PEP, or any part that couldn't run, is at least Manual Review.
 
-| Call | Input | Output |
-|---|---|---|
-| Call 1 — Benchmark | Career fields only (occupation, industry, age, career start year, country) | Expected wealth curve, income range, asset mix, sector typologies |
-| Call 2 — Declaration reading | Free-text Source of Wealth declaration | Structured wealth-source rows |
+The client record stays the standard form (what he declared); the documents fill any field the
+declaration leaves empty, and the officer is only asked for what no document contains.
 
-`logic_manager` then compares the client's declared figures against the benchmark and applies policy thresholds to determine an outcome (`PASSED`, `MANUAL_REVIEW`, `RISKY`, or `SERIOUS_RISK`).
+The command line (menu options 1, 2, 4) and the web app (Run Assessment) call the same function,
+`main.run_combined_assessment`, and show the same report: the verdict, next step and next review
+date; why; where the checks agree; the benchmark, forecast and crime findings; the documents to
+request; what came back clean. The full evidence is one step away: the command line asks
+"Show the full evidence?", the web page keeps it collapsed.
 
-**The AI never sees declared net worth, AUM, asset composition, or PEP status.** This boundary is enforced in code.
+**The benchmark AI never sees the client's declared figures** (net worth, AUM, asset split): it
+gets only the allowlisted career fields plus the economy (market % changes and country risk
+listings) from the forecast.
 
 ---
 
@@ -94,7 +125,23 @@ python -m app.web_app        # then open http://127.0.0.1:5000
 
 The uploaded files are kept as the client's supporting documents when you save.
 
-How it works: `data_manager.read_document_for_extraction` reads each file's text (or keeps images and scanned PDFs as they are), `ai_manager.extract_client_details` sends them to the AI with `app/prompts/document_extract.txt` and checks the reply against `app/schemas/document_extract.schema.json`, and `web_app.fill_blanks` merges the result into the form.
+The command line does the same through menu option **2. New Client from Documents** (point it at a folder of documents).
+
+How it works — the web app and the command line share every step, so the same documents always give the same client:
+
+1. `data_manager.read_document_for_extraction` reads each file's text (or keeps images and scanned PDFs as they are).
+2. `ai_manager.extract_client_details` sends them to the AI with `app/prompts/document_extract.txt` and checks the reply against `app/schemas/document_extract.schema.json`.
+3. `logic_manager.record_from_documents` turns the reply into a client record (the web app then shows it in the form, and `web_app.fill_blanks` only fills empty boxes).
+4. `logic_manager.check_document_record` lists things worth a second look, shown with the AI's notes.
+
+The form records what the client **declares** (from the KYC / declaration form). Anything the other documents show that the client did not declare — an offshore company, unexplained payments, a purchase funded differently — is not added to the form; it appears in the **Notes** as "Not declared:", "Conflict:" or "Check:".
+
+Every AI call (document reading, research, typologies, forecast, benchmark) uses the ONE model set
+as `OPENAI_MODEL` in `.env` (see `.env.example`). `FORECAST_WEB_SEARCH=on` lets the forecast check
+market figures online. If the AI can't describe one asset sensibly even after the system repairs its
+answer, that asset is held at its purchase price and the report says so; the rest still runs.
+
+`tests/documents/marcus_lim/` holds a specimen set of documents, and `tests/test_document_parity.py` checks that both routes save the same client from them.
 
 > **Privacy note:** this sends the full document contents — including declared figures — to the AI provider. This is separate from the benchmark call, whose allowlist (see `CLAUDE.md`) is unchanged. Only use synthetic documents.
 

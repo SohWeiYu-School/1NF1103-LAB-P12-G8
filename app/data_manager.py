@@ -36,6 +36,7 @@ from pymongo.errors import PyMongoError
 from gridfs import GridFS
 from datetime import datetime, timezone
 import shutil
+import tempfile
 import hashlib
 
 from app import utilities
@@ -159,48 +160,52 @@ def get_assessment_collection():
 # ==============================================================================
 
 def save_case_record(record: dict) -> bool:
-    # Save or update a client record strictly in local sow_cases.json
-    return save_to_json(record, LOCAL_CASES_JSON)
+    # Save or update a client record strictly in local sow_cases.json, always in the current layout
+    return save_to_json(standardise_record(record), LOCAL_CASES_JSON)
+
+
+# Older command-line records used other names for these asset values. The web app, the documents
+# auto-fill and the forecasting all use the names on the left.
+OLD_ASSET_KEYS = {"current_declared_value": "current_value", "income_produced": "yearly_income"}
+
+
+def standardise_record(record: dict) -> dict:
+    """Bring a client record saved in an older layout up to the one layout every screen uses:
+    asset values as current_declared_value / income_produced, and the asset's description
+    folded into asset_type ("Property - Condo"). Records already in that layout are unchanged."""
+    if not isinstance(record, dict):
+        return record
+    for asset in record.get("investments") or []:
+        if not isinstance(asset, dict):
+            continue
+        for new, old in OLD_ASSET_KEYS.items():
+            if asset.get(new) is None and old in asset:
+                asset[new] = asset[old]
+            asset.pop(old, None)
+        description = str(asset.pop("asset_description", None) or asset.pop("description", None) or "").strip()
+        kind = str(asset.get("asset_type") or "").strip()
+        if description and description.lower() not in kind.lower():
+            asset["asset_type"] = f"{kind} - {description}" if kind else description
+    return record
 
 
 def load_local_records() -> list:
-    # Local sow_cases.json only (this is what Manual Sync uploads)
-    return load_from_json(LOCAL_CASES_JSON)
-
-
-def load_mongo_records() -> list:
-    # Every client archived in MongoDB. Returns [] if offline.
-    try:
-        coll = get_collection()
-        if coll is None:
-            return []
-        return list(coll.find({}, {"_id": 0}))   # drop _id: ObjectId can't be saved to JSON
-    except Exception:
-        return []
+    # Local sow_cases.json only (this is what Manual Sync uploads), in the current layout
+    return [standardise_record(record) for record in load_from_json(LOCAL_CASES_JSON)]
 
 
 def load_all_records() -> list:
-    # Local clients first, plus any archived in MongoDB that aren't local
-    records = load_local_records()
-    local_refs = {r.get("client_ref") for r in records}
-    for record in load_mongo_records():
-        if record.get("client_ref") not in local_refs:
-            records.append(record)
-    return records
+    # Every client, from the local sow_cases.json only. MongoDB is a backup that Manual Sync
+    # writes to; the app never reads clients back from it.
+    return load_local_records()
 
 
 def find_client_record(client_ref: str) -> dict | None:
-    # Local first (case-insensitive), then MongoDB
+    # One client from the local sow_cases.json (case-insensitive), or None
     wanted = client_ref.strip().upper()
     for record in load_local_records():
         if str(record.get("client_ref", "")).upper() == wanted:
             return record
-    try:
-        coll = get_collection()
-        if coll is not None:
-            return coll.find_one({"client_ref": wanted}, {"_id": 0})
-    except Exception:
-        pass
     return None
 
 
@@ -237,27 +242,18 @@ def load_local_assessments() -> list:
 
 
 def load_all_assessments() -> list:
-    # Local assessments plus any archived in MongoDB that aren't local
-    records = load_local_assessments()
-    local_ids = {r.get("assessment_id") for r in records if r.get("assessment_id")}
-    try:
-        coll = get_assessment_collection()
-        if coll is not None:
-            for record in coll.find({}, {"_id": 0}):
-                if record.get("assessment_id") not in local_ids:
-                    records.append(record)
-    except Exception:
-        pass
-    return records
+    # Every saved assessment, from the local ai_assessments.json only (never from MongoDB)
+    return load_local_assessments()
+
 
 def query_assessments(assessments: list, outcome: str = None) -> list:
     # Filter a list of assessments by an outcome status string
     if not outcome:
         return assessments
-    return [
-        a for a in assessments
-        if a.get("outcome") == outcome or a.get("assessment", {}).get("outcome") == outcome
-    ]
+    # A combined assessment's outcome is its one verdict; older records only have the forecast's
+    def outcome_of(a: dict):
+        return a.get("outcome") or (a.get("assessment") or {}).get("outcome")
+    return [a for a in assessments if outcome_of(a) == outcome]
 
 def mongo_is_online() -> bool:
     try:
@@ -491,29 +487,39 @@ def upload_supporting_document(file_path: str):
 
 
 def download_supporting_document(file_id: str, output_path: str) -> bool:
-    """file_id is either a local relative path (before sync) or a GridFS id (after sync)."""
+    """Copy a supporting document from its local copy in data/documents/ (never from MongoDB).
+    file_id is the local path saved with the client."""
     if not file_id:
         return False
     local = os.path.join(utilities.ROOT_DIR, file_id)
-    if os.path.exists(local):
-        try:
-            shutil.copy2(local, output_path)
-            return True
-        except OSError:
-            return False
-    if not ObjectId.is_valid(file_id):
+    if not os.path.isfile(local):
         return False
     try:
-        coll = get_collection()
-        if coll is None:
-            return False
-        gridfs_file = GridFS(coll.database).get(ObjectId(file_id))
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        with open(output_path, "wb") as file:
-            file.write(gridfs_file.read())
+        shutil.copy2(local, output_path)
         return True
-    except Exception:
+    except OSError:
         return False
+
+
+def read_supporting_documents(entries: list[dict] | None) -> list[dict]:
+    """Read every supporting document saved with a client, the same way the auto-fill reads
+    uploads (read_document_for_extraction), under the file name the officer uploaded it as.
+    Reads the local copies only."""
+    read = []
+    for entry in entries or []:
+        file_id = entry.get("file_path") or entry.get("file_id")     # the local copy first
+        name = os.path.basename(str(entry.get("file_name") or file_id or "document"))
+        folder = tempfile.mkdtemp()
+        try:
+            path = os.path.join(folder, name)
+            if download_supporting_document(str(file_id or ""), path):
+                read.append(read_document_for_extraction(path, name))
+            else:
+                read.append({"file_name": name, "kind": "error", "error": f"{name}: the saved copy couldn't be found."})
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+    return read
 
 
 # Compatibility stub functions required by main.py

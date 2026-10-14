@@ -154,8 +154,15 @@ def forecast_settings() -> dict:
     Free-text wrappers, so the model treats the text as data, not instructions:
         declaration_markers    [open, close] around the client's declaration
         notes_markers          [open, close] around the officer's review notes
+
+    FORECAST_WEB_SEARCH=on/off in .env overrides web_search, so market figures can be checked
+    online without editing policy.json.
     """
-    return policy()["forecasting"]
+    settings = dict(policy()["forecasting"])
+    switch = env_switch("FORECAST_WEB_SEARCH")
+    if switch is not None:
+        settings["web_search"] = switch
+    return settings
 
 
 # ---------------------------------------------------------------------------
@@ -221,9 +228,27 @@ def load_forecast_schema(name: str) -> dict:
 # OpenAI client and model config
 # ---------------------------------------------------------------------------
 
+_clients: dict = {}
+
+
 def client() -> OpenAI:
+    """One shared OpenAI client per API key. Making a new one for every call left the old ones to be
+    closed by the garbage collector at random moments - sometimes in the middle of writing a log line,
+    which printed "--- Logging error --- reentrant call" to the console."""
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
-    return OpenAI(api_key=api_key)
+    if api_key not in _clients:
+        _clients[api_key] = OpenAI(api_key=api_key)
+    return _clients[api_key]
+
+
+# Network libraries that log every connection step at DEBUG level
+NOISY_LOGGERS = ("httpx", "httpcore", "httpx2", "httpcore2", "openai", "urllib3", "google_genai", "hpack")
+
+
+def quiet_library_logs() -> None:
+    """Keep the network libraries' step-by-step DEBUG lines out of logs/app.log (warnings still go in)."""
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def has_api_key() -> bool:
@@ -231,17 +256,37 @@ def has_api_key() -> bool:
     return bool(os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY"))
 
 
+# ONE model for every AI call (document reading, research, typologies, forecast, benchmark),
+# so every part of the assessment reasons at the same level. Set it in .env as OPENAI_MODEL.
+DEFAULT_MODEL = "gpt-4o-mini"
+
+
 def model() -> str:
-    return os.getenv("OPENAI_MODEL")
+    return os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
 
 
+# Kept so older code and tests that ask for a "research", "extract" or "forecast" model still
+# work - they all get the one model.
 def research_model() -> str:
-    return os.getenv("OPENAI_RESEARCH_MODEL")
+    return model()
+
+
+def extract_model() -> str:
+    return model()
 
 
 def forecast_model() -> str:
-    """OPENAI_FORECAST_MODEL if set, otherwise the model every other section uses."""
-    return os.getenv("OPENAI_FORECAST_MODEL") or model()
+    return model()
+
+
+def env_switch(name: str) -> bool | None:
+    """An on/off setting from .env: on/true/yes/1 -> True, off/false/no/0 -> False, unset -> None."""
+    value = str(os.getenv(name) or "").strip().lower()
+    if value in ("on", "true", "yes", "1"):
+        return True
+    if value in ("off", "false", "no", "0"):
+        return False
+    return None
 
 
 # ---------------------------------------------------------------------------
